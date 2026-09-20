@@ -200,6 +200,19 @@ def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str
         end = next((i for i in range(start + 1, len(lines)) if lines[i] and not lines[i].startswith((" ", "#"))), len(lines))
         block = lines[start + 1:end]
         key = next((i for i, line in enumerate(block) if re.match(r"^  enabled:\s*(\[\s*\])?\s*$", line)), None)
+        # New entries copy the indentation of the entries already in the list. Hermes
+        # writes `plugins.enabled` items with four spaces; inserting two-space ones
+        # beside them makes YAML fold the old items into the line above, so every
+        # plugin that was enabled before the install silently leaves the list.
+        def _item_indent(lines_, after=None):
+            for i, line in enumerate(lines_):
+                if after is not None and i <= after:
+                    continue
+                match = re.match(r"^(\s*)-\s", line)
+                if match:
+                    return match.group(1)
+            return None
+        indent = _item_indent(block, key) or _item_indent(block) or "  "
         # Every plugin goes in at the same spot, so walking the names backwards leaves
         # them alphabetical in the file.
         for name in sorted(names, reverse=True):
@@ -213,7 +226,7 @@ def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str
                     block.insert(0, "  enabled:")
                     key = 0
                 block[key] = "  enabled:"          # turns `enabled: []` into a block list
-                block.insert(key + 1, f"  - {name}")
+                block.insert(key + 1, f"{indent}- {name}")
                 status[name] = "enabled"
             else:
                 if not present:

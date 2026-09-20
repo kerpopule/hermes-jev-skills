@@ -89,6 +89,34 @@ class ConfigEditTests(unittest.TestCase):
             install.enable_plugins(config, install.PLUGINS, True)
             self.assertEqual(config.read_text(), f"other: 1\nplugins:\n  enabled:\n{listed}")
 
+    def test_deeper_item_indent_is_matched(self):
+        """A four-space list must not receive two-space entries.
+
+        Hermes writes `plugins.enabled` items with four spaces. Mixing indents inside
+        one block makes YAML fold the deeper lines into the line above them, so every
+        plugin already in the list silently leaves it and nothing raises.
+        """
+        config = """model:
+  default: some/model
+plugins:
+  disabled: []
+  enabled:
+    - api2tg
+    - hermes_otel
+    - ponytail
+security:
+  redact_secrets: true
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.yaml"
+            path.write_text(config)
+            install.enable_plugins(path, install.PLUGINS, True)
+            out = path.read_text()
+            items = sorted(l.strip()[2:] for l in out.splitlines() if l.lstrip().startswith("- "))
+            self.assertEqual(items, sorted(list(install.PLUGINS) + ["api2tg", "hermes_otel", "ponytail"]))
+            indents = {len(l) - len(l.lstrip(" ")) for l in out.splitlines() if l.lstrip().startswith("- ")}
+            self.assertEqual(len(indents), 1, out)
+
 
 class HermesInstallTests(unittest.TestCase):
     def _fleet(self, tmp):
