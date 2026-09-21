@@ -13,6 +13,7 @@ provides_tools:
   - jev_memory_filter
   - jev_compact_select
   - jev_choose_action
+  - jev_search
 provides_hooks:
   - pre_llm_call
   - transform_llm_output

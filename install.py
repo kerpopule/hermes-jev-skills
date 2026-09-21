@@ -199,7 +199,34 @@ def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str
     if start is not None:
         end = next((i for i in range(start + 1, len(lines)) if lines[i] and not lines[i].startswith((" ", "#"))), len(lines))
         block = lines[start + 1:end]
-        key = next((i for i, line in enumerate(block) if re.match(r"^  enabled:\s*(\[\s*\])?\s*$", line)), None)
+        key = next((i for i, line in enumerate(block) if re.match(r"^\s*enabled:\s*(\[\s*\])?\s*$", line)), None)
+        # ── 2026-09-21 修 #8: 缩进必须跟随文件已有格式 ──
+        # 原实现硬编码 2 空格（"  enabled:" / "  - name"），遇到 Hermes 默认 4 空格
+        # 列表项（`    - hermes-lcm`）时，新项以 2 空格插入在它前面，YAML 把后一行
+        # 解析成前一字符串的续行 → `- hermes-jev - hermes-lcm`，原插件静默失效。
+        _key_line = block[key] if key is not None else None
+        _items = [l for l in block if re.match(r"^\s*-\s*\S", l)]
+        key_indent = "  "
+        item_indent = "    "
+        # ── 2026-09-21 修 flow-style: `enabled: ['a', 'b']` 不匹配上面的正则，
+        # key 会是 None → 走插入分支 → 造出重复 key（新项静默失效）。
+        # 先把它规范化成 block list（保留原项），再走统一逻辑。
+        if key is None:
+            _flow = next((i for i, line in enumerate(block)
+                          if re.match(r"^\s*enabled:\s*\[.+\]\s*$", line)), None)
+            if _flow is not None:
+                _fl = re.match(r"^(\s*)enabled:", block[_flow]).group(1)
+                key_indent = _fl
+                item_indent = _fl + "  "
+                _raw = re.match(r"^\s*enabled:\s*\[(.*)\]\s*$", block[_flow]).group(1)
+                _vals = [x.strip().strip("'\"") for x in _raw.split(",") if x.strip()]
+                block[_flow] = f"{key_indent}enabled:"
+                for _j, _x in enumerate(_vals):
+                    block.insert(_flow + 1 + _j, f"{item_indent}- {_x}")
+                key = _flow
+        else:
+            key_indent = re.match(r"^(\s*)", _key_line).group(1)
+            item_indent = (re.match(r"^(\s*)", _items[0]).group(1) if _items else key_indent + "  ")
         # Every plugin goes in at the same spot, so walking the names backwards leaves
         # them alphabetical in the file.
         for name in sorted(names, reverse=True):
@@ -210,10 +237,10 @@ def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str
                     status[name] = "already enabled"
                     continue
                 if key is None:
-                    block.insert(0, "  enabled:")
+                    block.insert(0, f"{key_indent}enabled:")
                     key = 0
-                block[key] = "  enabled:"          # turns `enabled: []` into a block list
-                block.insert(key + 1, f"  - {name}")
+                block[key] = f"{key_indent}enabled:"          # turns `enabled: []` into a block list
+                block.insert(key + 1, f"{item_indent}- {name}")
                 status[name] = "enabled"
             else:
                 if not present:
