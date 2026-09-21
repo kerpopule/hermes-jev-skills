@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -26,6 +27,42 @@ plugins:
 security:
   redact_secrets: true
 """
+
+
+def parse_plugin_list(text):
+    """Read ``plugins.enabled`` out of a config as the YAML parser would see it.
+
+    Deliberately not ``yaml.safe_load``: this repo keeps a no-dependencies promise and
+    PyYAML is only a dashboard extra. The one YAML rule the installer's text edit can
+    break is sequence indentation, so that is what this reads — items must share the
+    indent of the first item, and a line indented deeper belongs to the item above it.
+    Returns the list of names, or None when the key is absent.
+    """
+    lines = text.split("\n")
+    start = next((i for i, line in enumerate(lines) if line.rstrip() == "plugins:"), None)
+    if start is None:
+        return None
+    end = next((i for i in range(start + 1, len(lines))
+                if lines[i] and not lines[i].startswith((" ", "#"))), len(lines))
+    block = lines[start + 1:end]
+    key = next((i for i, line in enumerate(block)
+                if re.match(r"^  enabled:\s*(\[\s*\])?\s*$", line)), None)
+    if key is None:
+        return None
+    items = []
+    base_indent = None
+    for line in block[key + 1:]:
+        stripped = line.lstrip()
+        if not stripped.startswith("- "):
+            continue                      # a comment, or another key: not an item
+        indent = len(line) - len(stripped)
+        if base_indent is None:
+            base_indent = indent
+        if indent != base_indent:         # folded into the previous scalar by YAML
+            items[-1] = items[-1] + " " + line.strip()
+            continue
+        items.append(stripped[2:].strip().strip("'\""))
+    return items
 
 
 def run_installer(argv, home, path="/usr/bin:/bin", hermes_home=None):
@@ -88,6 +125,38 @@ class ConfigEditTests(unittest.TestCase):
             config.write_text("other: 1\n")
             install.enable_plugins(config, install.PLUGINS, True)
             self.assertEqual(config.read_text(), f"other: 1\nplugins:\n  enabled:\n{listed}")
+
+    def test_an_indented_list_keeps_its_own_indent(self):
+        """A config whose items are indented deeper than 2 spaces must not be mangled.
+
+        YAML reads a sequence whose items disagree on indentation as ONE scalar with the
+        deeper items folded into it, so emitting `  - name` into a list written as
+        `    - name` silently drops every plugin already in it — no error, no warning,
+        just a shorter list. Asserted on the parsed list, never on the text: the two
+        forms are nearly identical in a diff, which is how this shipped.
+        """
+        body = "plugins:\n  enabled:\n    - coagent-observer\n    - other-plugin\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.yaml"
+            config.write_text(body)
+            install.enable_plugins(config, install.PLUGINS, True)
+            enabled = parse_plugin_list(config.read_text())
+            self.assertIsNotNone(enabled)
+            for name in ("coagent-observer", "other-plugin", *install.PLUGINS):
+                self.assertIn(name, enabled)
+            self.assertEqual(len(enabled), 4)
+
+    def test_a_2_space_list_still_round_trips(self):
+        """The originally supported shape keeps working — the fix follows, not replaces."""
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.yaml"
+            config.write_text(CONFIG)
+            install.enable_plugins(config, install.PLUGINS, True)
+            enabled = parse_plugin_list(config.read_text())
+            self.assertIsNotNone(enabled)
+            for name in ("coagent-observer", *install.PLUGINS):
+                self.assertIn(name, enabled)
+            self.assertEqual(len(enabled), 1 + len(install.PLUGINS))
 
 
 class HermesInstallTests(unittest.TestCase):

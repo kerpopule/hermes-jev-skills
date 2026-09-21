@@ -200,6 +200,16 @@ def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str
         end = next((i for i in range(start + 1, len(lines)) if lines[i] and not lines[i].startswith((" ", "#"))), len(lines))
         block = lines[start + 1:end]
         key = next((i for i, line in enumerate(block) if re.match(r"^  enabled:\s*(\[\s*\])?\s*$", line)), None)
+        # Follow the indentation the list already uses. A list whose items are indented
+        # one way and a new item indented another is not two list entries to YAML — it is
+        # one scalar with the second item folded into it, which silently drops every
+        # existing plugin. So: if any item is present, copy its indent; only fall back to
+        # the 2-space default when the list is empty.
+        existing_item = next((line for line in block if re.match(r"^\s*-\s*\S", line)), None)
+        if existing_item is not None:
+            item_indent = existing_item[: len(existing_item) - len(existing_item.lstrip())]
+        else:
+            item_indent = "  "
         # Every plugin goes in at the same spot, so walking the names backwards leaves
         # them alphabetical in the file.
         for name in sorted(names, reverse=True):
@@ -213,7 +223,7 @@ def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str
                     block.insert(0, "  enabled:")
                     key = 0
                 block[key] = "  enabled:"          # turns `enabled: []` into a block list
-                block.insert(key + 1, f"  - {name}")
+                block.insert(key + 1, f"{item_indent}- {name}")
                 status[name] = "enabled"
             else:
                 if not present:
