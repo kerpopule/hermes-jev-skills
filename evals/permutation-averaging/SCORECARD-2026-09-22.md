@@ -98,7 +98,14 @@ Bar failed on both legs of the comparison (spurious 4 is not fewer than 4).
 
 `choose` keeps its native `confidence` and the 0.65 floor; skillpick's stage 1 keeps
 discovery order. The pijev package itself remains reference-only (day-zero third-party,
-confidence semantics silently changed — see the audit in session history, 2026-09-22).
+confidence semantics silently changed — audit in the appendix below).
+
+**Why condition 2 was not priced separately (2026-09-22, decided on the evidence in hand):**
+a disagreement-shrinking confidence has nothing to shrink on — the trap's wrong answer was
+unanimous 9-0 in two of three repeats — and any magnitude-based threshold is a recalibrated
+floor under new semantics: mean-probability confidence with a floor anywhere in 0.55-0.90
+reproduces today's 23/1/7/0 exactly (the table above), i.e. today's behavior at 3x the
+questions. No live calls needed to close it.
 
 **What would reopen this:**
 
@@ -116,3 +123,23 @@ confidence semantics silently changed — see the audit in session history, 2026
 `tests/test_permutation_averaging_eval.py` pins the replay math and the measured failure on
 the recorded trap numbers (0.698, 0.740, the 2-of-9 pair-luck flip), so the story survives
 even when /tmp does not.
+
+## Appendix: the `TypeLLM/pijev` audit that started this (2026-09-22)
+
+- **What it is:** `github.com/TypeLLM/pijev`, "Permutation Invariant Jev" — ~178 lines
+  wrapping `typesafe-sdk`, expanding each Choice into sampled option-order permutations in
+  one `system_one` request and averaging the vectors. PyPI `pijev` 0.1.0, Apache-2.0,
+  created 2026-09-22 (day zero at audit time), 19 stars.
+- **Verified:** license consistent (GitHub field = root LICENSE = README); no installer, no
+  `curl | bash`, no global writes, no Hermes/profile/cron paths; examples read
+  `TYPESAFE_API_KEY` from env or gitignored `.env` and never print it; the odd
+  `import httpx2` is legitimate (`typesafe-sdk` itself depends on `httpx2>=2.0.0`); README
+  claims match the code, and its own experiment page admits its 20-point swing does not
+  isolate option order.
+- **Risks:** day-zero third-party pinning `typesafe-sdk>=0.7.1,<0.8` while importing SDK
+  surfaces loosely; `confidence` silently becomes the winner's mean probability (this is
+  the swap priced above); per-Choice `Random(seed)` re-seeding correlates permutation
+  samples across same-sized Choices.
+- **Recommendation (then and now): reference-only, do not install.** Anything that changes
+  Jev behavior in this fleet lives in this repo with these tests — the trick was worth
+  measuring, and measuring it answered the question without adopting the package.
