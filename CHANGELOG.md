@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+**A reply that contradicts itself is refused, not averaged**
+
+- `client.ask` now enforces the rules every other validator of this API already enforces —
+  jev-mcp's `validateChoiceAnswer` / `validateScoreAnswer` and jev-ultrafast's `validate_choice`: a
+  Choice's probabilities cover **exactly** the options offered and sum to 1, the chosen option is
+  tied for the maximum, and a Score agrees with its own per-level distribution. Tolerances are
+  taken from jev-mcp (`PROBABILITY_SUM_TOLERANCE = 0.01 + 1e-12`, `SCORE_MEAN_TOLERANCE =
+  0.02 + 1e-12`) rather than invented here.
+- A refusal is typed `invalid_response`, with `error.invariant` naming the rule that fired, so a log
+  or a counter can tell "the wire broke" (`malformed`) from "the model contradicted itself". Every
+  caller keeps the fail-open path it already had; no feature needed a new branch.
+- This closes a shape that reached `mailbox.py` in production: `probabilities: {}` was accepted and
+  read as a runner-up gap of 1.0 — no evidence at all, reported as maximal confidence.
+- Score answers now carry their `legend` (filtered to the rubric) and a `spread_reported` flag, so a
+  gate that needs a trustworthy spread can see when nothing was cross-checked instead of averaging
+  over an absent one.
+- Measured before shipping. Three live calls with a six-option choice and a five-level rubric came
+  back with every key present, mass exactly 1.0, the choice at the maximum, and a legend matching
+  the labels sent; a live smoke of `route` (easy → simple, hard → hard), `triage` and
+  `compact-select` produced **0 refusals**. Every fake transport in `tests/` that described a
+  partial or under-summed distribution was describing a reply the API cannot send, and now builds
+  well-formed answers through `tests/_wire.py`.
+- Left under **Unreleased** on purpose: `tests/test_version_sync.py` requires a version to have a
+  dated release section, and cutting 0.19.1 here would have shipped the two entries below it as
+  part of a release nobody asked for. Move this block under `## 0.19.1 (<date>)` and bump both
+  version files when the release is actually cut.
+
 **A question that states one requirement answers one thing**
 
 - A vendor running Jev in production reported their largest accuracy jump came from one

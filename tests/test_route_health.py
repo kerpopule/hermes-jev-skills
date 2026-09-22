@@ -23,6 +23,10 @@ sys.path.insert(0, str(REPO))
 
 from jevkit import cli, keystore, ladder, route  # noqa: E402
 
+# Well-formed wire answers (complete distributions that sum to one) live in one place, so a
+# fake here cannot accidentally describe a reply the API cannot produce.
+from _wire import choice_answer, score_answer  # noqa: E402
+
 # Loaded under its own name so the patches here and the ones in test_plugin_middleware.py
 # land on different module objects and cannot undo each other.
 PLUGIN = REPO / "hermes" / "plugin" / "hermes-jev"
@@ -57,12 +61,11 @@ def jev(level, kind="general", stakes=0.05):
         request = json.loads(body)
         calls.append(request)
         answers = {}
-        for name in request["questions"]:
+        for name, question in request["questions"].items():
             if name == "difficulty":
-                answers[name] = {"type": "score", "score": float(level), "confidence": 0.95,
-                                 "probabilities": {str(level): 1.0}}
+                answers[name] = score_answer(question, level, confidence=0.95)
             elif name == "kind":
-                answers[name] = {"type": "choice", "choice": kind, "confidence": 0.9, "probabilities": {kind: 0.9}}
+                answers[name] = choice_answer(question, kind, confidence=0.9)
             else:
                 answers[name] = {"type": "noul", "noul": stakes}
         return json.dumps({"model": "jev-test", "answers": answers, "usage": {"input_tokens": 1}}).encode()

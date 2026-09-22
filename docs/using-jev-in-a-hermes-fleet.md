@@ -26,6 +26,10 @@ Fail-open is not a bypass, and the difference matters:
 - A fail-open answer is **exactly what the agent would have done without Jev** — routing keeps the
   current model, memory returns the original list, compaction drops nothing, skill selection
   suggests nothing, and GUI and browser use return `reobserve`.
+- An answer that contradicts itself is a failure, not a reading: a Choice whose probabilities do not
+  cover exactly the options offered, a chosen option that is not the maximum, a Score that disagrees
+  with its own distribution — `client.ask` refuses these as `invalid_response` and the feature takes
+  its fail-open path. The reply parses; the answer is what is unusable.
 - A bypass is the agent choosing something itself that Jev could have chosen. That is the thing
   the rule forbids, and a fail-open path is never cover for it.
 

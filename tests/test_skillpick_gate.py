@@ -63,7 +63,8 @@ class FakeJev:
                 self.stage_one.append(offered)
             if self.fail_batch_offering in offered:
                 raise client.JevError("credits_exhausted")      # not retryable, so the test does not sleep
-            scores = {f"S{i}": p for i, p in self.shortlist.items() if f"S{i}" in offered}
+            scores = {key: float(self.shortlist.get(key, self.shortlist.get(int(key[1:]), 0.0)))
+                      for key in offered if key != "none"}
             scores["none"] = max(0.0, 1.0 - sum(scores.values()))
             best = max(scores, key=lambda key: scores[key])
             answers = {"pick": {"type": "choice", "choice": best, "confidence": scores[best], "probabilities": scores}}

@@ -17,6 +17,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from jevkit import (choose, client, compact, key_setup, keystore, ladder, privacy,  # noqa: E402
                     rerank, replay, route, skillpick, spend, supervise, triage)
 
+# Well-formed wire answers (complete distributions that sum to one) live in one place, so a
+# fake here cannot accidentally describe a reply the API cannot produce.
+from _wire import choice_answer  # noqa: E402
+
 KEY = "apikey_" + "a1" * 30
 
 # The suite must behave the same on a machine with a real key and on one with none,
@@ -50,8 +54,7 @@ def choice_of(picked, confidence=0.95):
     def answer(name, question, state):
         if question["type"] == "choice":
             pick = picked(name, question) if callable(picked) else picked
-            return {"type": "choice", "choice": pick, "confidence": confidence,
-                    "probabilities": {k: (0.9 if k == pick else 0.0) for k in question["criteria"]}}
+            return choice_answer(question, str(pick), confidence=confidence)
         if question["type"] == "score":
             return {"type": "score", "score": 0.0, "confidence": confidence}
         return {"type": "noul", "noul": 0.0}
@@ -110,6 +113,150 @@ class ClientTests(unittest.TestCase):
             with self.assertRaises(client.JevError) as caught:
                 client.ask("s", {"q": client.noul("x")})
         self.assertEqual(caught.exception.code, "no_key")
+
+
+class WireContractTests(unittest.TestCase):
+    """A reply that parses but contradicts itself is refused, and the refusal says which rule fired.
+
+    Every shape below used to be *read as an answer*: a choice could arrive with no probabilities
+    at all (`probabilities: {}`, which mailbox.py read as maximal confidence and later had to
+    defend against), a choice could disagree with its own ranking, and a score could contradict
+    the distribution printed next to it — a flat, confidence-0.0 spread that averaged to 2.73 was
+    filed at level 4 of 5 by rounding. The rules are in `client._distribution` and
+    `client._check_answer`; the shapes are copied from the live wire (api.typesafe.ai, jev-1.13.0,
+    2026-09-21), where a six-option choice came back with all six keys summing to exactly 1.0.
+    """
+
+    CHOICE = client.choice("Which lane is this message in?",
+                           {"needs_reply": "a person expects a reply", "spam": "junk or phishing",
+                            "updates": "automated account notification"})
+    RUBRIC = client.score("How urgent is this?", ["nothing", "slight", "annoying but workable",
+                                                  "blocks part of it", "blocked entirely"])
+
+    def ask(self, answer, questions=None):
+        return client.ask("state", questions or {"q": self.CHOICE}, api_key=KEY,
+                          transport=fake(lambda n, q, s, answer=answer: answer), timeout=2)
+
+    def refusal(self, answer, questions=None):
+        with self.assertRaises(client.JevError) as caught:
+            self.ask(answer, questions)
+        return caught.exception
+
+    def choice(self, picked, probabilities, confidence=0.9):
+        return {"type": "choice", "choice": picked, "confidence": confidence,
+                "probabilities": probabilities}
+
+    def score(self, value, probabilities=None, legend=None, confidence=0.9):
+        answer = {"type": "score", "score": value, "confidence": confidence}
+        if probabilities is not None:
+            answer["probabilities"] = probabilities
+        if legend is not None:
+            answer["legend"] = legend
+        return answer
+
+    # ── a choice's distribution ──────────────────────────────────────────────
+
+    def test_a_choice_missing_an_option_is_refused_rather_than_read_as_zero(self):
+        """`probabilities: {}` reached mailbox.py and was read as a runner-up gap of 1.0: the one
+        case with no evidence at all, reported as the most confident answer available."""
+        for partial in ({}, {"spam": 1.0}, {"spam": 0.9, "updates": 0.1}):
+            error = self.refusal(self.choice("spam", partial))
+            self.assertEqual(error.code, "invalid_response", partial)
+            self.assertEqual(error.invariant, "choice_probability_key_set", partial)
+            self.assertIn("needs_reply", str(error), partial)
+
+    def test_an_option_the_question_never_offered_is_refused(self):
+        error = self.refusal(self.choice("spam", {"spam": 0.9, "updates": 0.1, "urgent": 0.0}))
+        self.assertEqual(error.invariant, "choice_probability_key_set")
+        self.assertIn("urgent", str(error))
+
+    def test_mass_that_does_not_sum_to_one_is_refused(self):
+        error = self.refusal(self.choice("spam", {"spam": 0.8, "needs_reply": 0.1, "updates": 0.0}))
+        self.assertEqual(error.invariant, "choice_probability_key_set")
+        self.assertIn("0.9", str(error))
+
+    def test_float_noise_inside_the_stated_tolerance_is_not_a_refusal(self):
+        """0.01 + 1e-12, the band jev-mcp uses against this same API, not a number chosen here."""
+        out = self.ask(self.choice("spam", {"spam": 0.9005, "needs_reply": 0.0995, "updates": 0.0}))
+        self.assertEqual(out["answers"]["q"]["choice"], "spam")
+
+    def test_a_choice_that_is_not_the_maximum_is_refused(self):
+        error = self.refusal(self.choice("updates", {"updates": 0.3, "spam": 0.6, "needs_reply": 0.1}))
+        self.assertEqual(error.invariant, "choice_is_argmax")
+        self.assertIn("0.3", str(error))
+
+    def test_a_tie_is_allowed_because_the_answer_is_not_contradicted(self):
+        out = self.ask(self.choice("spam", {"spam": 0.5, "needs_reply": 0.5, "updates": 0.0}))
+        self.assertEqual(out["answers"]["q"]["choice"], "spam")
+
+    def test_a_refusal_is_named_apart_from_unparseable_json(self):
+        """Callers fail open on both, but a counter has to tell \"the wire broke\" from \"the model
+        contradicted itself\", or neither can be measured."""
+        contradicted = self.refusal(self.choice("spam", {"spam": 0.5}))
+        broken = self.refusal("not json at all")
+        self.assertEqual(contradicted.code, "invalid_response")
+        self.assertEqual(contradicted.invariant, "choice_probability_key_set")
+        self.assertEqual(broken.code, "malformed")
+        self.assertIsNone(broken.invariant)
+
+    # ── a score's distribution ───────────────────────────────────────────────
+
+    def test_a_score_that_contradicts_its_own_distribution_is_refused(self):
+        """The mailbox incident: point estimate 2.73 from a spread whose expected value shares
+        nothing with it. Two readings in one reply is not a reading of the rubric."""
+        error = self.refusal(self.score(2.73, {"0": 0.2, "1": 0.2, "2": 0.2, "3": 0.2, "4": 0.2}),
+                             {"q": self.RUBRIC})
+        self.assertEqual(error.invariant, "score_matches_its_distribution")
+        self.assertIn("2.0", str(error))
+
+    def test_a_distribution_on_a_level_the_rubric_never_offered_is_refused(self):
+        error = self.refusal(self.score(1.0, {"0": 0.5, "1": 0.5, "9": 0.0}), {"q": self.RUBRIC})
+        self.assertEqual(error.invariant, "score_distribution_on_rubric")
+        self.assertIn("9", str(error))
+
+    def test_a_score_with_no_distribution_is_kept_and_says_so(self):
+        """jev-mcp keeps that answer valid and its distribution null. So do we — but the caller
+        can see that nothing was cross-checked, instead of averaging over an absent spread."""
+        out = self.ask(self.score(2.0), {"q": self.RUBRIC})["answers"]["q"]
+        self.assertEqual(out["score"], 2.0)
+        self.assertEqual(out["probabilities"], {})
+        self.assertFalse(out["spread_reported"])
+
+    def test_a_partial_distribution_that_carries_all_the_mass_is_kept(self):
+        """The deliberate difference from a choice: levels at zero may be omitted from a score,
+        as long as the mass is complete and the point estimate matches it."""
+        out = self.ask(self.score(1.4, {"1": 0.6, "2": 0.4}), {"q": self.RUBRIC})["answers"]["q"]
+        self.assertEqual(out["probabilities"], {1: 0.6, 2: 0.4})
+        self.assertTrue(out["spread_reported"])
+
+    def test_the_legend_travels_with_the_answer_and_off_rubric_entries_do_not(self):
+        """It is nearly redundant with the labels we sent — but when the model's reading differs
+        from ours, that difference was invisible because the field was dropped."""
+        out = self.ask(self.score(1.0, {"0": 0.0, "1": 1.0, "2": 0.0},
+                                  legend={"0": "nothing", "1": "slight", "2": "annoying",
+                                          "7": "invented", "1x": 5}),
+                       {"q": self.RUBRIC})["answers"]["q"]
+        self.assertEqual(out["legend"], {0: "nothing", 1: "slight", 2: "annoying"})
+
+    def test_a_relabelled_legend_is_visible_to_the_caller(self):
+        levels = ["nothing", "slight", "annoying but workable", "blocks part of it", "blocked entirely"]
+        out = self.ask(self.score(1.0, {"0": 0.0, "1": 1.0, "2": 0.0},
+                                  legend={"0": "trivial", "1": "small", "2": "medium"}),
+                       {"q": self.RUBRIC})["answers"]["q"]
+        self.assertNotEqual([out["legend"][i] for i in range(3)], levels[:3])
+
+    # ── the callers still survive a refusal ──────────────────────────────────
+
+    def test_a_contradicted_reply_keeps_the_current_model_instead_of_routing_blind(self):
+        """The point of refusing: the feature takes the fail-open path it already had."""
+        contradicted = fake(lambda n, q, s: (
+            {"type": "score", "score": 2.9, "confidence": 0.95, "probabilities": {"0": 1.0}}
+            if q["type"] == "score" else {"type": "noul", "noul": 0.9}))
+        decision = route.decide("redesign the ledger migration", current="or:mid", config=CONFIG,
+                                rows=ROWS, transport=contradicted)
+        self.assertFalse(decision["routed"])
+        self.assertEqual(decision["model"], "or:mid")
+        self.assertIn("invalid_response", decision["reason"])
 
 
 class PrivacyTests(unittest.TestCase):
@@ -232,7 +379,7 @@ def jev_says(difficulty, kind="general", stakes=0.05, confidence=0.95):
         if name == "difficulty":
             return {"type": "score", "score": difficulty, "confidence": confidence}
         if name == "kind":
-            return {"type": "choice", "choice": kind, "confidence": 0.9, "probabilities": {kind: 0.9}}
+            return choice_answer(question, kind, confidence=0.9)
         return {"type": "noul", "noul": stakes}
     return fake(answer)
 
@@ -297,7 +444,7 @@ def jev_spread(spread, confidence=0.9, stakes=0.05, kind="general"):
             return {"type": "score", "score": average, "confidence": confidence,
                     "probabilities": {str(k): v for k, v in spread.items()}}
         if name == "kind":
-            return {"type": "choice", "choice": kind, "confidence": 0.9, "probabilities": {kind: 0.9}}
+            return choice_answer(question, kind, confidence=0.9)
         return {"type": "noul", "noul": stakes}
     return fake(answer)
 
@@ -332,7 +479,7 @@ class RoutePolicyTests(unittest.TestCase):
                            jev_spread({0: 0.9, 1: 0.1}, confidence=0.95))
         self.assertEqual(easy["tier"], "simple")
         hard = self.decide("[kanban] card t_2: fix the double-charge race in the payment webhook",
-                           jev_spread({2: 0.45, 3: 0.45}, confidence=0.9, stakes=0.9))
+                           jev_spread({1: 0.1, 2: 0.45, 3: 0.45}, confidence=0.9, stakes=0.9))
         self.assertEqual(hard["tier"], "hard")
 
     def test_boilerplate_in_the_middle_of_a_long_turn_is_not_what_gets_judged(self):
@@ -427,7 +574,7 @@ class CompactTests(unittest.TestCase):
         def answer(name, q, state):
             index = int(name[1:])
             confident = index != 3
-            return {"type": "choice", "choice": "drop", "confidence": 0.9 if confident else 0.4, "probabilities": {"drop": 0.9}}
+            return choice_answer(q, "drop", confidence=0.9 if confident else 0.4)
         out = compact.select(self.MESSAGES, keep_last=4, transport=fake(answer))
         fates = out["fates"]
         self.assertEqual(fates["0"], "keep")
@@ -457,13 +604,13 @@ class SkillPickTests(unittest.TestCase):
 
             def wants_loc(name, q, state):
                 if q["type"] == "choice":
-                    return {"type": "choice", "choice": f"S{loc}", "confidence": 0.9, "probabilities": {f"S{loc}": 0.9, "none": 0.1}}
+                    return choice_answer(q, f"S{loc}", confidence=0.9)
                 return {"type": "noul", "noul": 0.9 if name in ("needs_skill", f"s{loc}") else 0.05}
             self.assertEqual([s["name"] for s in skillpick.pick("count the code", skills, transport=fake(wants_loc))["skills"]], ["loc"])
 
             def wants_none(name, q, state):
                 if q["type"] == "choice":
-                    return {"type": "choice", "choice": "none", "confidence": 0.9, "probabilities": {"none": 0.99}}
+                    return choice_answer(q, "none", confidence=0.9)
                 return {"type": "noul", "noul": 0.0}
             self.assertEqual(skillpick.pick("thanks!", skills, transport=fake(wants_none))["skills"], [])
 
@@ -663,7 +810,7 @@ class EnvelopeTests(unittest.TestCase):
         hard = CRON_ENVELOPE.replace("Sweep the backlog and post a one-line status for each open card.",
                                      "Design and execute the zero-downtime migration of the billing ledger.")
         decision = route.decide(hard, current="or:mid", config=CONFIG, rows=ROWS,
-                                transport=jev_spread({2: 0.4, 3: 0.5}, confidence=0.9, stakes=0.9),
+                                transport=jev_spread({1: 0.1, 2: 0.4, 3: 0.5}, confidence=0.9, stakes=0.9),
                                 session_id="cron_abc_20260919")
         self.assertEqual(decision["tier"], "hard")
 
@@ -692,8 +839,7 @@ def jev_watch(progressing=0.9, needs_input=0.05, blocked=0.05, done=0.05, action
 
     def answer(name, question, state):
         if question["type"] == "choice":
-            return {"type": "choice", "choice": action, "confidence": confidence,
-                    "probabilities": {action: confidence}}
+            return choice_answer(question, action, confidence=confidence)
         return {"type": "noul", "noul": values.get(name, 0.05)}
     return fake(answer)
 
@@ -860,7 +1006,7 @@ class LadderTests(unittest.TestCase):
                             transport=jev_spread({0: 0.95, 1: 0.05}, confidence=0.95))
         self.assertNotIn("escalate", easy, "a frontier seat is not for easy work")
         hard = route.decide("redesign the ledger migration", current="or:mid", config=config, rows=ROWS,
-                            transport=jev_spread({2: 0.4, 3: 0.5}, confidence=0.9, stakes=0.9))
+                            transport=jev_spread({1: 0.1, 2: 0.4, 3: 0.5}, confidence=0.9, stakes=0.9))
         self.assertEqual(hard["escalate"]["rung"], "astra")
         self.assertIn("escalate to astra", hard["notice"])
 
@@ -1240,7 +1386,7 @@ def jev_mail(urgency_spread, kind="problem", blocked=0.1, deadline=0.1, confiden
             return {"type": "score", "score": avg, "confidence": confidence,
                     "probabilities": {str(k): v for k, v in urgency_spread.items()}}
         if name == "kind":
-            return {"type": "choice", "choice": kind, "confidence": 0.9, "probabilities": {kind: 0.9}}
+            return choice_answer(question, kind, confidence=0.9)
         return {"type": "noul", "noul": {"blocked": blocked, "deadline": deadline}.get(name, 0.1)}
     return fake(answer)
 
@@ -1300,7 +1446,7 @@ class TriageTests(unittest.TestCase):
 
     def test_summary_counts_routes_and_flags_low_confidence(self):
         rows = [triage.classify(f"s{i}", "body text here",
-                                transport=jev_mail({4: 0.9}, confidence=0.9 if i else 0.2))
+                                transport=jev_mail({1: 0.1, 4: 0.9}, confidence=0.9 if i else 0.2))
                 for i in range(3)]
         s = triage.summarize(rows)
         self.assertEqual(s["messages"], 3)

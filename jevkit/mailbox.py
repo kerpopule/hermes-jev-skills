@@ -618,9 +618,11 @@ def classify(message: Mapping[str, Any], *, has_unsubscribe: Optional[bool] = No
 
     lane_probs = {k: float(v) for k, v in (lane_answer.get("probabilities") or {}).items()}
     ranked = sorted(lane_probs.items(), key=lambda kv: -kv[1])
-    # No distribution, or a single entry, is the one case with no evidence at all. Reading
-    # it as a gap of 1.0 reported it as maximally confident and the low-confidence
-    # machinery never fired; the client accepts `probabilities: {}`, so this shape arrives.
+    # No distribution, or a single entry, is the one case with no evidence at all. Reading it as
+    # a gap of 1.0 reported it as maximally confident and the low-confidence machinery never fired.
+    # `client.ask` now refuses a choice whose probabilities do not cover exactly the offered
+    # options (`client._distribution`), so this guard is for a caller that injects at the
+    # transport layer or a client that stops validating — not for the live wire.
     gap = (ranked[0][1] - ranked[1][1]) if len(ranked) > 1 else 0.0
     lane = lane_answer["choice"]
     if lane not in LANES:

@@ -60,7 +60,7 @@ Use `model_id` from the reply. `routed: false` means stay where you are; `reason
 - Template turns are not routed: anything starting with a `skip_prefixes` entry (`[kanban]`, `[SESSION HANDOFF`…) or from a `skip_session_prefixes` session (`cron`) keeps the model its profile or job was configured with.
 - Large context (over ~32k tokens): never switches to a cheaper model, because rebuilding the prompt cache costs more than it saves.
 - Turns that look like they contain secrets, and any profile listed in `private_profiles`, send Jev only coarse features (length, code present, risk words), never text.
-- Jev down, slow (2.5 s budget) or malformed: current model, no delay beyond the budget.
+- Jev down, slow (2.5 s budget) or malformed: current model, no delay beyond the budget. An answer that contradicts itself — a spread that does not cover the options, mass that does not sum to one, a chosen option that is not the maximum, a score that disagrees with its own distribution — is refused as `invalid_response` and lands here too.
 
 ## Tuning
 

@@ -41,6 +41,8 @@ class JevError(RuntimeError):
     def __init__(self, code: str, detail: str = "") -> None:
         super().__init__(f"{code}: {detail}" if detail else code)
         self.code = code
+        # Set only by a contradiction check (`client._invalid`): which invariant the reply broke.
+        self.invariant: Optional[str] = None
 
 
 # ── question builders ────────────────────────────────────────────────────────
@@ -95,6 +97,29 @@ _RETRYABLE = {"rate_limited", "overloaded", "network", "http_500", "http_502", "
 
 # ── validation ───────────────────────────────────────────────────────────────
 
+# Two tolerances, taken from a validator that already runs against this same API rather than
+# guessed here: jkudish/jev-mcp (MIT), `src/lib.ts:11` PROBABILITY_SUM_TOLERANCE = 0.01 + 1e-12
+# and `src/lib.ts:258` SCORE_MEAN_TOLERANCE = 0.02 + 1e-12. jev-ultrafast derives the same two
+# ideas independently (`model.py:38-39`, sum within 0.02, choice >= max - 1e-6). A live probe of
+# api.typesafe.ai (jev-1.13.0, 2026-09-21) summed to exactly 1.0, chose the argmax, and matched
+# its own expected value exactly, so these bands are slack for float noise, not a correction.
+PROBABILITY_SUM_TOLERANCE = 0.01 + 1e-12
+SCORE_MEAN_TOLERANCE = 0.02 + 1e-12
+ARGMAX_TOLERANCE = 1e-9
+
+
+def _invalid(name: str, invariant: str, detail: str = "") -> JevError:
+    """A reply that parses but contradicts itself. Typed, named, and never acted on.
+
+    The code is not ``malformed``: the JSON was fine, the *answer* was not. Callers fail open
+    on both, but a log or a counter can tell "the wire broke" from "the model agreed with
+    itself inconsistently" only if the two stay distinguishable.
+    """
+    error = JevError("invalid_response", f"answer {name} violated {invariant}" + (f" ({detail})" if detail else ""))
+    error.invariant = invariant  # recorded, so an eval can count which rule fires and how often
+    return error
+
+
 def _unit(value: Any, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise JevError("malformed", f"{name} is not numeric")
@@ -104,6 +129,30 @@ def _unit(value: Any, name: str) -> float:
     return min(1.0, max(0.0, number))
 
 
+def _distribution(name: str, raw: Any, keys: Sequence[str], invariant: str) -> Dict[str, float]:
+    """A probability mass over exactly ``keys``: complete, finite, and summing to one.
+
+    An incomplete key set is refused rather than tolerated. Every source that validates this
+    API's replies — jev-mcp's ``validateChoiceAnswer`` (exact key count and membership) and
+    jev-ultrafast's ``validate_choice`` (``set(probabilities) == set(ids)``) — requires the key
+    set to *equal* the offered options, and ``probabilities: {}`` used to reach callers here as
+    an all-zero distribution, which read as "no evidence" at best and as a confident gap of 1.0
+    at worst (mailbox.py carries the scar). A missing entry is not a zero: it is a reply we
+    cannot interpret, so it becomes a refusal the caller already knows how to survive.
+    """
+    if not isinstance(raw, dict):
+        raise _invalid(name, invariant, "probabilities are not an object")
+    expected, found = set(keys), set(raw)
+    if found != expected:
+        missing, extra = sorted(expected - found), sorted(found - expected)
+        raise _invalid(name, invariant, f"missing {missing or 'none'}, unexpected {extra or 'none'}")
+    values = {key: _unit(raw[key], f"{name}.p[{key}]") for key in keys}
+    total = sum(values.values())
+    if abs(total - 1.0) > PROBABILITY_SUM_TOLERANCE:
+        raise _invalid(name, invariant, f"mass sums to {total!r}")
+    return values
+
+
 def _check_answer(name: str, question: Mapping[str, Any], answer: Any) -> Dict[str, Any]:
     if not isinstance(answer, dict) or answer.get("type") != question["type"]:
         raise JevError("malformed", f"answer {name} has the wrong type")
@@ -111,14 +160,19 @@ def _check_answer(name: str, question: Mapping[str, Any], answer: Any) -> Dict[s
     if kind == "noul":
         return {"type": "noul", "noul": _unit(answer.get("noul"), f"{name}.noul")}
     if kind == "choice":
-        options = set(question["criteria"])
+        options = list(question["criteria"])
         picked = answer.get("choice")
-        if picked not in options:
+        if not isinstance(picked, str) or picked not in set(options):
             raise JevError("malformed", f"answer {name} chose an option that was not offered")
-        raw = answer.get("probabilities")
-        if not isinstance(raw, dict) or not set(raw) <= options:
-            raise JevError("malformed", f"answer {name} has bad probabilities")
-        probabilities = {key: _unit(value, f"{name}.p[{key}]") for key, value in raw.items()}
+        probabilities = _distribution(name, answer.get("probabilities"), options,
+                                      "choice_probability_key_set")
+        top = max(probabilities.values())
+        if probabilities[picked] < top - ARGMAX_TOLERANCE:
+            # A choice that is not the maximum is a contradiction in the reply, whatever the
+            # confidence says: it means the ranking callers read ("the highest option") and the
+            # label callers act on ("the chosen option") are two different answers.
+            raise _invalid(name, "choice_is_argmax",
+                           f"chose {picked} at {probabilities[picked]!r} against a maximum of {top!r}")
         return {"type": "choice", "choice": picked, "probabilities": probabilities,
                 "confidence": _unit(answer.get("confidence"), f"{name}.confidence")}
     levels = len(question["criteria"])
@@ -129,14 +183,40 @@ def _check_answer(name: str, question: Mapping[str, Any], answer: Any) -> Dict[s
         raise JevError("malformed", f"answer {name} scored off the rubric")
     # The per-level spread says far more than the averaged score: an unsure answer averages to
     # the middle of the rubric, which looks like a real "medium-hard" unless you read the spread.
+    #
+    # Unlike a choice, a score may legitimately arrive with no distribution at all (jev-mcp
+    # keeps that answer valid and its distribution null). We keep it too, but we say so:
+    # `spread_reported` is False, so a gate that needs the spread to be trustworthy can treat
+    # the score as unverified instead of quietly averaging over nothing.
     raw = answer.get("probabilities")
-    spread = {}
-    if isinstance(raw, dict):
-        for key, probability in raw.items():
-            if str(key).isdigit() and int(key) < levels:
-                spread[int(key)] = _unit(probability, f"{name}.p[{key}]")
-    return {"type": "score", "score": float(value), "probabilities": spread,
-            "confidence": _unit(answer.get("confidence", 1.0), f"{name}.confidence")}
+    spread: Dict[int, float] = {}
+    if isinstance(raw, dict) and raw:
+        keys = []
+        for key in raw:
+            if not str(key).isdigit() or int(key) >= levels:
+                raise _invalid(name, "score_distribution_on_rubric", f"level {key!r} is not 0..{levels - 1}")
+            keys.append(str(key))
+        spread = {int(key): value for key, value in
+                  _distribution(name, raw, sorted(keys, key=int), "score_distribution_mass").items()}
+        mean = sum(level * probability for level, probability in spread.items())
+        if abs(mean - float(value)) > SCORE_MEAN_TOLERANCE:
+            # The incident this rule exists for: a flat 0.2-each spread that averaged to 2.73 was
+            # filed at level 4 of 5 by rounding. A score that disagrees with its own distribution
+            # is not a reading of the rubric, it is two readings, and neither can be acted on.
+            raise _invalid(name, "score_matches_its_distribution",
+                           f"score {float(value)!r} against an expected value of {mean!r}")
+    # The legend is how the model read the rubric it was handed. Barely redundant with our own
+    # labels — but when it differs, the disagreement is worth seeing, and dropping it hid that.
+    legend = {}
+    if isinstance(answer.get("legend"), dict):
+        legend = {int(key): str(text) for key, text in answer["legend"].items()
+                  if str(key).isdigit() and int(key) < levels and isinstance(text, str)}
+    out = {"type": "score", "score": float(value), "probabilities": spread,
+           "spread_reported": bool(spread), "confidence": _unit(answer.get("confidence", 1.0),
+                                                               f"{name}.confidence")}
+    if legend:
+        out["legend"] = legend
+    return out
 
 
 # ── public call ──────────────────────────────────────────────────────────────

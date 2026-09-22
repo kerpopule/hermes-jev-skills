@@ -140,10 +140,12 @@ isn't one and what to do instead.
 
 The pipeline worked before your feature existed. It must work if your feature breaks.
 
-No key, no network, a timeout, a malformed answer, the toolkit not installed at all — every
-one of those ends with the work done exactly as it would have been, and the process exiting
-zero. Every entry point returns `None` rather than raising, and the caller reads `None` as
-"no opinion".
+No key, no network, a timeout, a malformed answer, an answer that contradicts itself
+(`invalid_response`: a distribution that misses an option, mass that does not sum to one, a
+chosen option that is not its own maximum, a score that disagrees with its spread), the toolkit
+not installed at all — every one of those ends with the work done exactly as it would have been,
+and the process exiting zero. Every entry point returns `None` rather than raising, and the
+caller reads `None` as "no opinion".
 
 This is not garnish. A classifier is an *opinion about* the work, never a *dependency of*
 the work. The moment an opinion can stop mail being collected, you have made the system

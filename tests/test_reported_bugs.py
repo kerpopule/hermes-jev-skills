@@ -16,6 +16,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from jevkit import client, compact, keystore, route  # noqa: E402
 
+# Well-formed wire answers (complete distributions that sum to one) live in one place, so a
+# fake here cannot accidentally describe a reply the API cannot produce.
+from _wire import choice_answer, score_answer  # noqa: E402
+
 CATALOG = [
     {"provider": "openrouter", "model": "cheap/tiny-v1", "price": 0.1, "context": 32_000,
      "vision": False, "reasoning": False},
@@ -29,9 +33,8 @@ SMALL = "openrouter:cheap/tiny-v1"
 def trivial_answer(body, headers, timeout):
     """Jev says this turn is trivial and general: the cheapest tier, whatever the size."""
     return json.dumps({"answers": {
-        "difficulty": {"type": "score", "score": 0.0, "probabilities": {"0": 0.95}},
-        "kind": {"type": "choice", "choice": "general", "probabilities": {"general": 0.95},
-                 "confidence": 0.95},
+        "difficulty": score_answer({"criteria": route.DIFFICULTY}, 0.0),
+        "kind": choice_answer({"criteria": list(route.KIND)}, "general"),
         "costly_mistake": {"type": "noul", "noul": 0.02}}, "usage": {}}).encode()
 
 
@@ -110,9 +113,8 @@ class CompactionBatchingTests(unittest.TestCase):
         def record(body, headers, timeout):
             request = json.loads(body)
             sizes.append(len(json.dumps(request["state"], separators=(",", ":"))))
-            return json.dumps({"answers": {name: {"type": "choice", "choice": "summarize",
-                               "probabilities": {"summarize": 0.9}, "confidence": 0.9}
-                               for name in request["questions"]}, "usage": {}}).encode()
+            return json.dumps({"answers": {name: choice_answer(question, "summarize")
+                               for name, question in request["questions"].items()}, "usage": {}}).encode()
         out = self.run_select(self.cjk(), record)
         self.assertTrue(sizes)
         self.assertLessEqual(max(sizes), client.MAX_STATE_CHARS)
@@ -130,9 +132,8 @@ class CompactionBatchingTests(unittest.TestCase):
             if len(seen) == 1:
                 raise client.JevError("state_too_large")
             request = json.loads(body)
-            return json.dumps({"answers": {name: {"type": "choice", "choice": "summarize",
-                               "probabilities": {"summarize": 0.9}, "confidence": 0.9}
-                               for name in request["questions"]}, "usage": {}}).encode()
+            return json.dumps({"answers": {name: choice_answer(question, "summarize")
+                               for name, question in request["questions"].items()}, "usage": {}}).encode()
         out = self.run_select(self.cjk(), flaky)
         self.assertEqual(out["status"], "partial")
         self.assertIn("state_too_large", out["errors"])
