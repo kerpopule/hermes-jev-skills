@@ -87,7 +87,10 @@
   `client.py` spells a question dict by hand (verified by mutation: adding one to `route.py`
   fails the test).
 - `docs/writing-a-jev-question.md` now states what is refused, next to the phrasing rule it
-  already carried.
+  already carried, and `tests/test_cli_help_examples.py` renders `jev ask --help`, pulls the JSON
+  out of it and runs every question in it through the same checker — help text is a copy-paste
+  surface, and an example the validator refuses is worse than no example. Verified by mutation:
+  making the help's `severity` question repeat its own id fails the test.
 
 **Stage 2 was measured against its own removal, and it stays**
 
