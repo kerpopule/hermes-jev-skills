@@ -8,12 +8,13 @@ the caller takes its fail-open path rather than acting on junk.
 """
 from __future__ import annotations
 
+import http.client
 import json
 import math
 import os
+import threading
 import time
-import urllib.error
-import urllib.request
+import urllib.parse
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
 
 from . import keystore
@@ -65,27 +66,132 @@ def noul(instructions: str) -> Dict[str, Any]:
 
 # ── transport ────────────────────────────────────────────────────────────────
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401, ANN001
-        # A redirect would carry the bearer token to another origin.
-        raise urllib.error.HTTPError(req.full_url, code, "redirect refused", headers, fp)
+# A Jev call is one POST, and until 2026-09-22 each one opened its own TLS session. Measured
+# on the same question against api.typesafe.ai: urllib with a fresh opener 522 ms, one
+# `http.client` connection reused 245 ms, httpx (what the official SDK pools) 189 ms. The
+# handshake was over half of what a decision cost, and a Hermes turn pays for two of them.
+#
+# The pool is bounded and lends one connection to one caller at a time: skill selection fans
+# out its batches on threads, and a shared connection would interleave two responses on one
+# socket. A server that closes an idle keep-alive socket is the ordinary failure — one fresh
+# connection, then the caller's own retry policy.
+MAX_POOLED_CONNECTIONS = 8
+
+
+class _ConnectionPool:
+    def __init__(self, limit: int = MAX_POOLED_CONNECTIONS) -> None:
+        self._free: List[Any] = []          # [(key, connection)], newest last
+        self._limit = limit
+        self._lock = threading.Lock()
+
+    def borrow(self, key: Any, timeout: float) -> Any:
+        with self._lock:
+            for index in range(len(self._free) - 1, -1, -1):
+                if self._free[index][0] == key:
+                    connection = self._free.pop(index)[1]
+                    _reuse(connection, timeout)
+                    return connection
+        return _connect(key, timeout)
+
+    def release(self, key: Any, connection: Any) -> None:
+        """Give a healthy connection back, or close it when the pool is already full."""
+        with self._lock:
+            if _is_open(connection) and len(self._free) < self._limit:
+                self._free.append((key, connection))
+                return
+        _close(connection)
+
+    def drop(self, connection: Any) -> None:
+        """A connection whose state is unknown: never handed out again."""
+        _close(connection)
+
+    def size(self) -> int:
+        with self._lock:
+            return len(self._free)
+
+
+_POOL = _ConnectionPool()
+
+
+def _origin(url: str) -> Any:
+    parsed = urllib.parse.urlsplit(url)
+    scheme = (parsed.scheme or "https").lower()
+    return (scheme, parsed.hostname or "", parsed.port), (parsed.path or "/") + (
+        f"?{parsed.query}" if parsed.query else "")
+
+
+def _connect(key: Any, timeout: float) -> Any:
+    scheme, host, port = key
+    if scheme == "http":
+        return http.client.HTTPConnection(host, port, timeout=timeout)
+    return http.client.HTTPSConnection(host, port, timeout=timeout)
+
+
+def _reuse(connection: Any, timeout: float) -> None:
+    """A pooled connection carries the timeout of whoever borrowed it last."""
+    connection.timeout = timeout
+    sock = getattr(connection, "sock", None)
+    if sock is not None:
+        try:
+            sock.settimeout(timeout)
+        except OSError:
+            pass
+
+
+def _is_open(connection: Any) -> bool:
+    """Worth keeping: either it has no socket yet (never used) or its socket is still live."""
+    sock = getattr(connection, "sock", None)
+    if sock is None:
+        return True
+    try:
+        return sock.fileno() != -1
+    except OSError:
+        return False
+
+
+def _close(connection: Any) -> None:
+    try:
+        connection.close()
+    except Exception:  # noqa: BLE001 - closing a broken socket must never raise at a caller
+        pass
 
 
 def _http_transport(body: bytes, headers: Dict[str, str], timeout: float, url: str = ENDPOINT) -> bytes:
-    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
-    opener = urllib.request.build_opener(_NoRedirect)
-    try:
-        with opener.open(request, timeout=timeout) as response:
+    """POST one request over a pooled connection. Redirects are never followed.
+
+    A redirect would carry the bearer token to another origin, so a 3xx is an error here, not a
+    hop — the same guarantee the previous opener gave, without a new TLS session per call.
+    """
+    key, path = _origin(url)
+    for attempt in (0, 1):
+        connection = _POOL.borrow(key, timeout)
+        try:
+            connection.request("POST", path, body=body, headers=headers)
+            response = connection.getresponse()
+            status = response.status
             raw = response.read(MAX_RESPONSE_BYTES + 1)
-    except urllib.error.HTTPError as error:
-        code = {401: "auth_failed", 403: "auth_failed", 402: "credits_exhausted",
-                429: "rate_limited", 529: "overloaded"}.get(error.code, f"http_{error.code}")
-        raise JevError(code) from None
-    except (urllib.error.URLError, TimeoutError, OSError):
-        raise JevError("network") from None
-    if len(raw) > MAX_RESPONSE_BYTES:
-        raise JevError("response_too_large")
-    return raw
+        except JevError:
+            _POOL.drop(connection)
+            raise
+        except (http.client.HTTPException, OSError):
+            # A keep-alive socket the server closed while it was idle: the request never
+            # reached it. One fresh connection; if that fails too, the caller retries.
+            _POOL.drop(connection)
+            if attempt:
+                raise JevError("network") from None
+            continue
+        if len(raw) > MAX_RESPONSE_BYTES:
+            _POOL.drop(connection)
+            raise JevError("response_too_large")
+        if status != 200:
+            _POOL.drop(connection)
+            code = {301: "http_301", 302: "http_302", 303: "http_303", 307: "http_307", 308: "http_308",
+                    401: "auth_failed", 403: "auth_failed", 402: "credits_exhausted",
+                    429: "rate_limited", 529: "overloaded"}.get(status, f"http_{status}")
+            raise JevError(code)
+        _POOL.release(key, connection)
+        return raw
+    raise JevError("network")
 
 
 def _openrouter_transport(body: bytes, headers: Dict[str, str], timeout: float) -> bytes:

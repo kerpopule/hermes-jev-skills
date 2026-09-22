@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+**The connection was the cost: one TLS session per call, now one per thread that needs it**
+
+- A Jev call opened a new HTTPS connection every time — `urllib.request.build_opener` per
+  request. Measured against the live API on the same question: **522 ms** with a fresh opener,
+  **245 ms** through one reused `http.client` connection, 189 ms through httpx, which is what the
+  official SDK pools. The handshake was over half of what a decision cost, and a Hermes turn paid
+  for two decisions.
+- `client.py` now keeps a small pool of keep-alive connections (`http.client`, still standard
+  library only): bounded, one borrower at a time so the parallel skill batches cannot interleave
+  two responses on one socket, non-200 and 3xx responses dropped rather than reused, and a socket
+  the server closed while idle costs one fresh connection, not a failed turn.
+- Redirects are still never followed — a 3xx is an error, not a hop — so the bearer token cannot
+  travel to another origin. Every non-200 maps to the same error code it did before.
+- Measured live afterwards: `client.ask` median **522 ms → 178 ms**; a full Hermes turn
+  (routing + skill selection, merged) **1784 ms → 672 ms** — 3 requests down to 2, and 62% off
+  the wall clock — with the same tier and the same skill on every turn measured.
+- `tests/test_connection_reuse.py` holds the four properties against a local HTTP server:
+  reuse, no redirect hop, a bounded pool, and recovery from a closed idle socket. `jev plan`
+  still opens its own connection; it runs once per task rather than once per turn.
+
 **One request for routing and skill selection, and the measurement that made it correct**
 
 - A Hermes turn paid two Jev round trips before the model ran: skill selection on the pre-call
