@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+**Permutation averaging measured on both Choice surfaces and NOT adopted**
+
+- The audit finding that started it (TypeLLM/pijev, 2026-09-22): Jev's Choice probabilities
+  wobble with the order the options are listed in, and the claimed fix is to ask the same
+  question in several orders in ONE request and average the vectors. The A/B ran against this
+  repo's own labelled corpora — [evals/permutation-averaging/SCORECARD-2026-09-22.md](evals/permutation-averaging/SCORECARD-2026-09-22.md)
+  — and nothing was shipped.
+- `choose` (31 cases + 3 focused trap repeats, `scripts/calibrate_choose_permutations.py`):
+  at the 0.65 floor every arm is the same 23/1/7/0. Order barely moves the pick (21/24
+  labelled cases: one distinct top across nine orders), and the Brier movement is one case —
+  the known trap — where averaging makes things worse from m=3 up. There the majority vote is
+  wrong (9-0 twice in three repeats), so averaging amplifies it, and pijev's confidence swap
+  (the winner's mean probability, not Jev's own) takes the trap from a declined 0.41-0.52 to
+  an ACTING wrong 0.698/0.740 through the shipped floor. The m=2 "fix" was pair luck (2 of 9
+  orders voted right). Unanimity flags fail too: agreement is not honesty.
+- skillpick stage 1 (14 cases, 459-skill catalog, `scripts/calibrate_skillpick_permutations.py`):
+  every averaging variant identical to canonical (10 right / 0 wrong / 4 spurious / 0 missed);
+  one lone random order beat both on spurious, and the spurious picks are order-robust
+  semantic near-matches — stage 2's `needs_skill` gate already withholds those.
+- `tests/test_permutation_averaging_eval.py` pins the replay math and the measured failure on
+  the recorded trap numbers, so the non-adoption survives even when /tmp does not.
+
 **`jev plan` was falling back on one command in ten, because the prompt never said which keys exist**
 
 - A live probe found `open the Sound settings pane and turn the volume down one notch` coming back

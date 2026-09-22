@@ -53,6 +53,16 @@ def _floor() -> float:
     decision there, and the one case that ever sits in the band is the irreversible trap - wrong
     at 0.51-0.53, right at 0.42, with confidence not separating the two. Script, numbers and the
     honest gap in the harness: evals/choose-match/SCORECARD-2026-09-22-stakes-and-margin.md.
+
+    Permutation averaging - asking the same choice in several option orders and averaging the
+    vectors (the trick TypeLLM/pijev wraps the SDK in) - was measured against these cases and
+    NOT adopted (2026-09-22). Order barely moves the pick: 21 of 24 labelled cases had one
+    distinct top across nine orders. And on the one torn case the majority vote is WRONG - the
+    trap came back 9-0 for the wrong answer in two of three repeat runs - so averaging plus
+    pijev's confidence swap (the winner's mean probability instead of Jev's own) carried it from
+    a declined 0.41-0.52 to an ACTING 0.698/0.740 at this floor. Aggregation cannot fix a
+    majority that is wrong, and the wrong answer was unanimous often enough that no agreement
+    flag catches it either. Script, numbers: evals/permutation-averaging/SCORECARD-2026-09-22.md.
     """
     try:
         value = float(os.environ.get("JEV_MIN_CONFIDENCE", "") or 0.65)
