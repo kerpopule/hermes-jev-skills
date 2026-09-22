@@ -268,6 +268,7 @@ def cmd_search(args: argparse.Namespace) -> int:
             candidate_queries=request.get("candidate_queries") or [],
             round_index=int(request.get("round_index") or args.round),
             max_rounds=int(request.get("max_rounds") or args.max_rounds),
+            reading_failed=bool(request.get("reading_failed")),
             top_k=int(request.get("top_k") or args.top_k),
             timeout=args.timeout))
     except ValueError as error:

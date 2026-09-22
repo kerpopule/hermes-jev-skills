@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**`jev search` stops looping when the pages will not open**
+
+- Live failure (Town Center lane, 2026-09-22): every `web_extract` of the picked results
+  timed out, so Jev only ever judged snippets, kept answering "not enough", and the agent
+  kept searching for 10+ minutes. Jev itself answered in ~0.4 s each round.
+- New `reading_failed` input (tool, CLI stdin, `search.gate`). From round 2, a not-enough
+  verdict with unreadable pages returns `answer_from_what_we_have` with a note, instead of
+  another `search_more`. Round 1 still gets one more search; enough evidence still answers;
+  Jev down still claims nothing. Four tests in `tests/test_search.py`.
+- `jev-search` SKILL.md: retry failed extracts one URL per call, once, then set the flag.
+
 **Permutation averaging measured on both Choice surfaces and NOT adopted**
 
 - The audit finding that started it (TypeLLM/pijev, 2026-09-22): Jev's Choice probabilities

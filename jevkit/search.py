@@ -171,6 +171,7 @@ def gate(
     relevance_threshold: float = 0.5,
     injection_threshold: float = 0.5,
     sufficiency_threshold: float = SUFFICIENCY_THRESHOLD,
+    reading_failed: bool = False,
     timeout: float = 6.0,
     transport: Optional[client.Transport] = None,
     today: Optional[datetime.date] = None,
@@ -185,6 +186,10 @@ def gate(
     ``decision`` is what to do: ``answer``, ``search_more``, ``propose_queries`` (Jev had
     nothing to pick from), ``answer_from_what_we_have`` (``max_rounds`` reached: the
     evidence is thin and the result says so) or ``unknown`` (Jev was not consulted).
+
+    ``reading_failed`` says the pages picked last round could not be opened (extract
+    timeouts). From round 2 on, a not-enough verdict then ends the loop as
+    ``answer_from_what_we_have`` instead of asking for yet another search.
 
     Fails open. With Jev down this still returns the screened head of the list and
     ``sufficiency: None`` with ``decision: unknown``, never a claim that evidence is enough.
@@ -310,6 +315,14 @@ def gate(
         # whether thin evidence is worth answering from.
         result["decision"] = THIN
         result["evidence_thin"] = True
+    elif reading_failed and result["sufficient"] is False and round_index >= 2:
+        # The agent could not open the pages it already picked (extract timeouts), so it
+        # is judging from snippets. Another search returns more snippets and the same
+        # "not enough": the live loop this stops. Round 1 still gets one more search.
+        result["decision"] = THIN
+        result["evidence_thin"] = True
+        notes.append("the selected pages could not be read; another search would only add snippets, "
+                     "so answer from what was read and say what is missing")
     elif result["next_query"]:
         result["decision"] = SEARCH_MORE
     elif result["sufficient"] is False:

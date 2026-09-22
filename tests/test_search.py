@@ -125,6 +125,34 @@ class HappyPathTests(unittest.TestCase):
         self.assertTrue(out["evidence_thin"])
         self.assertFalse(out["sufficient"])
 
+    def test_unreadable_pages_end_the_loop_from_round_two(self):
+        """The live loop (Town Center, 2026-09-22): every extract timed out, Jev kept seeing
+        snippets, kept saying not enough, and the agent kept searching."""
+        t = jev(relevance={0: 0.9}, enough=0.2, pick="q0")
+        out = search.gate("What does Jev decide?", results(), candidate_queries=["a", "b"],
+                          round_index=2, max_rounds=3, reading_failed=True, transport=t)
+        self.assertEqual(out["decision"], search.THIN)
+        self.assertTrue(out["evidence_thin"])
+        self.assertTrue(any("could not be read" in note for note in out.get("notes", [])))
+
+    def test_unreadable_pages_on_round_one_still_allow_one_more_search(self):
+        t = jev(relevance={0: 0.9}, enough=0.2, pick="q0")
+        out = search.gate("What does Jev decide?", results(), candidate_queries=["a", "b"],
+                          round_index=1, reading_failed=True, transport=t)
+        self.assertEqual(out["decision"], search.SEARCH_MORE)
+
+    def test_unreadable_pages_never_override_enough_evidence(self):
+        t = jev(relevance={0: 0.9}, enough=0.9)
+        out = search.gate("What does Jev decide?", results(), round_index=2,
+                          reading_failed=True, transport=t)
+        self.assertEqual(out["decision"], search.ANSWER)
+
+    def test_unreadable_pages_with_jev_down_still_claim_nothing(self):
+        t = jev(fail_when=lambda request: True)
+        out = search.gate("What does Jev decide?", results(), round_index=2,
+                          reading_failed=True, transport=t)
+        self.assertEqual(out["decision"], search.UNKNOWN)
+
     def test_nothing_passed_the_relevance_screen_is_not_unknown(self):
         """The live failure: every result judged irrelevant answered `unknown`.
 
