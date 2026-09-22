@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+**Stage 2 was measured against its own removal, and it stays**
+
+- After the merged request, skill selection's verification request is the largest per-turn cost
+  left, and it is the last thing that can change the answer for free — so the honest question was
+  whether to keep paying for it. New `scripts/calibrate_skill_stage2.py` runs 14 authored cases
+  live once and replays both policies from the raw answers; the result is
+  [evals/skill-pick/SCORECARD-2026-09-22.md](evals/skill-pick/SCORECARD-2026-09-22.md).
+- On this repo's ten skills, stage 1 alone got all ten real cases right and offered a skill on
+  **all four** turns that want none (0.06-0.14 against a 0.02 floor). Stage 2 withheld all four.
+- On a real 379-skill catalog, stage 1 alone also made **two confident-wrong picks** — `dogfood`
+  at 0.96 and again at 0.94 for "click through the checkout flow in the browser", which stage 2
+  corrected to `jev-browser-use`. A floor cannot catch that failure: it sees how sure the answer
+  is, and this one was sure.
+- So the ~400-500 ms stays, recorded as a negative result on the alternative, the way
+  `evals/choose-match/` records the two-question gate that was measured and not shipped. The
+  scorecard names what would reopen it.
+- `tests/test_skill_stage2_eval.py` keeps the case list honest offline: every expectation names a
+  skill this repo ships, the four no-skill cases cannot be quietly deleted, and no Jev call runs
+  at import time.
+
 **The connection was the cost: one TLS session per call, now one per thread that needs it**
 
 - A Jev call opened a new HTTPS connection every time — `urllib.request.build_opener` per
