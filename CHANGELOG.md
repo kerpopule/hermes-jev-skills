@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**A plugin name the installer adds lands in the same column as the ones already there**
+
+- `install.py` wrote every name it added to `plugins.enabled` two spaces in, whatever the file
+  already used. A Hermes config that indents that list four spaces in — the common shape — read
+  the new names as a continuation of the item above them, so `yaml.safe_load` returned
+  `["hermes-handoff", "hermes-jev - a2a-platform - basic - ..."]` with no complaint at all, and
+  the next gateway start quietly switched the six plugins already enabled off. Found on a live
+  install, where the config had to be repaired by hand.
+- The column now comes from the list in the file: four spaces in stays four, two stays two, and
+  a `plugins:` section with no `enabled:` key yet gets one beside the keys it does have. Removing
+  the names puts the file back byte for byte, which `--uninstall` depends on.
+- `tests/test_install.py` reads the edited file back with `yaml.safe_load` and counts the names:
+  a folded list is invisible to a text assertion, and to YAML. The workflow installs PyYAML
+  before the suite so that test cannot quietly skip.
+
 **A reply that contradicts itself is refused, not averaged**
 
 - `client.ask` now enforces the rules every other validator of this API already enforces —

@@ -8,7 +8,13 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Sequence
 from unittest import mock
+
+try:
+    import yaml
+except ImportError:                      # only the indentation test needs it; CI installs it
+    yaml = None
 
 spec = importlib.util.spec_from_file_location("jev_install", Path(__file__).resolve().parents[1] / "install.py")
 install = importlib.util.module_from_spec(spec)
@@ -88,6 +94,92 @@ class ConfigEditTests(unittest.TestCase):
             config.write_text("other: 1\n")
             install.enable_plugins(config, install.PLUGINS, True)
             self.assertEqual(config.read_text(), f"other: 1\nplugins:\n  enabled:\n{listed}")
+
+
+# The six plugins a real config already had when the installer ran, alongside the two this repo
+# ships. Both are valid YAML, and the installer has to leave the ones already there alone.
+SIX_ALREADY_ENABLED = ["a2a-platform", "basic", "browser-firecrawl", "drain",
+                       "openai-codex", "openrouter"]
+
+
+def plugins_config(item_indent: str, preexisting: Sequence[str] = SIX_ALREADY_ENABLED) -> str:
+    """A config with `plugins.enabled` spelled the way a Hermes config spells it.
+
+    ``item_indent`` is the column the list items sit in: two spaces puts them level with
+    `enabled:`, four puts them one level inside it. Both parse.
+    """
+    listed = "".join(f"{item_indent}- {name}\n" for name in preexisting)
+    return (f"model:\n  default: some/model   # keep this comment\n"
+            f"plugins:\n  enabled:\n{listed}  disabled: []\n"
+            f"security:\n  redact_secrets: true\n")
+
+
+@unittest.skipUnless(yaml, "PyYAML is needed to read the list back the way Hermes does")
+class PluginsListIndentTests(unittest.TestCase):
+    """A new name written in the wrong column folds the rest of the list into one scalar.
+
+    Reported from a live install: `plugins.enabled` held six names four spaces in, the
+    installer added its two at two spaces, and `yaml.safe_load` — which had no complaint —
+    returned ["hermes-handoff", "hermes-jev - a2a-platform - basic - ..."]. The next gateway
+    restart read that as two plugins and switched the six the person already had off, with
+    nothing said. Reading the file back as YAML is the only check that sees it.
+    """
+
+    def _config(self, tmp, body):
+        config = Path(tmp) / "config.yaml"
+        config.write_text(body)
+        return config
+
+    def _enabled(self, config):
+        return yaml.safe_load(config.read_text())["plugins"]["enabled"]
+
+    def _assert_every_name_survived(self, config, already=SIX_ALREADY_ENABLED):
+        enabled = self._enabled(config)
+        # Order is not the question here: the installer puts its own names at the head of the
+        # list, which is what it did before. All eight being *separate* names is the question.
+        self.assertEqual(set(enabled), set(already) | set(install.PLUGINS))
+        self.assertEqual(len(enabled), len(set(already)) + len(set(install.PLUGINS)))
+        for name in enabled:
+            self.assertNotIn(" - ", name)         # the symptom: six names in one string
+
+    def test_the_reported_case_is_six_names_already_there_plus_the_two_shipped_here(self):
+        self.assertEqual(len(SIX_ALREADY_ENABLED), 6)
+        self.assertEqual(len(SIX_ALREADY_ENABLED) + len(install.PLUGINS), 8)
+
+    def test_a_list_four_spaces_in_keeps_every_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            body = plugins_config("    ")
+            config = self._config(tmp, body)
+            self.assertEqual(set(install.enable_plugins(config, install.PLUGINS, True).values()),
+                             {"enabled"})
+            self._assert_every_name_survived(config)
+            self.assertIn("    - hermes-jev\n", config.read_text())
+            install.enable_plugins(config, install.PLUGINS, False)
+            self.assertEqual(config.read_text(), body)    # straight back, byte for byte
+
+    def test_a_list_two_spaces_in_keeps_every_name(self):
+        """The other half of the same rule: a fix that hardcodes four spaces breaks this."""
+        with tempfile.TemporaryDirectory() as tmp:
+            body = plugins_config("  ")
+            config = self._config(tmp, body)
+            install.enable_plugins(config, install.PLUGINS, True)
+            self._assert_every_name_survived(config)
+            self.assertIn("  - hermes-jev\n", config.read_text())
+            install.enable_plugins(config, install.PLUGINS, False)
+            self.assertEqual(config.read_text(), body)
+
+    def test_a_plugins_section_without_an_enabled_key_is_still_valid_yaml(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._config(tmp, "plugins:\n  disabled: []\nother: 1\n")
+            install.enable_plugins(config, install.PLUGINS, True)
+            self._assert_every_name_survived(config, already=[])
+            self.assertEqual(yaml.safe_load(config.read_text())["other"], 1)
+
+    def test_a_config_with_no_plugins_section_at_all_gets_one_that_parses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._config(tmp, "other: 1\n")
+            install.enable_plugins(config, install.PLUGINS, True)
+            self._assert_every_name_survived(config, already=[])
 
 
 class HermesInstallTests(unittest.TestCase):

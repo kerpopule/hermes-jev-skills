@@ -12,6 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - run: pip install pyyaml
       - run: python -m unittest discover -s tests -v
-      - run: pip install pyyaml && python -m unittest discover -s router-dashboard/tests
+      - run: python -m unittest discover -s router-dashboard/tests
       - run: python scripts/check_release.py
