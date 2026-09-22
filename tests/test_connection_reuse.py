@@ -13,7 +13,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from jevkit import client
+from jevkit import client, plan
 
 OK_BODY = json.dumps({"model": "jev-test", "answers": {}, "usage": {}}).encode()
 
@@ -50,7 +50,9 @@ class _Handler(BaseHTTPRequestHandler):
         pass
 
 
-class TransportTests(unittest.TestCase):
+class _LivePoolServer(unittest.TestCase):
+    """A local server and an empty pool, for the tests that need a real socket."""
+
     def setUp(self):
         _Handler.response = (200, OK_BODY)
         _Handler.ports = []
@@ -71,6 +73,8 @@ class TransportTests(unittest.TestCase):
         for _, connection in pooled:
             client._close(connection)
 
+
+class TransportTests(_LivePoolServer):
     def post(self, timeout=5.0):
         return client._http_transport(b'{"state":{},"questions":{}}', {"Content-Type": "application/json"},
                                       timeout, self.url)
@@ -134,6 +138,39 @@ class TransportTests(unittest.TestCase):
         self.assertIsNot(first, second, "an empty pool makes a new connection, it does not share one")
         for connection in (first, second):
             client._close(connection)
+
+
+class PlanUsesTheSamePoolTests(_LivePoolServer):
+    """`jev plan` posts to a provider directly, and since 2026-09-22 it does so over this pool.
+
+    It used to build its own opener, so every plan cost a second TLS session — measured at 522 ms
+    against 245 ms for a borrowed connection. A plan happens once per task rather than once per
+    turn, which is why it was left; leaving it also meant two request paths to keep honest.
+    """
+
+    def plan_post(self, timeout=5.0):
+        return plan._http_transport(f"{self.url}/chat/completions", b'{"model":"test/model","messages":[]}',
+                                    {"Content-Type": "application/json", "Authorization": "Bearer test"},
+                                    timeout)
+
+    def test_two_plans_arrive_on_one_connection(self):
+        self.assertEqual(json.loads(self.plan_post())["model"], "jev-test")
+        self.plan_post()
+        self.assertEqual(len(_Handler.ports), 2, "the server saw two plan requests")
+        self.assertEqual(len(set(_Handler.ports)), 1, "and they arrived on one pooled connection")
+
+    def test_a_plan_refusal_keeps_its_code_and_falls_back(self):
+        _Handler.response = (429, b"slow down")
+        with self.assertRaises(plan.PlanError) as caught:
+            self.plan_post()
+        self.assertEqual(caught.exception.code, "rate_limited")
+
+    def test_plan_keeps_its_own_reply_ceiling(self):
+        """A plan is a handful of short objects; the client's default ceiling is much larger."""
+        _Handler.response = (200, b"x" * (plan.MAX_RESPONSE_BYTES + 1))
+        with self.assertRaises(plan.PlanError) as caught:
+            self.plan_post()
+        self.assertEqual(caught.exception.code, "response_too_large")
 
 
 if __name__ == "__main__":

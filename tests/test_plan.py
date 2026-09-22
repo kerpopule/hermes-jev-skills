@@ -497,14 +497,42 @@ class CredentialTests(unittest.TestCase):
 
 
 class HttpTransportTests(unittest.TestCase):
-    def test_a_redirect_is_refused_rather_than_followed(self):
-        """Following it would hand the bearer token to whatever origin it points at."""
-        import urllib.error
-        import urllib.request
-        handler = P._NoRedirect()
-        request = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions")
-        with self.assertRaises(urllib.error.HTTPError):
-            handler.redirect_request(request, None, 302, "Found", {}, "https://elsewhere.example/")
+    def test_a_redirect_comes_back_as_a_failed_plan_not_a_hop(self):
+        """Following it would hand the bearer token to whatever origin it points at.
+
+        The refusal itself is exercised against a live server in `test_connection_reuse.py`
+        (three-hundred status, one path requested). What matters here is that plan reads it as
+        a failure — a plan that cannot be made is a fallback, never a followed hop.
+        """
+        with mock.patch.object(P.client, "post", side_effect=P.client.JevError("http_302")):
+            with self.assertRaises(P.PlanError) as raised:
+                P._http_transport("https://openrouter.ai/api/v1/chat/completions", b"{}", {}, 1.0)
+        self.assertEqual(raised.exception.code, "http_302")
+
+    def test_the_pooled_client_is_what_plan_calls(self):
+        """One request function and one pool: plan must not quietly build its own opener again.
+
+        It did, and that meant a second TLS session per plan — the cost `client` stopped paying.
+        """
+        seen = {}
+
+        def post(url, body, headers, timeout, max_bytes=None):
+            seen.update(url=url, max_bytes=max_bytes, timeout=timeout)
+            return b"{}"
+
+        with mock.patch.object(P.client, "post", post):
+            P._http_transport("https://example.com/v1/chat/completions", b"{}", {}, 2.0)
+        self.assertEqual(seen["url"], "https://example.com/v1/chat/completions")
+        self.assertEqual(seen["max_bytes"], P.MAX_RESPONSE_BYTES,
+                         "plan's own reply ceiling, not the client's much larger default")
+
+    def test_a_transport_failure_is_a_plan_error_with_its_code(self):
+        for code in ("timeout", "network", "response_too_large", "rate_limited"):
+            with self.subTest(code=code):
+                with mock.patch.object(P.client, "post", side_effect=P.client.JevError(code)):
+                    with self.assertRaises(P.PlanError) as raised:
+                        P._http_transport("https://example.com/v1/chat/completions", b"{}", {}, 1.0)
+                self.assertEqual(raised.exception.code, code)
 
 
 @contextlib.contextmanager

@@ -233,11 +233,14 @@ def _close(connection: Any) -> None:
         pass
 
 
-def _http_transport(body: bytes, headers: Dict[str, str], timeout: float, url: str = ENDPOINT) -> bytes:
+def _http_transport(body: bytes, headers: Dict[str, str], timeout: float, url: str = ENDPOINT,
+                    max_bytes: int = MAX_RESPONSE_BYTES) -> bytes:
     """POST one request over a pooled connection. Redirects are never followed.
 
     A redirect would carry the bearer token to another origin, so a 3xx is an error here, not a
     hop — the same guarantee the previous opener gave, without a new TLS session per call.
+    ``max_bytes`` is the caller's own ceiling on the reply: a feature that plans one small
+    object should not be able to pull a megabyte because the client's default is higher.
     """
     key, path = _origin(url)
     for attempt in (0, 1):
@@ -246,7 +249,7 @@ def _http_transport(body: bytes, headers: Dict[str, str], timeout: float, url: s
             connection.request("POST", path, body=body, headers=headers)
             response = connection.getresponse()
             status = response.status
-            raw = response.read(MAX_RESPONSE_BYTES + 1)
+            raw = response.read(max_bytes + 1)
         except JevError:
             _POOL.drop(connection)
             raise
@@ -257,7 +260,7 @@ def _http_transport(body: bytes, headers: Dict[str, str], timeout: float, url: s
             if attempt:
                 raise JevError("network") from None
             continue
-        if len(raw) > MAX_RESPONSE_BYTES:
+        if len(raw) > max_bytes:
             _POOL.drop(connection)
             raise JevError("response_too_large")
         if status != 200:
@@ -273,6 +276,18 @@ def _http_transport(body: bytes, headers: Dict[str, str], timeout: float, url: s
 
 def _openrouter_transport(body: bytes, headers: Dict[str, str], timeout: float) -> bytes:
     return _http_transport(body, headers, timeout, OPENROUTER_ENDPOINT)
+
+
+def post(url: str, body: bytes, headers: Dict[str, str], timeout: float,
+         max_bytes: int = MAX_RESPONSE_BYTES) -> bytes:
+    """POST one request to ``url`` over the pooled connection.
+
+    For the features that call a provider directly instead of asking Jev a question — `jev plan`
+    is the one today. It used to build its own opener, which meant its own TLS session: fine for
+    a once-per-task call, and a second handshake the pool already knows how to avoid. Raises
+    ``JevError`` with a code; a caller maps that to its own error type.
+    """
+    return _http_transport(body, headers, timeout, url, max_bytes)
 
 
 _RETRYABLE = {"rate_limited", "overloaded", "network", "http_500", "http_502", "http_503", "http_504"}

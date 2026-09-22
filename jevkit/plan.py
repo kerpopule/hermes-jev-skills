@@ -35,12 +35,10 @@ import shutil
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import urlsplit
 
-from . import memo, privacy
+from . import client, memo, privacy
 
 SCHEMA = "jev.plan_v1"
 KINDS = ("open_app", "open_url", "click", "type_text", "press_key", "menu", "scroll", "wait")
@@ -219,28 +217,18 @@ def _endpoint(env: Mapping[str, str]) -> Dict[str, str]:
 
 # ── transport ────────────────────────────────────────────────────────────────
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
-        # A redirect would carry the bearer token to another origin.
-        raise urllib.error.HTTPError(req.full_url, code, "redirect refused", headers, fp)
-
-
 def _http_transport(url: str, body: bytes, headers: Dict[str, str], timeout: float) -> bytes:
-    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    """One POST through the client's pooled connection, as a ``PlanError``.
+
+    The client already refuses a redirect rather than following it — a hop would carry the
+    bearer token to another origin — so the guarantee this used to get from its own opener
+    holds here too, without a second TLS session for a call that happens once per task. The
+    reply ceiling stays plan's own: this feature plans one small object.
+    """
     try:
-        with urllib.request.build_opener(_NoRedirect).open(request, timeout=timeout) as response:
-            raw = response.read(MAX_RESPONSE_BYTES + 1)
-    except urllib.error.HTTPError as error:
-        raise PlanError(f"http_{error.code}") from None
-    except TimeoutError:
-        raise PlanError("timeout") from None
-    except (urllib.error.URLError, OSError) as error:
-        # urllib wraps a socket timeout in URLError, so the type alone does not say which.
-        slow = isinstance(getattr(error, "reason", None), TimeoutError) or "timed out" in str(error)
-        raise PlanError("timeout" if slow else "network") from None
-    if len(raw) > MAX_RESPONSE_BYTES:
-        raise PlanError("response_too_large")
-    return raw
+        return client.post(url, body, headers, timeout, max_bytes=MAX_RESPONSE_BYTES)
+    except client.JevError as error:
+        raise PlanError(error.code) from None
 
 
 # ── step validation ──────────────────────────────────────────────────────────

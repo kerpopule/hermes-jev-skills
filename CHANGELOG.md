@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+**Stakes and margin in `choose`: measured, and not shipped**
+
+- The floor is one number for every screen, so it pays for the wrong-click it prevents with
+  stalls on screens where a mistake is cheap. Two free signals could sharpen that split — an
+  irreversible action the caller marked in the table, and the gap between the top choice and the
+  runner-up — and both were priced rather than argued. New
+  `scripts/calibrate_choose_stakes.py` runs the same 31 labelled cases the floor was calibrated on
+  (imported, not re-typed) three times live, keeps the raw distributions, and replays 18 gate
+  families offline: [evals/choose-match/SCORECARD-2026-09-22-stakes-and-margin.md](evals/choose-match/SCORECARD-2026-09-22-stakes-and-margin.md).
+- All 18 families reproduced the shipped floor **exactly** — 69 right, 1 stall, 21 declined, zero
+  wrong actions over 93 case-decisions, with no case where any family would have acted
+  differently. On a screen holding nothing irreversible the correct answers came back at **0.92+**
+  and the declines at 0.72 or below, so the band in which a gate could change its mind is empty.
+- The one case that ever sits in that band is the irreversible trap: `btn-save` (wrong) at
+  0.51-0.53 twice, then `btn-cancel` (right) at 0.42 — confidence does not separate right from
+  wrong there, so the floor is buying the asymmetry, not accuracy. A lower bar for reversible
+  screens cannot help the case that matters, and a 0.30 margin rule withholds what confidence
+  already withholds.
+- So no `stakes` field goes into the request schema, `MIN_CONFIDENCE` is unchanged, and
+  `_floor()`'s docstring now points at the scorecard so this is not re-litigated from the same
+  premise. What would reopen it is written down: a screen where the right action is one of two
+  plausible controls and being wrong costs a click. `tests/test_choose_stakes_eval.py` keeps the
+  eval honest offline — the bar, the reused case set, the stakes marking, and the unchanged floor.
+
+**`jev plan` posts over the same pooled connection, from the same one code path**
+
+- The planner is the one feature that calls a provider directly instead of asking Jev a question,
+  and it built its own opener: a second TLS session per plan, measured at 522 ms against 245 ms
+  for a borrowed connection. It was left as a known leftover because it runs once per task rather
+  than once per turn — and leaving it also meant two request paths to keep honest.
+- `client.post()` is now public for exactly that case, and `plan.py` calls it with **its own reply
+  ceiling** (`MAX_RESPONSE_BYTES`, 200 KB, not the client's 1 MB): a feature that plans a handful
+  of short objects should not be able to pull a megabyte. Error codes are unchanged, so `plan`'s
+  fallback table (`timeout`, `network`, `http_*`, `response_too_large`) is what it always was.
+- Redirect refusal still holds — a 3xx is an error, never a hop, so the bearer token cannot travel
+  to another origin — and it is now exercised in one place instead of two: the live-server test in
+  `test_connection_reuse.py`. New `PlanUsesTheSamePoolTests` proves the property against a real
+  socket: two plan requests arrive on one connection.
+
 **A question's shape is now enforced where it is sent, not only where it is built**
 
 - The three rules that mattered were enforced by `client.choice`/`score`/`noul` — which only
@@ -61,7 +100,8 @@
   the wall clock — with the same tier and the same skill on every turn measured.
 - `tests/test_connection_reuse.py` holds the four properties against a local HTTP server:
   reuse, no redirect hop, a bounded pool, and recovery from a closed idle socket. `jev plan`
-  still opens its own connection; it runs once per task rather than once per turn.
+  kept its own opener for a day (it runs once per task rather than once per turn) and now posts
+  through this same pool too — see the entry above.
 
 **One request for routing and skill selection, and the measurement that made it correct**
 

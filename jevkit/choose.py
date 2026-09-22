@@ -44,6 +44,15 @@ def _floor() -> float:
     at 0.45-0.60, under it, and slipped through exactly once at a 0.60 floor - while used
     alone at any useful threshold the match question acts on that same case. Tables, limits
     and the script: evals/choose-match/ and scripts/calibrate_choose_match.py.
+
+    Stakes and margin - a higher bar where the caller marked a candidate irreversible, and a
+    minimum gap between the top choice and the runner-up - were priced the same way and NOT
+    adopted either (2026-09-22). On the same cases over three live runs, all 18 gate families
+    reproduced this floor exactly. On a screen with nothing irreversible the correct answers came
+    back at 0.92+ and the declines at 0.72 or below, so no floor between 0.55 and 0.70 changes a
+    decision there, and the one case that ever sits in the band is the irreversible trap - wrong
+    at 0.51-0.53, right at 0.42, with confidence not separating the two. Script, numbers and the
+    honest gap in the harness: evals/choose-match/SCORECARD-2026-09-22-stakes-and-margin.md.
     """
     try:
         value = float(os.environ.get("JEV_MIN_CONFIDENCE", "") or 0.65)
