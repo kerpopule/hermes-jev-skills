@@ -35,6 +35,15 @@ def _floor() -> float:
     0.60 blocks that case by 0.02, which is inside the +-0.08 run-to-run noise. 0.65 keeps
     every real-world correct answer and leaves actual margin. JEV_MIN_CONFIDENCE overrides
     it, clamped so it can never be set down into the band where wrong answers were seen.
+
+    A second question - "does any candidate match the goal at all", the way Stagehand's Act
+    primitive gates its own Jev pick - was measured against these same cases and NOT adopted
+    (2026-09-21). It does separate cleanly: `no_answer` cases topped out at 0.45 across five
+    live runs while every other case started at 0.61. It buys nothing all the same, because
+    this floor already produced zero wrong actions in every run - the known wrong answer sits
+    at 0.45-0.60, under it, and slipped through exactly once at a 0.60 floor - while used
+    alone at any useful threshold the match question acts on that same case. Tables, limits
+    and the script: evals/choose-match/ and scripts/calibrate_choose_match.py.
     """
     try:
         value = float(os.environ.get("JEV_MIN_CONFIDENCE", "") or 0.65)

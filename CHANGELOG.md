@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+**Stagehand's second question was measured, and it buys nothing here**
+
+- Stagehand's Act primitive accepts a Jev pick only after asking *which candidate is best*
+  **and** *does any candidate match the goal at all* at 0.7, falling back to a language
+  model otherwise. This repo gates on one number, `choose.MIN_CONFIDENCE`. The two failures
+  being separated are genuinely different — "the best candidate is weak" versus "the right
+  action is not on this screen" — so the second question was worth measuring rather than
+  dismissing.
+- `scripts/calibrate_choose_match.py` runs the 31 labelled cases `calibrate_choose.py`
+  already carries, live, with both questions in **one** request, then replays every gate
+  offline. The second question does carry a signal: across five runs the `no_answer` band
+  topped out at 0.45 while every other case started at 0.61.
+- It buys nothing for the decision the gate makes. At the shipped floor of 0.65 the
+  single-question gate produced **zero wrong actions in all five runs**, so the case the
+  second question would catch (`Cancel this dialog without losing my work` → *Save*, at
+  0.45-0.60 confidence) is already blocked — at a 0.60 floor it slipped through once in
+  five, which is exactly the margin 0.65 exists to cover. Used *alone* at any useful
+  threshold the match question acts on that case — 1 wrong action in every run, against the
+  floor's 0 — and above 0.70 it only converts right answers into stalls.
+- **Nothing about `choose` changed**: same one question, same floor, same fail-open. The
+  finding, the tables and the honest limits (31 cases, and the floor was calibrated on
+  them) are in `evals/choose-match/SCORECARD-2026-09-21.md`; 15 offline tests in
+  `tests/test_choose_match_eval.py` cover the harness, including the bug the first run had,
+  where every good row was counted as a failure.
+
 **A skill suggestion is now a skill this session can actually open**
 
 - The plugin derived its skill roots from `HERMES_HOME`, and under a named profile that

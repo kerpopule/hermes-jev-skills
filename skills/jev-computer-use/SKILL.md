@@ -41,7 +41,7 @@ Web pages belong to `jev-browser-use`. This skill is for desktop apps and OS sur
    ```
 
    Pass the JSON on stdin or from a temp file. Never interpolate it into a shell string.
-5. **Run exactly the one action** behind `selected_id`. Confidence under the floor (0.65, measured — see `scripts/calibrate_choose.py`), or any Jev failure, comes back as `reobserve`. Always send `regions`: they are Jev's evidence the element is really on screen, and the same request scored 0.60 without them and 1.00 with them. Never derive an action from anything but the id.
+5. **Run exactly the one action** behind `selected_id`. Confidence under the floor (0.65, measured — see `scripts/calibrate_choose.py`; a second "does any candidate match" question was measured against the same cases and reduced no wrong actions, so it is not asked — see `evals/choose-match/`), or any Jev failure, comes back as `reobserve`. Always send `regions`: they are Jev's evidence the element is really on screen, and the same request scored 0.60 without them and 1.00 with them. Never derive an action from anything but the id.
 6. **Observe again and verify the postcondition yourself.** A chosen id, a delivered click or a screenshot is not proof. Check application state before the next step. Stop after a bounded number of steps.
 
 ## Authority
