@@ -301,14 +301,22 @@ def looks_trivial(turn: str) -> bool:
 def pick(
     turn: str, skills: List[Dict[str, str]], *, top_k: int = 3, need_threshold: float = 0.5,
     match_threshold: float = 0.5, timeout: float = 5.0, transport: Optional[client.Transport] = None,
+    stage_one: Optional[Mapping[int, Mapping[str, float]]] = None, stage_one_latency: Optional[int] = None,
 ) -> Dict[str, Any]:
+    """Which skill, if any, this turn needs.
+
+    `stage_one` (with `stage_one_latency`) is a stage-1 answer already bought — by the same
+    request that answered routing's questions, through `jevkit/turn.py`. Everything after
+    stage 1, including the stage-2 verification and its thresholds, is unchanged.
+    """
     if looks_trivial(turn):
         return {"status": "ok", "needs_skill": 0.0, "skills": [], "latency_ms": 0, "skipped": "trivial"}
     if not skills or privacy.is_sensitive(turn):
         return {"status": "fail_open", "reason": "no skills" if not skills else "turn looks sensitive; not sent", "skills": []}
     catalog, dropped = skills[:MAX_SKILLS], skills[MAX_SKILLS:]
     reply = _rank(privacy.redact(turn, 2000), catalog, top_k=top_k, need_threshold=need_threshold,
-                  match_threshold=match_threshold, timeout=timeout, transport=transport)
+                  match_threshold=match_threshold, timeout=timeout, transport=transport,
+                  stage_one=stage_one, stage_one_latency=stage_one_latency)
     if dropped:
         # "No skill fits" is not a clean answer when some skills were never looked at, so
         # the count travels with every reply and the names go to the log once.
@@ -320,31 +328,77 @@ def pick(
     return reply
 
 
+_PICK_INSTRUCTION = "Which skill is the specialised procedure this turn calls for?"
+
+
+def _pick_name(start: int) -> str:
+    """The code-owned id of one batch's stage-1 question.
+
+    Ids never reach the model — the meaning lives in `instructions` — and numbering them by
+    the batch's first catalog index is what lets several batches ship in one request.
+    """
+    return f"pick:{start}"
+
+
+def _options(catalog: List[Dict[str, str]], start: int) -> Dict[str, str]:
+    group = catalog[start:start + BATCH]
+    options = {f"S{start + i}": f"{s['name']}: {s['description'][:DESCRIPTION_CHARS]}"
+               for i, s in enumerate(group)}
+    options["none"] = "No listed skill is a specialised procedure for this turn"
+    return options
+
+
+def stage_one_questions(catalog: List[Dict[str, str]]) -> Dict[str, Any]:
+    """Stage 1's question for each batch, for a caller that ships them in its own request.
+
+    `stage_one_answers` turns the reply back into the shape `pick(stage_one=...)` takes, so
+    the ranking, the floors and stage 2 are the same code whichever request carried stage 1.
+    """
+    return {_pick_name(start): client.choice(_PICK_INSTRUCTION, _options(catalog, start))
+            for start in range(0, len(catalog), BATCH)}
+
+
+def stage_one_answers(reply: Mapping[str, Any], catalog: List[Dict[str, str]],
+                      latency_ms: Optional[int] = None) -> Dict[int, Dict[str, float]]:
+    """Project a reply to `stage_one_questions` into what `pick(stage_one=...)` wants."""
+    answers = reply["answers"]
+    return {start: answers[_pick_name(start)]["probabilities"] for start in range(0, len(catalog), BATCH)}
+
+
 def _rank(
     turn_text: str, catalog: List[Dict[str, str]], *, top_k: int, need_threshold: float,
     match_threshold: float, timeout: float, transport: Optional[client.Transport],
+    stage_one: Optional[Mapping[int, Mapping[str, float]]] = None, stage_one_latency: Optional[int] = None,
 ) -> Dict[str, Any]:
     # Stage 1: each batch is one Choice over its skills plus "none". The probabilities rank the whole
-    # catalog in one round trip, because the batches run side by side.
-    def shortlist(start: int) -> Dict[str, Any]:
-        group = catalog[start:start + BATCH]
-        options = {f"S{start + i}": f"{s['name']}: {s['description'][:DESCRIPTION_CHARS]}" for i, s in enumerate(group)}
-        options["none"] = "No listed skill is a specialised procedure for this turn"
-        question = client.choice("Which skill is the specialised procedure this turn calls for?", options)
-        return client.ask({"turn": turn_text}, {"pick": question}, timeout=timeout, transport=transport)
-
+    # catalog in one round trip, because the batches run side by side. `stage_one`, when given, is
+    # that same answer bought by another caller's request (`jevkit/turn.py`), which is why this
+    # function takes probabilities rather than a transport in that case.
     starts = list(range(0, len(catalog), BATCH))
-    try:
-        with ThreadPoolExecutor(max_workers=min(WORKERS, len(starts))) as pool:
-            replies = list(pool.map(shortlist, starts))
-    except client.JevError as error:
-        # One lost batch fails the whole pick. Ranking the batches that did answer would
-        # report "no skill" with confidence whenever the right skill sat in the lost one.
-        return {"status": "fail_open", "reason": f"Jev unavailable ({error.code})", "skills": []}
-    latency = max(reply["latency_ms"] for reply in replies)
+    if stage_one is None:
+        def shortlist(start: int) -> Dict[str, Any]:
+            question = client.choice(_PICK_INSTRUCTION, _options(catalog, start))
+            return client.ask({"turn": turn_text}, {_pick_name(start): question}, timeout=timeout, transport=transport)
+
+        try:
+            with ThreadPoolExecutor(max_workers=min(WORKERS, len(starts))) as pool:
+                replies = list(pool.map(shortlist, starts))
+        except client.JevError as error:
+            # One lost batch fails the whole pick. Ranking the batches that did answer would
+            # report "no skill" with confidence whenever the right skill sat in the lost one.
+            return {"status": "fail_open", "reason": f"Jev unavailable ({error.code})", "skills": []}
+        latency = max(reply["latency_ms"] for reply in replies)
+        per_batch = [reply["answers"][_pick_name(start)]["probabilities"] for start, reply in zip(starts, replies)]
+    else:
+        missing = [start for start in starts if start not in stage_one]
+        if missing:
+            # A merged request that lost a batch is the same failure as a lost round trip.
+            return {"status": "fail_open", "reason": f"stage 1 incomplete (batches {missing})", "skills": []}
+        latency = int(stage_one_latency or 0)
+        per_batch = [stage_one[start] for start in starts]
     ranked: List[tuple] = []
-    for reply in replies:
-        for option, probability in reply["answers"]["pick"]["probabilities"].items():
+    for batch in per_batch:
+        for option, probability in batch.items():
             if option != "none":
                 ranked.append((probability, int(option[1:])))
     ranked.sort(reverse=True)

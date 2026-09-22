@@ -489,11 +489,33 @@ def _keep(current: Optional[str], reason: str, **extra: Any) -> Dict[str, Any]:
     return out
 
 
+def questions() -> Dict[str, Any]:
+    """The three questions routing asks about one turn, in one object.
+
+    Separate from `decide` so another decision can be asked in the same request (see
+    `jevkit/turn.py`): Jev charges one round trip per request, so the questions routing
+    needs and the questions skill selection needs cost the same together as apart.
+    """
+    return {
+        "difficulty": client.score("How demanding is it to complete this turn well?", DIFFICULTY),
+        "kind": client.choice("What kind of work is this turn mainly?", KIND),
+        "costly_mistake": client.noul("A wrong or sloppy answer here would be costly or hard to undo"),
+    }
+
+
+def state_for(ask: str, *, context_tokens: int = 0, private: bool = False, limit: int = 2500) -> Any:
+    """What routing sends about one ask: the text, or coarse features when the turn is private."""
+    if private:
+        return {"turn_features": _features(ask, context_tokens)}
+    return {"user_turn": privacy.redact(ask, limit + 50), "context": _features(ask, context_tokens)["context"]}
+
+
 def decide(
     prompt: str, *, current: Optional[str] = None, context_tokens: int = 0, has_images: bool = False,
     profile: Optional[str] = None, pinned: bool = False, config: Optional[Dict[str, Any]] = None,
     rows: Optional[List[Dict[str, Any]]] = None, transport: Optional[client.Transport] = None,
     timeout: float = 2.5, only_provider: Optional[str] = None, session_id: str = "",
+    answers: Optional[Mapping[str, Any]] = None, latency_ms: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Route one fresh user turn. Call it once per turn, never inside a tool loop."""
     config = config or load_config()
@@ -526,21 +548,17 @@ def decide(
     risky = bool(_HARD_RISK.search(privacy.normalize(inner)))
     private = profile in (config.get("private_profiles") or []) or privacy.is_sensitive(inner)
     mode = "features" if private else config.get("mode", "redacted-text")
-    state: Any = (
-        {"turn_features": _features(ask, context_tokens)} if mode == "features"
-        else {"user_turn": privacy.redact(ask, limit + 50), "context": _features(ask, context_tokens)["context"]}
-    )
-    questions = {
-        "difficulty": client.score("How demanding is it to complete this turn well?", DIFFICULTY),
-        "kind": client.choice("What kind of work is this turn mainly?", KIND),
-        "costly_mistake": client.noul("A wrong or sloppy answer here would be costly or hard to undo"),
-    }
-    try:
-        reply = client.ask(state, questions, timeout=timeout, transport=transport)
-    except client.JevError as error:
-        return _keep(current, f"Jev unavailable ({error.code})", private=private)
-
-    answers = reply["answers"]
+    state: Any = state_for(ask, context_tokens=context_tokens, private=(mode == "features"), limit=limit)
+    if answers is None:
+        try:
+            reply = client.ask(state, questions(), timeout=timeout, transport=transport)
+        except client.JevError as error:
+            return _keep(current, f"Jev unavailable ({error.code})", private=private)
+        answers, latency_ms = reply["answers"], reply["latency_ms"]
+    elif not all(isinstance(answers.get(name), dict) for name in ("difficulty", "kind", "costly_mistake")):
+        # Answers asked by `turn.decide_turn` in somebody else's request. A caller that hands
+        # us a partial object is a bug in that caller, not a reason to route on a guess.
+        return _keep(current, "routing answers incomplete", private=private)
     difficulty, confidence = answers["difficulty"]["score"], answers["difficulty"]["confidence"]
     stakes = answers["costly_mistake"]["noul"]
     spread = answers["difficulty"].get("probabilities") or {}
@@ -594,7 +612,7 @@ def decide(
         # and "did the specialty answer earn its keep?" becomes unanswerable.
         "specialty": specialty, "has_images": bool(has_images),
         "confidence": round(confidence, 3), "difficulty": round(difficulty, 2),
-        "costly_mistake": round(stakes, 3), "private": private, "mode": mode, "latency_ms": reply["latency_ms"],
+        "costly_mistake": round(stakes, 3), "private": private, "mode": mode, "latency_ms": latency_ms,
         "policy": POLICY_VERSION, "reason": f"{tier} {specialty}", "unwrapped": unwrapped,
         "notice": f"[Jev] {tier} · {specialty} → {model} · confidence {confidence:.2f}",
     }, config), config)

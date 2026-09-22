@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .jevkit import catalog, choose, compact, keystore, ladder, rerank, route, search, skillpick, supervise
+from .jevkit import catalog, choose, compact, keystore, ladder, rerank, route, search, skillpick, supervise, turn
 
 _LOCK = threading.Lock()
 _TURNS: Dict[str, Dict[str, Any]] = {}      # session_id -> the current turn's text and decision
@@ -193,10 +193,39 @@ def _on_pre_llm_call(session_id: str = "", turn_id: Any = None, user_message: An
     with _LOCK:
         if len(_TURNS) >= _MAX_SESSIONS:
             _TURNS.pop(next(iter(_TURNS)))
-        _TURNS[session_id or "-"] = {"turn_id": turn_id, "text": text, "decision": None}
-    if _setting("skills", "off") != "on" or not text.strip():
+        _TURNS[session_id or "-"] = {"turn_id": turn_id, "text": text, "decision": None, "route_answers": None}
+    if not text.strip():
         return None
-    picked = skillpick.pick(text, skillpick.discover(_skill_roots(), disabled=_disabled_skills()), top_k=1)
+    skills_on = _setting("skills", "off") == "on"
+    routing_on = _setting("routing", "off") in ("on", "shadow")
+    skills = skillpick.discover(_skill_roots(), disabled=_disabled_skills()) if skills_on else []
+    picked = None
+    if skills_on and routing_on and _setting("merge_requests", "on") == "on":
+        # One request buys both decisions: routing's three questions and skill selection's
+        # stage 1. Measured 2026-09-21 on a 379-skill catalog: 540 ms + 647 ms separately,
+        # 620 ms together, because Jev charges per request and not per question.
+        merged = turn.decide_turn(text, skills, profile=_profile())
+        if merged.get("status") == "ok":
+            with _LOCK:
+                record = _TURNS.get(session_id or "-")
+                if record is not None:
+                    record["route_answers"] = merged["route_answers"]
+            picked = skillpick.pick(text, skills, top_k=1, stage_one=merged["stage_one"],
+                                    stage_one_latency=merged.get("latency_ms"))
+            _log({"kind": "merged", "status": "ok", "latency_ms": merged.get("latency_ms"),
+                  "picked": [s["name"] for s in picked.get("skills", [])]})
+        elif merged.get("status") == "fail_open":
+            # Jev did not answer. Nothing is stored and routing asks on its own rather than
+            # the turn losing its routing decision to somebody else's failed request.
+            _log({"kind": "merged", "status": "fail_open", "reason": merged.get("reason")})
+            return None
+        else:
+            # `not_mergeable` is the privacy boundary: those turns keep the two calls they had.
+            _log({"kind": "merged", "status": merged.get("status"), "reason": merged.get("reason")})
+    if picked is None:
+        if not skills_on:
+            return None
+        picked = skillpick.pick(text, skills, top_k=1)
     _log({"kind": "skill", "status": picked.get("status"), "needs_skill": picked.get("needs_skill"),
           "picked": [s["name"] for s in picked.get("skills", [])], "latency_ms": picked.get("latency_ms")})
     if not picked.get("skills"):
@@ -234,7 +263,10 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
                 turn["text"], current=current, profile=_profile(), only_provider=catalog_provider, session_id=session_id,
                 context_tokens=len(json.dumps(messages, default=str)) // 4,
                 has_images="image_url" in json.dumps(messages[-1:], default=str),
-                pinned=bool(default_bare) and bare != default_bare)   # you ran /model: your choice wins
+                pinned=bool(default_bare) and bare != default_bare,   # you ran /model: your choice wins
+                # Answers bought in the pre-call request by `turn.decide_turn`, when that
+                # request was allowed to carry them. None means ask here, as before.
+                answers=turn.get("route_answers"))
         except Exception as error:  # noqa: BLE001
             # `decide` handles a Jev outage itself. This is for everything it does not
             # expect, such as a routing.json shaped in a way nobody planned for. The turn

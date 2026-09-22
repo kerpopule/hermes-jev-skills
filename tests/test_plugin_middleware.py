@@ -86,5 +86,86 @@ class RoutingMiddlewareTests(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class MergedRequestTests(unittest.TestCase):
+    """One request for both decisions, and the three ways it can go.
+
+    The merge is only allowed when routing and skill selection are both on and the turn may
+    carry text. Anything else — a private profile, a sensitive turn, features-only routing —
+    must fall back to the two calls it had before, and a Jev outage mid-merge must not turn
+    into a routing decision nobody made.
+    """
+
+    ANSWERS = {"difficulty": {"type": "score", "score": 2.0, "confidence": 0.9, "probabilities": {}},
+               "kind": {"type": "choice", "choice": "coding", "confidence": 0.9, "probabilities": {}},
+               "costly_mistake": {"type": "noul", "noul": 0.2}}
+
+    def setUp(self):
+        plugin._TURNS.clear()
+        self.picks = []
+        self.merges = []
+        self.decisions = []
+
+        def fake_merge(text, skills, **kwargs):
+            self.merges.append({"text": text, "skills": skills, **kwargs})
+            return self.merge_result
+
+        def fake_pick(text, skills, **kwargs):
+            self.picks.append(kwargs)
+            return {"status": "ok", "needs_skill": 0.9, "skills": [], "latency_ms": 12}
+
+        def fake_decide(prompt, **kwargs):
+            self.decisions.append(kwargs)
+            return {"routed": False, "model": kwargs.get("current"), "reason": "kept"}
+
+        self.merge_result = {"status": "ok", "latency_ms": 620, "route_answers": self.ANSWERS,
+                             "stage_one": {0: {"S0": 0.9, "none": 0.1}}}
+        for patch in (
+            mock.patch.object(plugin, "_setting", lambda name, default: "on"),
+            mock.patch.object(plugin, "_log", lambda entry: None),
+            mock.patch.object(plugin, "_skill_roots", lambda: []),
+            mock.patch.object(plugin.skillpick, "discover", lambda roots, **kw: [
+                {"name": "a", "description": "d", "path": "p"}]), 
+            mock.patch.object(plugin.skillpick, "pick", side_effect=fake_pick),
+            mock.patch.object(plugin.turn, "decide_turn", side_effect=fake_merge),
+            mock.patch.object(plugin.route, "decide", side_effect=fake_decide),
+        ):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def call(self, session="s-merge", turn_id="t1"):
+        plugin._on_pre_llm_call(session_id=session, turn_id=turn_id, user_message=HARD)
+        return plugin._on_llm_request(request={"messages": [{"role": "user", "content": HARD}]},
+                                      session_id=session, turn_id=turn_id, model=DEFAULT, provider="openrouter")
+
+    def test_the_merged_answers_are_what_routing_acts_on(self):
+        self.call()
+        self.assertEqual(len(self.merges), 1, "one merged request, not two")
+        self.assertEqual(self.picks[0]["stage_one"], self.merge_result["stage_one"],
+                         "skill selection must read the merged answer, not buy another one")
+        self.assertEqual(self.decisions[0]["answers"], self.ANSWERS,
+                         "routing must use the answers the merged request already paid for")
+
+    def test_merging_is_off_when_the_switch_says_so(self):
+        with mock.patch.object(plugin, "_setting", lambda name, default: "off" if name == "merge_requests" else "on"):
+            self.call()
+        self.assertEqual(self.merges, [], "the kill switch must prevent the merged request")
+        self.assertEqual(self.decisions[0]["answers"], None)
+        self.assertNotIn("stage_one", self.picks[0])
+
+    def test_a_turn_that_cannot_be_merged_keeps_the_two_calls(self):
+        self.merge_result = {"status": "not_mergeable", "reason": "profile 'billing' is on the private list"}
+        self.call()
+        self.assertNotIn("stage_one", self.picks[0], "the old path asks skill selection on its own")
+        self.assertEqual(self.decisions[0]["answers"], None, "and routing asks for itself")
+
+    def test_a_failed_merge_does_not_invent_a_skill_and_leaves_routing_its_own_call(self):
+        self.merge_result = {"status": "fail_open", "reason": "Jev unavailable (network)"}
+        out = self.call()
+        self.assertIsNone(out, "no suggestion is made up when the request never answered")
+        self.assertEqual(self.picks, [], "skill selection is not re-asked inside the same failure")
+        self.assertEqual(self.decisions[0]["answers"], None)
+        self.assertEqual(plugin._TURNS["s-merge"]["route_answers"], None)
+
+
 if __name__ == "__main__":
     unittest.main()

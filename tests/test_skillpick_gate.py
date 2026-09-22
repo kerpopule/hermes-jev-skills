@@ -57,17 +57,23 @@ class FakeJev:
     def __call__(self, body, headers, timeout):
         request = json.loads(body)
         questions = request["questions"]
-        if "pick" in questions:
-            offered = list(questions["pick"]["criteria"])
-            with self._lock:
-                self.stage_one.append(offered)
-            if self.fail_batch_offering in offered:
-                raise client.JevError("credits_exhausted")      # not retryable, so the test does not sleep
-            scores = {key: float(self.shortlist.get(key, self.shortlist.get(int(key[1:]), 0.0)))
-                      for key in offered if key != "none"}
-            scores["none"] = max(0.0, 1.0 - sum(scores.values()))
-            best = max(scores, key=lambda key: scores[key])
-            answers = {"pick": {"type": "choice", "choice": best, "confidence": scores[best], "probabilities": scores}}
+        picks = [name for name in questions if name.startswith("pick")]
+        if picks:
+            # Several batches can arrive in one request (`jevkit/turn.py` merged the ask with
+            # routing's questions), so every stage-1 question in this request gets an answer.
+            answers = {}
+            for name in picks:
+                offered = list(questions[name]["criteria"])
+                with self._lock:
+                    self.stage_one.append(offered)
+                if self.fail_batch_offering in offered:
+                    raise client.JevError("credits_exhausted")   # not retryable, so the test does not sleep
+                scores = {key: float(self.shortlist.get(key, self.shortlist.get(int(key[1:]), 0.0)))
+                          for key in offered if key != "none"}
+                scores["none"] = max(0.0, 1.0 - sum(scores.values()))
+                best = max(scores, key=lambda key: scores[key])
+                answers[name] = {"type": "choice", "choice": best, "confidence": scores[best],
+                                 "probabilities": scores}
         else:
             with self._lock:
                 self.stage_two.append(sorted(questions))

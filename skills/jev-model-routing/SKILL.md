@@ -59,7 +59,8 @@ Use `model_id` from the reply. `routed: false` means stay where you are; `reason
 - Jev judges the ask: a long turn is read as its opening plus, mostly, its end (`ask_chars`). Boilerplate in the middle is not what gets scored.
 - Template turns are not routed: anything starting with a `skip_prefixes` entry (`[kanban]`, `[SESSION HANDOFF`…) or from a `skip_session_prefixes` session (`cron`) keeps the model its profile or job was configured with.
 - Large context (over ~32k tokens): never switches to a cheaper model, because rebuilding the prompt cache costs more than it saves.
-- Turns that look like they contain secrets, and any profile listed in `private_profiles`, send Jev only coarse features (length, code present, risk words), never text.
+- Turns that look like they contain secrets, and any profile listed in `private_profiles`, send Jev only coarse features (length, code present, risk words), never text. Those turns, and a profile with `mode: features`, also opt out of the merged request below.
+- Its three questions normally travel in the **same request** as skill selection's stage 1 (`jevkit/turn.py`), because Jev charges per request and not per question: measured live 2026-09-21, routing alone ~540 ms, both together ~620 ms, and 1784 ms → 1380 ms per turn that needs both. Each feature still reads its own answers through its own thresholds. `/jev merge_requests off` separates them again.
 - Jev down, slow (2.5 s budget) or malformed: current model, no delay beyond the budget. An answer that contradicts itself — a spread that does not cover the options, mass that does not sum to one, a chosen option that is not the maximum, a score that disagrees with its own distribution — is refused as `invalid_response` and lands here too.
 
 ## Tuning

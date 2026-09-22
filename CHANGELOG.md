@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+**One request for routing and skill selection, and the measurement that made it correct**
+
+- A Hermes turn paid two Jev round trips before the model ran: skill selection on the pre-call
+  hook, routing on the request hook. Jev charges per request and not per question — measured against
+  the live API with this fleet's 379-skill catalog: routing alone ~540 ms, stage 1 alone ~650 ms,
+  both in one request ~620 ms — so the plugin now asks them together (`jevkit/turn.py`) and hands
+  each answer to the module that owns its policy (`route.decide(answers=...)`,
+  `skillpick.pick(stage_one=...)`). Per turn, 1784 ms → 1380 ms and 3 requests → 2.
+- The first version of the merge shipped the turn **twice** in the state (routing's `user_turn` plus
+  a `turn` field for skill selection) and cost routing its calibration: difficulty confidence came
+  back 0.50-0.62 where the standalone call gave 0.70-0.75, tripping the "unsure is not hard" guard
+  and leaving the turn on whatever model it had. Sending the turn once gives 0.70-0.75 back.
+  `test_the_turn_is_sent_once_not_twice` pins it, and the failure is recorded here because a merge
+  that quietly degrades routing is exactly what "measure before shipping" is for.
+- Equivalence was measured, not assumed: eight live turns (four prompts, two runs) through both
+  paths gave the **same tier and the same skill on all eight**. `tests/test_turn.py` also asserts the
+  two paths agree offline, so a future change that breaks it fails in CI rather than in routing.
+- The privacy boundary does not move: a private profile, a turn that looks sensitive, or `mode:
+  features` means **no merged request at all** — asserted by call count, not by inspection. A merged
+  request that fails leaves nothing behind: no skill is suggested and routing asks for itself.
+- `/jev merge_requests off` is the kill switch; the log gains a `merged` line per turn that used it.
+
 **A reply that contradicts itself is refused, not averaged**
 
 - `client.ask` now enforces the rules every other validator of this API already enforces —
@@ -24,6 +46,11 @@
   `compact-select` produced **0 refusals**. Every fake transport in `tests/` that described a
   partial or under-summed distribution was describing a reply the API cannot send, and now builds
   well-formed answers through `tests/_wire.py`.
+- Seen on live traffic since, and counted: **1 of 8** live routing calls later in the same session
+  came back with a score that disagreed with its own distribution and was refused as
+  `invalid_response` / `score_matches_its_distribution` — the exact rule that exists because a flat
+  spread averaging to 2.73 was filed at level 4 of 5 in the mailbox incident. Nothing was averaged
+  into a tier from it.
 - Left under **Unreleased** on purpose: `tests/test_version_sync.py` requires a version to have a
   dated release section, and cutting 0.19.1 here would have shipped the two entries below it as
   part of a release nobody asked for. Move this block under `## 0.19.1 (<date>)` and bump both
