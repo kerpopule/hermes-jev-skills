@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+**`jev plan` was falling back on one command in ten, because the prompt never said which keys exist**
+
+- A live probe found `open the Sound settings pane and turn the volume down one notch` coming back
+  `fallback / schema_mismatch`: the model wrote `press_key: "volume down"`, and `parse_response`
+  rejects the whole plan on a single step outside the vocabulary — deliberately. The cost had
+  never been counted: two clean steps died with the third. New
+  `scripts/measure_plan_quality.py` counts it — 11 ordinary commands, one live call each, the raw
+  reply kept, and every fallback diagnosed down to the step that killed it:
+  [evals/plan-quality/SCORECARD-2026-09-22-prompt-keys.md](evals/plan-quality/SCORECARD-2026-09-22-prompt-keys.md).
+- **Before: 20/22 planned (90%)**, both fallbacks the same command, both runs, killed by
+  `press_key "volume down"`. The prompt's only `press_key` examples were `return`, `escape`, `tab`,
+  `cmd+t`, so inventing a key name was the reasonable reading.
+- The first fix — name the keys, and license leaving out a step that cannot be expressed — took it
+  to **22/22** and caused a reproducible regression: the screenshot step was dropped 2 runs out of
+  2, because "leave that part out" reads as licence to drop anything. It also sent `press_key f11`
+  for volume, since the list made `f1`-`f12` look available for it.
+- **Shipped wording: 33/33 planned across 3 runs** — keys named, modifiers noted (`cmd+shift+3` is
+  a screenshot this system can press), `f1`-`f12` scoped to their own meaning, no omission licence,
+  and volume/brightness explicitly a click on the screen control or a menu path. Median 1181 ms
+  against 1115 ms: ~90 extra prompt tokens, once per task, buying back a class of commands from an
+  unconditional fallback.
+- `tests/test_plan_quality_eval.py` pins the wording offline — the key list cannot be deleted, the
+  omission licence cannot come back, the eval set stays free of send/delete commands (those belong
+  to `enforce_never_send`), and the measurement never executes a step. The scorecard also records
+  that this counts *plans*, not correct plans, with two spot-checked commands that would not do
+  what the person asked.
+
 **Stakes and margin in `choose`: measured, and not shipped**
 
 - The floor is one number for every screen, so it pays for the wrong-click it prevents with

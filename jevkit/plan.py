@@ -86,7 +86,7 @@ Kinds:
 - open_url: target is a full http or https address. A site named without an address means its usual address.
 - click: target is a short description of the control as it would be labelled on screen, such as "Search button" or "first search result".
 - type_text: text is exactly the words to type and nothing else. target describes the field when the command names one.
-- press_key: target is one key, with any modifiers joined by "+": "return", "escape", "tab", "cmd+t".
+- press_key: target is one key, with any modifiers joined by "+": "return", "escape", "tab", "cmd+t". The keys that exist are the letters a-z, the digits 0-9, f1 to f12, and: return, tab, escape, space, delete, up, down, left, right, home, end, pageup, pagedown. Any of them can take modifiers, so "cmd+shift+3" (a screenshot) is a key this system can press. f1 to f12 are ordinary function keys and mean nothing on their own here: use one only when the command asks for that function key. Never invent a key name - there is no "volume down" key and no brightness key; for volume or brightness use a click on the control on screen, or a menu path.
 - menu: target is the full menu-bar path joined by " > ", such as "File > New Window".
 - scroll: target is "up" or "down". amount is how many times (1 when not said).
 - wait: amount is whole seconds to pause (1 when not said).
