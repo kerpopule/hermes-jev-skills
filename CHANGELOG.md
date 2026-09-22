@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+**A question that states one requirement answers one thing**
+
+- A vendor running Jev in production reported their largest accuracy jump came from one
+  sentence, not a better model. Describing a brief in full — topic, tone, format, audience —
+  made Jev read all of it as a hard requirement: 16 of 44 on their labelled set. Naming the
+  topic as the requirement and the rest as tie-breaking preferences: 33 of 44.
+- New [docs/writing-a-jev-question.md](docs/writing-a-jev-question.md): why an unlabelled
+  attribute reads as a filter, the one sentence that fixes it, how it applies to Choice, Score
+  and Noul, and the caveat that the source is a vendor's self-report at n=44, so it is a stated
+  default to measure rather than a law.
+
+**How a fleet uses Jev, written down once**
+
+- The shipped skills assume a single agent. A fleet needs the posture stated instead of each
+  lane improvising it, so new
+  [docs/using-jev-in-a-hermes-fleet.md](docs/using-jev-in-a-hermes-fleet.md) records the
+  standing rule (hand Jev the picks, the rankings and the gates), the difference between
+  fail-open and a bypass, the table of decisions Jev owns with the fail-open answer for each,
+  and the thresholds that silently change if a self-reporting model is substituted for a
+  calibrated one.
+- It also states the pointer convention the shipped skills already follow: the public repo holds
+  the loop, a fleet's machine-specific facts belong in its own `shared/rules/*-fleet.md`, and
+  skills point at it rather than duplicating it.
+- `tests/test_question_and_fleet_docs.py` holds both docs to the standard: present, non-empty,
+  linked from the README, still naming the rule and the thresholds, and carrying no
+  machine-specific paths.
+
 **The plugin manifest reports the version you are actually running**
 
 - 0.19.0 bumped `jevkit/__init__.py` and left `hermes/plugin/hermes-jev/plugin.yaml` at

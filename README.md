@@ -131,6 +131,8 @@ docs/              integration notes and hard-won operational lessons
 | Doc | Read it when |
 |---|---|
 | [turning-a-jev-feature-on.md](docs/turning-a-jev-feature-on.md) | **Before you enable anything.** Shadow mode, silent defaults, why a quiet log proves nothing, and bounding by the clock rather than the count. |
+| [using-jev-in-a-hermes-fleet.md](docs/using-jev-in-a-hermes-fleet.md) | Running Jev across more than one agent: the never-bypass rule, why fail-open is not a bypass, which decisions Jev owns, the thresholds that must not drift, and where a fleet's own facts belong. |
+| [writing-a-jev-question.md](docs/writing-a-jev-question.md) | Before you write a state or a question. The measured finding that one sentence about what is *required* versus merely *preferred* doubled accuracy, and how to phrase each of the three shapes. |
 | [measuring-a-router.md](docs/measuring-a-router.md) | Replaying routing against your own traffic before you trust the savings. |
 | [search-loop.md](docs/search-loop.md) | Running a search as a loop: which results to open, when to stop, and how to write candidate queries so Jev can pick one. |
 | [wiring-triage-into-a-live-pipeline.md](docs/wiring-triage-into-a-live-pipeline.md) | Adding classification to something already carrying real traffic. |
