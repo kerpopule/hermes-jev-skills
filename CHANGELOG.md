@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**The plugin manifest reports the version you are actually running**
+
+- 0.19.0 bumped `jevkit/__init__.py` and left `hermes/plugin/hermes-jev/plugin.yaml` at
+  0.18.0, so the manifest Hermes reads — and the number that ends up in a bug report — was a
+  release behind the code beside it. Every release before this one bumped both; nothing
+  checked it, so it stayed wrong until someone read the two files side by side.
+- The manifest now says 0.19.0, and `tests/test_version_sync.py` holds the two together:
+  equal versions, the library version must have a released `## x.y.z` section in this file,
+  and `## Unreleased` must be the only heading above it. One test asserts both parsers
+  returned a version-shaped string, because a guard that reads nothing passes everything.
+
 **Stagehand's second question was measured, and it buys nothing here**
 
 - Stagehand's Act primitive accepts a Jev pick only after asking *which candidate is best*
