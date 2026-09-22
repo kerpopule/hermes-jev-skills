@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+**A question's shape is now enforced where it is sent, not only where it is built**
+
+- The three rules that mattered were enforced by `client.choice`/`score`/`noul` — which only
+  guard the callers that use them. A question dict written by hand reached the wire and
+  `_check_answer` died on it, or an answer was read against a question nobody had asked.
+  `client.ask` now runs `client.check_questions` first, so the shape is settled before a
+  request is built or a key is resolved. `jev ask` (which had its own copy of the rules) calls
+  the same checker, so the CLI and the library cannot drift apart.
+- The rules: a known `type`; non-empty `instructions` that do not merely repeat the question's
+  own name (`{"id": "blocked_on_review", "instructions": "blocked on review?"}` asks nothing);
+  ≥2 options for a choice, ≥2 levels for a score; no criteria on a noul, where they would
+  never be sent; a state within `MAX_STATE_CHARS`, measured on the encoded JSON.
+- `tests/test_question_shape.py` (11 tests) sweeps every question the package's features
+  actually send — routing, triage, mailbox, `choose`, compaction, search, rerank, skill
+  selection — through a recording transport, re-derives the rules independently of the
+  checker, asserts a refused question never reaches the wire, and fails if any module outside
+  `client.py` spells a question dict by hand (verified by mutation: adding one to `route.py`
+  fails the test).
+- `docs/writing-a-jev-question.md` now states what is refused, next to the phrasing rule it
+  already carried.
+
 **Stage 2 was measured against its own removal, and it stays**
 
 - After the merged request, skill selection's verification request is the largest per-turn cost

@@ -52,6 +52,26 @@ Keep a small labelled set — thirty to fifty cases is enough — and replay it.
 shape: same cases, two phrasings, compare. A phrasing change that is not measured is a guess,
 and the reason the vendor's number moved was that they had the set to see it move.
 
+## What the client refuses, so this does not have to be remembered
+
+`client.ask` checks the shape of every question before a request is made or a key is
+resolved. A refusable question never costs a round trip; it is a caller bug, and it comes back
+as a `ValueError` naming the question:
+
+- the `type` has to be one of `choice`, `score`, `noul`;
+- `instructions` has to be a non-empty string — and it cannot be the question's own name
+  folded to its letters. `{"id": "blocked_on_review", "instructions": "blocked on review?"}`
+  asks nothing: the id names the question, the instructions ask it;
+- a `choice` needs an object of at least two options, a `score` a list of at least two levels;
+- a `noul` has no criteria, so criteria written there are refused rather than silently dropped;
+- the state has to encode to at most `client.MAX_STATE_CHARS`, and that is measured on the JSON
+  that goes out.
+
+The builders (`client.choice`, `client.score`, `client.noul`) enforce the same rules, and
+`tests/test_question_shape.py` sweeps every question the package's features actually send —
+routing, triage, mailbox, `choose`, compaction, search, rerank and skill selection — so a
+question that breaks one of them fails the suite rather than reaching Jev.
+
 ## What not to do
 
 - Do not add more detail to the state and hope the extra detail disambiguates. Detail is what

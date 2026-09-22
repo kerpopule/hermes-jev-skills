@@ -602,31 +602,14 @@ def cmd_ask(args: argparse.Namespace) -> int:
         # The help text used to advertise {id, kind, text}. The wire format says type and
         # instructions, so the advertised shape went out verbatim and client._check_answer
         # died on question["type"] with a KeyError. Both spellings are accepted; only the
-        # wire one is sent. Any other key is passed through: this is the raw escape hatch.
+        # wire one is sent. The shape itself is checked once, in client.check_question.
         question = {key: value for key, value in raw.items() if key not in ("id", "kind", "text")}
         for alias, key in (("kind", "type"), ("text", "instructions")):
             if alias in raw:
                 if key in raw and raw[key] != raw[alias]:
                     raise ValueError(f'question "{name}" gives both "{key}" and "{alias}", and they disagree')
                 question[key] = raw[alias]
-        kind = question.get("type")
-        if kind not in ("choice", "score", "noul"):
-            found = "has no type" if kind is None else f"has unknown type {shown(json.dumps(kind, default=str))}"
-            raise ValueError(f'question "{name}" {found}; use one of choice, score, noul')
-        text = question.get("instructions")
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError(f'question "{name}" has no instructions: the text of the question, as a string')
-        # A choice or score with no criteria has nothing to pick from. It used to be sent
-        # anyway, and then the reply check died reading question["criteria"].
-        if kind != "noul":
-            wanted, shape = ((dict, 'an object of at least two options, {"option": "what it means"}')
-                             if kind == "choice" else (list, "a list of at least two levels, lowest first"))
-            criteria = question.get("criteria")
-            if criteria is None:
-                raise ValueError(f'question "{name}": criteria are required for a {kind}, as {shape}')
-            if not isinstance(criteria, wanted) or len(criteria) < 2:
-                raise ValueError(f'question "{name}": criteria for a {kind} must be {shape}')
-        return question
+        return client.check_question(name, question)
 
     def named(questions: Any) -> Dict[str, Dict[str, Any]]:
         if not isinstance(questions, (dict, list)):

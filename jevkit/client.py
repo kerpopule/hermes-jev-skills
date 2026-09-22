@@ -12,6 +12,7 @@ import http.client
 import json
 import math
 import os
+import re
 import threading
 import time
 import urllib.parse
@@ -62,6 +63,82 @@ def score(instructions: str, levels: Sequence[str]) -> Dict[str, Any]:
 
 def noul(instructions: str) -> Dict[str, Any]:
     return {"type": "noul", "instructions": instructions}
+
+
+# ── the shape of a question ──────────────────────────────────────────────────
+#
+# The builders above only guard the callers that use them. A dict written by hand went
+# straight to the wire, and `_check_answer` then read `question["criteria"]` and died on a
+# KeyError, or read an answer against a question nobody had actually asked. The rules live
+# here, once, and `ask` applies them to everything it is handed — so a feature cannot ship a
+# question Jev cannot answer, whoever built it.
+
+QUESTION_TYPES = ("choice", "score", "noul")
+MIN_CRITERIA = 2
+
+
+def _identifier(text: Any) -> str:
+    """What a string says once punctuation, case and underscores stop distinguishing it."""
+    return re.sub(r"[^a-z0-9]+", " ", str(text).lower()).strip()
+
+
+def _shown(value: Any) -> str:
+    """A refusal quotes part of the caller's own input back, never all of it.
+
+    A 1 MB type came back as a 1 MB error with the actual complaint at the far end of it.
+    """
+    text = value if isinstance(value, str) else json.dumps(value, default=str)
+    return text if len(text) <= 80 else text[:77] + "..."
+
+
+def check_question(name: str, question: Any) -> Dict[str, Any]:
+    """One question in the shape Jev answers, or ``ValueError`` saying what is wrong.
+
+    The rules, and why each one exists:
+
+    * the ``type`` decides how the reply is read, so an unknown one is refused;
+    * ``instructions`` is the question. The name is an identifier — a question whose
+      instructions repeat its own name was never written, and Jev scores the state against
+      that name;
+    * a choice needs a mapping of at least two options and a score a list of at least two
+      levels, because one option is not a choice and the reply check reads the criteria;
+    * a noul has no criteria, so criteria written here would never be sent — refuse them
+      rather than let a caller believe they did something.
+    """
+    if not isinstance(question, Mapping):
+        raise ValueError(f'question "{_shown(name)}" must be an object like {{"type": ..., "instructions": ...}}')
+    kind = question.get("type")
+    if kind not in QUESTION_TYPES:
+        found = "has no type" if kind is None else f"has unknown type {_shown(json.dumps(kind, default=str))}"
+        raise ValueError(f'question "{_shown(name)}" {found}; use one of {", ".join(QUESTION_TYPES)}')
+    text = question.get("instructions")
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError(f'question "{_shown(name)}" has no instructions: the text of the question, as a string')
+    if _identifier(text) == _identifier(name):
+        raise ValueError(f'question "{_shown(name)}" asks nothing: its instructions only repeat its own name. '
+                         f'The id names the question, "instructions" asks it')
+    criteria = question.get("criteria")
+    if kind == "noul":
+        if criteria is not None:
+            raise ValueError(f'question "{_shown(name)}" is a noul: it has no criteria, so criteria written here '
+                             f'are never sent and never answered')
+        return {"type": "noul", "instructions": text}
+    wanted, shape = ((dict, 'an object of at least two options, {"option": "what it means"}')
+                     if kind == "choice" else (list, "a list of at least two levels, lowest first"))
+    if criteria is None:
+        raise ValueError(f'question "{_shown(name)}": criteria are required for a {kind}, as {shape}')
+    if not isinstance(criteria, wanted) or len(criteria) < MIN_CRITERIA:
+        raise ValueError(f'question "{_shown(name)}": criteria for a {kind} must be {shape}')
+    return {"type": kind, "instructions": text, "criteria": dict(criteria) if kind == "choice" else list(criteria)}
+
+
+def check_questions(questions: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Every question named and shaped, in the order and under the names it was handed."""
+    if not isinstance(questions, Mapping):
+        raise ValueError("questions must be a mapping of {name: question}")
+    if not questions:
+        raise ValueError("no questions")
+    return {str(name): check_question(str(name), question) for name, question in questions.items()}
 
 
 # ── transport ────────────────────────────────────────────────────────────────
@@ -346,6 +423,9 @@ def ask(
     """
     if not questions:
         raise ValueError("no questions")
+    # Where the shape is enforced. A caller that hand-builds a question dict used to reach the
+    # wire with it; now it is refused here, before any request is made or any key resolved.
+    questions = check_questions(questions)
     via = provider or ("typesafe" if api_key else keystore.provider())
     if via not in keystore.PROVIDERS:
         via = "typesafe"
