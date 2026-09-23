@@ -290,9 +290,19 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
             entry["escalate"] = {k: escalation.get(k) for k in ("rung", "kind", "model", "forced", "reason",
                                                                 "considered", "stakes")}
         _log(entry)
-    if mode != "on" or not decision.get("routed") or not decision.get("model_id"):
+    applied = mode == "on" and bool(decision.get("routed") and decision.get("model_id"))
+    # Log the model at this middleware boundary, not merely Jev's preferred model.
+    # Shadow, pins, and failed decisions must never count as applied savings. This is
+    # not provider usage telemetry: a later middleware or provider may still change it.
+    effective = decision["model_id"] if applied else request.get("model", model)
+    _log({"kind": "route_effective", "mode": mode, "applied": applied,
+          "requested_model": request.get("model", model), "effective_request_model": effective,
+          "decision_model": decision.get("model"), "reason": decision.get("reason"),
+          "first_request": turn.get("request_count", 0) == 0})
+    turn["request_count"] = turn.get("request_count", 0) + 1
+    if not applied:
         return None
-    return {"request": {**request, "model": decision["model_id"]}}
+    return {"request": {**request, "model": effective}}
 
 
 def _on_transform_output(response_text: str = "", session_id: str = "", **_: Any) -> Any:

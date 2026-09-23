@@ -735,6 +735,11 @@ function liveRow(e, fresh){
   if (e.kind === "skill"){
     cells = [t, e.profile, '<span class="tier kept">skill</span>', "", esc((e.picked || []).join(", ") || "none needed"), "",
              e.needs_skill == null ? "" : Number(e.needs_skill).toFixed(2), (e.latency_ms || "") + (e.latency_ms ? " ms" : ""), esc(e.status || "")];
+  } else if (e.kind === "route_effective"){
+    cells = [t, e.profile, '<span class="tier kept">request</span>', "",
+             "<b>" + esc(shortRef(e.effective_request_model)) + "</b>", "", "", "",
+             esc((e.applied ? "Jev applied" : e.mode === "shadow" ? "shadow · kept" : "kept") +
+                 (e.first_request ? " · first request" : " · tool loop"))];
   } else {
     const tier = e.tier || "kept";
     const model = shortRef(e.model || e.from);
@@ -743,7 +748,7 @@ function liveRow(e, fresh){
              e.confidence == null ? "" : Number(e.confidence).toFixed(2),
              (e.latency_ms || "") + (e.latency_ms ? " ms" : ""),
              esc((e.mode === "shadow" ? "shadow · " : "") + (e.private ? "private · " : "") +
-                 (e.tier ? (e.routed ? "switched" : "already on it") : (e.reason || "")))];
+                 (e.tier ? (e.routed ? "proposed switch" : "already on it") : (e.reason || "")))];
   }
   tr.innerHTML = cells.map((c, i) => "<td" + (i === cells.length - 1 ? ' class="wrap"' : "") + ">" + c + "</td>").join("");
   return tr;
@@ -760,7 +765,9 @@ async function pollLive(){
   const eff = SWITCHES ? Object.values(SWITCHES.profiles).map(p => p.effective.routing) : [];
   $("#liveBadge").textContent = r.plugin_installed
     ? (eff.filter(x => x === "on").length + " routing · " + eff.filter(x => x === "shadow").length + " shadow") : "plugin not installed";
-  $("#liveModels").innerHTML = r.by_model.map(([m, c], i) =>
+  $("#liveModels").innerHTML = '<span title="First requests visible in this recent event window, not provider billing">' +
+    esc(r.applied_turns) + '/' + esc(r.effective_turns) + ' Jev-applied · middleware request models (not provider usage)</span>' +
+    r.by_model.map(([m, c], i) =>
     '<span><span class="dot" style="background:' + PALETTE[i % PALETTE.length] + '"></span>' + esc(shortRef(m)) + " (" + c + ")</span>").join("");
   $("#liveEmpty").textContent = r.events.length ? "Decisions only. The text of a turn is never logged or shown here." :
     "No decisions yet. Turn routing on for a profile with /jev routing on (or shadow to watch without switching), then send it a message.";

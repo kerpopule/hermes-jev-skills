@@ -231,6 +231,18 @@ class JevPoolTests(unittest.TestCase):
         self.assertEqual(event["pool"]["specialty"], "general")
         self.assertIs(event["pool"]["earned"], False)
 
+    def test_effective_counts_use_applied_first_requests_not_shadow_predictions(self):
+        self.log({"ts": 1, "kind": "route", "model": "openrouter:would/route", "routed": True, "mode": "shadow"},
+                 {"ts": 2, "kind": "route_effective", "effective_request_model": "current/one",
+                  "first_request": True, "applied": False, "mode": "shadow"},
+                 {"ts": 3, "kind": "route_effective", "effective_request_model": "routed/two",
+                  "first_request": True, "applied": True, "mode": "on"},
+                 {"ts": 4, "kind": "route_effective", "effective_request_model": "routed/two",
+                  "first_request": False, "applied": True, "mode": "on"})
+        live = rs.jev_live(self.home)
+        self.assertEqual(dict(live["by_model"]), {"current/one": 1, "routed/two": 1})
+        self.assertEqual((live["effective_turns"], live["applied_turns"]), (2, 1))
+
     def test_a_kept_model_decision_carries_no_pool(self):
         self.log({"ts": 12, "kind": "route", "routed": False, "from": "openrouter:mid/one",
                   "reason": "low confidence 0.41"})

@@ -414,6 +414,9 @@ class PluginCase(unittest.TestCase):
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
+    def route_log(self):
+        return [entry for entry in self.log() if entry.get("kind") == "route"]
+
 class RoutingSwitchTests(PluginCase):
     def test_shadow_asks_jev_and_hands_back_the_request_untouched(self):
         self.switch(routing="shadow")
@@ -424,7 +427,7 @@ class RoutingSwitchTests(PluginCase):
         self.assertIsNone(result, "shadow must never return a replacement request")
         self.assertEqual(request, before, "shadow must not edit the request in place either")
         decide.assert_called_once()
-        entry = self.log()[-1]
+        entry = self.route_log()[-1]
         self.assertEqual((entry["mode"], entry["model"]), ("shadow", ROUTED["model"]))
 
     def test_on_changes_the_model_and_nothing_else(self):
@@ -462,14 +465,15 @@ class RoutingSwitchTests(PluginCase):
                 plugin._on_llm_request(request=self.request(), session_id="s", turn_id="t1",
                                        model=DEFAULT, provider="openrouter")
         decide.assert_called_once()
-        self.assertEqual(len(self.log()), 1)
+        self.assertEqual(len(self.route_log()), 1)
+        self.assertEqual(len([e for e in self.log() if e["kind"] == "route_effective"]), 4)
 
     def test_a_crash_inside_routing_lets_the_turn_through_and_is_logged_as_a_failure(self):
         self.switch(routing="on")
         with mock.patch.object(plugin.route, "decide", side_effect=KeyError("tiers")):
             result = self.turn(self.request())
         self.assertIsNone(result)
-        entry = self.log()[-1]
+        entry = self.route_log()[-1]
         self.assertFalse(entry["routed"])
         self.assertIn("routing failed", entry["reason"])
 
@@ -495,7 +499,7 @@ class DecisionLogTests(PluginCase):
         plugin.ladder.refuse("astra", "429 rate limited")
         with self.decide_with(jev(3, "coding", stakes=0.9), self.cfg()):
             self.assertIsNone(self.turn(self.request()))
-        entry = self.log()[-1]
+        entry = self.route_log()[-1]
         self.assertEqual(entry["tier"], "hard")
         self.assertEqual(entry["escalate"]["rung"], "claude")
         self.assertEqual(entry["escalate"]["considered"][0]["rung"], "astra", "and why the top seat was skipped")
@@ -505,7 +509,7 @@ class DecisionLogTests(PluginCase):
         self.switch(routing="shadow")
         with self.decide_with(jev(0), self.cfg()):
             self.turn(self.request())
-        entry = self.log()[-1]
+        entry = self.route_log()[-1]
         self.assertEqual(entry["tier"], "simple")
         self.assertNotIn("escalate", entry, "counting the key must count ladder decisions")
 

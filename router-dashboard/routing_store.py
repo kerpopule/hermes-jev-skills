@@ -521,10 +521,14 @@ def jev_live(hermes_home: str, since: float = 0.0, limit: int = 200) -> dict[str
     events.sort(key=lambda r: r.get("ts") or 0, reverse=True)
     events = events[:limit]
     routes = [e for e in events if e.get("kind") == "route"]
+    # Count only the first request per turn. Tool-loop requests repeat the same
+    # decision; shadow choices and suggestions are not applied model changes.
+    effective = [e for e in events if e.get("kind") == "route_effective" and e.get("first_request") is True]
     by_model: dict[str, int] = {}
-    for e in routes:
-        if e.get("model"):
-            by_model[str(e["model"])] = by_model.get(str(e["model"]), 0) + 1
+    for e in effective:
+        model = e.get("effective_request_model")
+        if isinstance(model, str) and model:
+            by_model[model] = by_model.get(model, 0) + 1
 
     # Which pool a model came from is the only thing that says whether the specialty
     # answer earned its money, and the log records the decision, not the pool. Grids are
@@ -541,7 +545,8 @@ def jev_live(hermes_home: str, since: float = 0.0, limit: int = 200) -> dict[str
 
     return {"now": time.time(), "events": events, "switches": switches,
             "plugin_installed": os.path.isdir(os.path.join(hermes_home, "plugins", "hermes-jev")),
-            "by_model": sorted(by_model.items(), key=lambda kv: -kv[1])[:12]}
+            "by_model": sorted(by_model.items(), key=lambda kv: -kv[1])[:12],
+            "effective_turns": len(effective), "applied_turns": sum(e.get("applied") is True for e in effective)}
 
 
 def jev_pools(hermes_home: str) -> dict[str, Any]:

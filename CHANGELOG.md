@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Context-filter selection regret evaluation and effective middleware routing telemetry**
+
+- Added `evals/context-filter/regret.py` for offline human-labelled, actual-result JSONL comparisons against the unfiltered top-k baseline. Reports needed passages missed, poisoned passages selected, unjudged/clipped selections and incomplete Jev coverage; this is not live recall regret. Tests include real rerank logic with a fake transport; no corpus is shipped.
+- Plugin now logs a `route_effective` event for each middleware request, separating proposed decisions from the effective model at this boundary. Dashboard counts first requests only and shows applied vs shadow/kept; it does not claim provider-side usage. No routing mode or live gateway switch was changed.
+
 **GUI loop stops repeating an ineffective action after fresh observation**
 
 - Concept adapted without code reuse from jev-cua (ronadin2002, commit

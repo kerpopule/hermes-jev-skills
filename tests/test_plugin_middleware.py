@@ -27,6 +27,8 @@ HARD = "The scheduler deadlocks under load. Find the race and propose a fix."
 class RoutingMiddlewareTests(unittest.TestCase):
     def setUp(self):
         self.decisions = []
+        self.logs = []
+        plugin._TURNS.clear()
 
         def fake_decide(prompt, **kwargs):
             self.decisions.append(kwargs)
@@ -39,7 +41,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
         for patch in (
             mock.patch.object(plugin, "_setting", lambda name, default: "on" if name == "routing" else default),
             mock.patch.object(plugin, "_default_model", lambda: DEFAULT),
-            mock.patch.object(plugin, "_log", lambda entry: None),
+            mock.patch.object(plugin, "_log", self.logs.append),
             mock.patch.object(plugin.route, "decide", side_effect=fake_decide),
         ):
             patch.start()
@@ -85,6 +87,26 @@ class RoutingMiddlewareTests(unittest.TestCase):
             session_id="s6", turn_id="t1", model=DEFAULT, provider="openrouter")
         self.assertIsNone(result)
 
+
+    def test_effective_telemetry_tracks_applied_shadow_pin_and_repeated_requests(self):
+        self.turn("live", "t1", DEFAULT)
+        entry = [x for x in self.logs if x["kind"] == "route_effective"][-1]
+        self.assertEqual((entry["applied"], entry["effective_request_model"], entry["first_request"]),
+                         (True, "moonshotai/kimi-k3", True))
+        self.assertEqual(entry["requested_model"], DEFAULT)
+        self.turn("pinned", "t1", "custom/pin")
+        self.assertEqual([x for x in self.logs if x["kind"] == "route_effective"][-1]["effective_request_model"],
+                         "custom/pin")
+        with mock.patch.object(plugin, "_setting", lambda name, default: "shadow" if name == "routing" else default):
+            self.assertIsNone(self.turn("shadow", "t1", DEFAULT))
+        shadow = [x for x in self.logs if x["kind"] == "route_effective"][-1]
+        self.assertEqual((shadow["applied"], shadow["effective_request_model"], shadow["decision_model"]),
+                         (False, DEFAULT, "openrouter:moonshotai/kimi-k3"))
+        again = plugin._on_llm_request(request={"model": DEFAULT, "messages": []}, session_id="live",
+                                       turn_id="t1", model=DEFAULT, provider="openrouter")
+        self.assertEqual(again["request"]["model"], "moonshotai/kimi-k3")
+        self.assertFalse([x for x in self.logs if x["kind"] == "route_effective"][-1]["first_request"])
+        self.assertEqual(len([x for x in self.logs if x["kind"] == "route" and x.get("from")]), 3)
 
 class MergedRequestTests(unittest.TestCase):
     """One request for both decisions, and the three ways it can go.
