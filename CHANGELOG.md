@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**A question written in Chinese is no longer refused as "asks nothing"**
+
+- Live failure (N150, 2026-09-23): the shape check added in 0.19.0 folded a question down with
+  `re.sub(r"[^a-z0-9]+", " ", ...)`, which deletes CJK letters. `「判定【i5】属于哪个类别」`
+  collapsed to `i5`, compared equal to its own id, and was refused as "its instructions only
+  repeat its own name" — so every non-Latin question that names its subject was unaskable.
+  Three production features (batch classify, collect triage, framework triage) answered `rc=2`.
+- Fix: `[\W_]+` — punctuation, case and underscores still stop distinguishing a string, letters
+  in every script stay. Two tests in `tests/test_question_shape.py` cover the refusal this must
+  keep and the CJK question it must now accept.
+- The rule is about asking something, not about ASCII: a genuine repeat of the id is still refused.
+
 **`jev search` stops looping when the pages will not open**
 
 - Live failure (Town Center lane, 2026-09-22): every `web_extract` of the picked results

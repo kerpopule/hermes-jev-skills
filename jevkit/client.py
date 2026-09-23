@@ -78,8 +78,12 @@ MIN_CRITERIA = 2
 
 
 def _identifier(text: Any) -> str:
-    """What a string says once punctuation, case and underscores stop distinguishing it."""
-    return re.sub(r"[^a-z0-9]+", " ", str(text).lower()).strip()
+    """What a string says once punctuation, case and underscores stop distinguishing it.
+
+    Letters in every script stay. Stripping CJK collapsed "【i5】该候选的判定档位？" to "i5" and
+    refused a real question as a bare repeat of its own name — no Chinese question could be asked.
+    """
+    return re.sub(r"[\W_]+", " ", str(text).lower()).strip()
 
 
 def _shown(value: Any) -> str:
