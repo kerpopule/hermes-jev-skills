@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**GUI loop stops repeating an ineffective action after fresh observation**
+
+- Concept adapted without code reuse from jev-cua (ronadin2002, commit
+  `098e9348fbfc7afae61575960c15cdaaae960b0b`; no tracked license). A local
+  fingerprint of observed AX state now detects the same delivered action leaving the
+  screen unchanged twice and stops `stalled_action` before another Jev call. The
+  fingerprint excludes rotating element tokens and is never sent to Jev or logged.
+  Unknown choice IDs stop `invalid_choice` before dispatch. Existing verification,
+  privacy filtering, exact target binding, and approval gates remain in force.
+- Synthetic keyless repeat-click comparison (100 runs/arm, 10-step budget): baseline
+  10 chooser/10 observation/10 action calls, budget exhausted; candidate 2 chooser/
+  3 observation/2 action calls, `stalled_action`. Local median elapsed 0.4666 ms vs
+  0.1392 ms. This is *not* live Jev, driver, or network latency; successful changing
+  screens still continue. See `evals/jev-cua-loop/REPORT.md` for protocol and limits.
+
 **`jev search` stops looping when the pages will not open**
 
 - Live failure (Town Center lane, 2026-09-22): every `web_extract` of the picked results

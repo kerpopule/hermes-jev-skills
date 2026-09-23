@@ -30,6 +30,7 @@ Exit codes: 0 verified, 4 unverified, 2 refused to start, 6 abstained.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import plistlib
@@ -609,6 +610,18 @@ def verify(rows: list[dict], title: str, expect: str) -> bool:
     # every page. Selection is only true once you are there.
     return any(r.get("selected") and needle in _fold(r.get("label", "")) for r in rows)
 
+def screen_digest(state: dict) -> str:
+    """Local fingerprint of observable state, never sent to Jev or written to logs.
+
+    Include field values and all observed controls, not only the candidate shortlist:
+    otherwise typing or a change outside the first 26 controls appears ineffective.
+    Exclude ephemeral driver tokens and indices so a recapture alone is not progress.
+    """
+    visible = [(el.get("role"), el.get("label"), el.get("value"), el.get("selected"),
+                el.get("enabled"), el.get("frame")) for el in state.get("elements", [])]
+    raw = json.dumps((state.get("window_title"), visible), sort_keys=True, default=str).encode()
+    return hashlib.sha256(raw).hexdigest()
+
 
 # ---------------------------------------------------------------- the loop
 
@@ -631,6 +644,8 @@ def run_goal(driver: Driver, pid: int, window_id: int, session: str, goal: str, 
     out: dict = {"used": 0, "abstained": False, "ended": "budget", "title": "", "rows": []}
     stalled = 0
     last_digest: str | None = None
+    last_mutation: tuple[str, str] | None = None
+    unchanged_mutations = 0
     for step in range(first_step, first_step + budget):
         state = observe(driver, pid, window_id, session)
         out["title"] = state.get("window_title", "")
@@ -649,13 +664,22 @@ def run_goal(driver: Driver, pid: int, window_id: int, session: str, goal: str, 
             out["abstained"] = True
             out["ended"] = "all_sensitive"
             break
-        digest = "|".join(f"{r['label'][:40]}@{int(r['x'])},{int(r['y'])}" for r in rows)
+        # A fresh, complete AX observation, not the driver's delivery acknowledgement.
+        digest = screen_digest(state)
         stalled = stalled + 1 if digest == last_digest else 0
-        last_digest = digest
         if expect and verify(rows, out["title"], expect):
             print(f"  verified before step {step}; stopping")
             out["ended"] = "verified"
             break
+        if last_mutation:
+            action_id, before = last_mutation
+            unchanged_mutations = unchanged_mutations + 1 if digest == before else 0
+            last_mutation = None
+            if unchanged_mutations >= 2:
+                print(f"  step {step}: repeated {action_id} left the observed screen unchanged; stopping")
+                out["ended"] = "stalled_action"
+                break
+        last_digest = digest
         regions, candidates = build_table(rows, offscreen_matches(state, tokens))
         request = {
             "schema": "jev.action_choice_request_v1",
@@ -676,6 +700,10 @@ def run_goal(driver: Driver, pid: int, window_id: int, session: str, goal: str, 
         action = reply.get("selected_id", "reobserve")
         confidence = reply.get("confidence")
         out["used"] = step - first_step + 1
+        if action not in {candidate["id"] for candidate in candidates}:
+            print(f"  step {step}: Jev returned an id outside this observation; stopping")
+            out["ended"] = "invalid_choice"
+            break
         if action in ("done", "abstain"):
             print(f"  step {step:>2}  Jev -> {action} "
                   f"(conf {confidence}) {reply.get('reason','')}")
@@ -695,6 +723,13 @@ def run_goal(driver: Driver, pid: int, window_id: int, session: str, goal: str, 
             break
         t1 = time.time()
         op, detail = execute(driver, pid, window_id, session, action, rows, goal, values, literal)
+        if op in ("click", "type", "scroll") and _landed(detail):
+            last_mutation = (action, digest)
+            # A different action is an actual attempt to recover, not repetition.
+            if not history or action != history[-1].get("selected_id"):
+                unchanged_mutations = 0
+        else:
+            unchanged_mutations = 0
         action_ms = int((time.time() - t1) * 1000)
         print(f"  step {step:>2}  jev {jev_ms:>4} ms + act {action_ms:>4} ms  op={op}  "
               f"conf={confidence}  {detail[:100]}")

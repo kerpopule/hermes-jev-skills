@@ -79,6 +79,73 @@ class CandidateBudgetTests(unittest.TestCase):
         self.assertIn("reobserve", ids)
         self.assertIn("abstain", ids)
 
+class LoopProgressTests(unittest.TestCase):
+    """Repeated ineffective actions must not burn the entire model-call budget."""
+
+    def _state(self, token="fresh"):
+        return {"window_title": "Home", "window_bounds": {"x": 0, "y": 0, "width": 400, "height": 400},
+                "elements": [{"role": "AXButton", "label": "Library", "element_token": token,
+                              "element_index": 1, "frame": {"x": 20, "y": 20, "w": 70, "h": 30}}]}
+
+    def test_unchanged_screen_after_repeated_click_stops_before_third_choice(self):
+        driver = mock.Mock()
+        driver.tool.return_value = {"result": {"structuredContent": {"effect": "delivered"}}}
+        states = [self._state("token-a"), self._state("token-b"), self._state("token-c")]
+        with mock.patch.object(gui, "observe", side_effect=states) as obs, \
+                mock.patch.object(gui, "jev_choose", return_value={"selected_id": "click:library", "confidence": .91}) as choose:
+            out = gui.run_goal(driver, 1, 2, "", "Open Library", expect="Library", values=[],
+                               regions_cap=26, budget=10)
+        self.assertEqual(out["ended"], "stalled_action")
+        self.assertEqual(choose.call_count, 2)
+        self.assertEqual(obs.call_count, 3)
+        self.assertEqual(driver.tool.call_count, 2)
+
+    def test_changed_screen_does_not_trigger_the_guard(self):
+        driver = mock.Mock()
+        driver.tool.return_value = {"result": {"structuredContent": {"effect": "delivered"}}}
+        states = [self._state(), {**self._state(), "window_title": "Loading"},
+                  {**self._state(), "window_title": "Library"}]
+        with mock.patch.object(gui, "observe", side_effect=states), \
+                mock.patch.object(gui, "jev_choose", return_value={"selected_id": "click:library", "confidence": .91}) as choose:
+            out = gui.run_goal(driver, 1, 2, "", "Open Library", expect="Library", values=[],
+                               regions_cap=26, budget=10)
+        self.assertEqual(out["ended"], "verified")
+        self.assertEqual(choose.call_count, 2)
+
+    def test_unknown_id_does_not_dispatch_or_claim_a_planned_click(self):
+        driver = mock.Mock()
+        with mock.patch.object(gui, "observe", return_value=self._state()), \
+                mock.patch.object(gui, "jev_choose", return_value={"selected_id": "click:missing", "confidence": .99}):
+            out = gui.run_goal(driver, 1, 2, "", "Open Library", expect="Library", values=[],
+                               regions_cap=26, budget=1, until_op="click")
+        self.assertEqual(out["ended"], "invalid_choice")
+        driver.tool.assert_not_called()
+
+    def test_digest_ignores_rotating_tokens_but_detects_a_changed_field(self):
+        a = self._state("ephemeral-a")
+        b = self._state("ephemeral-b")
+        self.assertEqual(gui.screen_digest(a), gui.screen_digest(b))
+        b["elements"][0]["value"] = "new typed value"
+        self.assertNotEqual(gui.screen_digest(a), gui.screen_digest(b))
+
+    def test_no_private_field_value_goes_to_jev_or_diagnostics(self):
+        driver = mock.Mock()
+        driver.tool.return_value = {"result": {"structuredContent": {"effect": "delivered"}}}
+        state = self._state()
+        state["elements"].append({"role": "AXTextField", "label": "Password", "value": "PRIVATE_SENTINEL",
+                                  "element_index": 2, "frame": {"x": 20, "y": 60, "w": 70, "h": 30}})
+        import io
+        from contextlib import redirect_stdout
+        capture = io.StringIO()
+        with mock.patch.object(gui, "observe", return_value=state), \
+                mock.patch.object(gui, "jev_choose", return_value={"selected_id": "abstain", "confidence": 1}) as choose, \
+                redirect_stdout(capture):
+            out = gui.run_goal(driver, 1, 2, "", "Open Library", expect="Library", values=[],
+                               regions_cap=26, budget=1)
+        self.assertEqual(out["ended"], "abstain")
+        self.assertNotIn("PRIVATE_SENTINEL", str(choose.call_args))
+        self.assertNotIn("PRIVATE_SENTINEL", capture.getvalue())
+
 
 class PortabilityTests(unittest.TestCase):
     def test_no_hardcoded_home_or_account_in_the_runner(self):
