@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**README reflects the ten shipped skills**
+
+- dajiaohuang: Corrected both skill-count references and added a regression check against the tracked `SKILL.md` files.
+
 **`jev search` stops looping when the pages will not open**
 
 - Live failure (Town Center lane, 2026-09-22): every `web_extract` of the picked results
