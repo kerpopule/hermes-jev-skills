@@ -156,12 +156,14 @@ class EffortMiddlewareTests(unittest.TestCase):
 
         def fake_load_config(path=None):
             cfg = dict(plugin.route.DEFAULT_CONFIG)
-            cfg["tiers"] = {"hard": {"coding": ["openrouter:moonshotai/kimi-k3"]}}
+            override = getattr(self, "tiers_override", None)
+            cfg["tiers"] = override if override is not None else {"hard": {"coding": ["openrouter:moonshotai/kimi-k3"]}}
             cfg["cache_repeat_asks"] = False
             cfg.update(self.effort_config or {})
             return cfg
 
         self.effort_config = None
+        self.tiers_override = None
         for patch in (
             mock.patch.object(plugin, "_setting", lambda name, default: "on" if name == "routing" else default),
             mock.patch.object(plugin, "_default_model", lambda: DEFAULT),
@@ -249,6 +251,16 @@ class EffortMiddlewareTests(unittest.TestCase):
             out = plugin._on_transform_output(response_text="reply", session_id="eff")
         self.assertIn("effort xhigh", out)
         self.assertIn("reply", out)
+
+    def test_no_tiers_still_buys_the_difficulty_for_effort(self):
+        # The "model never moves" setup: no pools at all. The model must stay put AND the
+        # effort pick must still happen — otherwise effort-only users get nothing.
+        self.effort_config = {"effort": {"enabled": True}}
+        self.tiers_override = {}
+        result = self.turn()
+        self.assertIsNotNone(result)
+        self.assertEqual(result["request"]["model"], DEFAULT, "no pools: the model stays")
+        self.assertEqual(result["request"]["reasoning_effort"], "xhigh")
 
 
 class MergedRequestTests(unittest.TestCase):

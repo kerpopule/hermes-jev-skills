@@ -525,8 +525,6 @@ def decide(
     config = config or load_config()
     if pinned:
         return _keep(current, "you pinned this model")
-    if not (config.get("tiers") or {}):
-        return _keep(current, "no tiers configured; run `jev models suggest --write`")
     if not prompt.strip():
         return _keep(current, "empty turn")
 
@@ -575,7 +573,7 @@ def decide(
     # so it must never buy the expensive tier: a harmless unsure turn stays put, a risky one gets medium.
     unsure = confidence < config["min_confidence"]
     if unsure and not (risky or stakes > 0.6):
-        return _keep(current, f"low confidence {confidence:.2f}", private=private)
+        return _keep(current, f"low confidence {confidence:.2f}", answers=answers, private=private)
 
     if unsure:
         tier = "medium"
@@ -598,6 +596,11 @@ def decide(
     by_ref = _by_ref(rows)
     if by_ref is None:
         return _keep(current, "model catalog unavailable", answers=answers, private=private)
+    if not (config.get("tiers") or {}):
+        # No model pools means the model never moves, but the difficulty answer was still
+        # bought — effort routing spends it even here.
+        return _keep(current, "no tiers configured; run `jev models suggest --write`",
+                     answers=answers, private=private)
     picked = _pick(config, by_ref, tier, specialty, has_images, context_tokens, only_provider)
     if not picked:
         return _keep(current, f"no {tier} model fits this turn", answers=answers, private=private)
