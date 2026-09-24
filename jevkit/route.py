@@ -482,9 +482,13 @@ def _with_escalation(decision: Dict[str, Any], config: Dict[str, Any]) -> Dict[s
     return {**decision, "escalate": escalation, "notice": notice}
 
 
-def _keep(current: Optional[str], reason: str, **extra: Any) -> Dict[str, Any]:
+def _keep(current: Optional[str], reason: str, answers: Optional[Mapping[str, Any]] = None, **extra: Any) -> Dict[str, Any]:
     out = {"routed": False, "model": current, "reason": reason, "policy": POLICY_VERSION,
            "notice": f"[Jev] kept {current or 'current model'} · {reason}"}
+    if answers is not None:
+        # A kept turn still paid for the judgement; the effort pick reads it even when the
+        # model stays where it was.
+        out["answers"] = {k: v for k, v in answers.items()}
     out.update(extra)
     return out
 
@@ -593,16 +597,17 @@ def decide(
     # context fits, so a long conversation could be sent to a model that cannot hold it.
     by_ref = _by_ref(rows)
     if by_ref is None:
-        return _keep(current, "model catalog unavailable", private=private)
+        return _keep(current, "model catalog unavailable", answers=answers, private=private)
     picked = _pick(config, by_ref, tier, specialty, has_images, context_tokens, only_provider)
     if not picked:
-        return _keep(current, f"no {tier} model fits this turn", private=private)
+        return _keep(current, f"no {tier} model fits this turn", answers=answers, private=private)
 
     if current and picked != current and context_tokens > config["sticky_context_tokens"]:
         current_price = (by_ref.get(current) or {}).get("price")
         picked_price = (by_ref.get(picked) or {}).get("price")
         if current_price is not None and picked_price is not None and picked_price < current_price:
-            return _keep(current, "large context; switching down would cost more than it saves", private=private)
+            return _keep(current, "large context; switching down would cost more than it saves",
+                         answers=answers, private=private)
 
     provider, model = picked.split(":", 1)
     return _with_escalation(_remember(cache_key, {
@@ -613,6 +618,9 @@ def decide(
         "specialty": specialty, "has_images": bool(has_images),
         "confidence": round(confidence, 3), "difficulty": round(difficulty, 2),
         "costly_mistake": round(stakes, 3), "private": private, "mode": mode, "latency_ms": latency_ms,
+        # The raw answers go out so the effort pick (jevkit/effort.py) can read the same
+        # difficulty Jev judged without a second paid call.
+        "answers": {k: v for k, v in (answers or {}).items()},
         "policy": POLICY_VERSION, "reason": f"{tier} {specialty}", "unwrapped": unwrapped,
         "notice": f"[Jev] {tier} · {specialty} → {model} · confidence {confidence:.2f}",
     }, config), config)
