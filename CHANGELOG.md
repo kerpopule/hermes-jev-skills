@@ -47,6 +47,28 @@
   3 observation/2 action calls, `stalled_action`. Local median elapsed 0.4666 ms vs
   0.1392 ms. This is *not* live Jev, driver, or network latency; successful changing
   screens still continue. See `evals/jev-cua-loop/REPORT.md` for protocol and limits.
+**Routing can now set the reasoning effort for the turn it judges**
+
+- A turn already pays one Jev call to find out how hard it is. The plugin now spends that
+  same answer again to pick the reasoning-effort level for the request, so an easy turn no
+  longer burns a frontier model's full thinking budget, and a hard one is not starved of it.
+  No second Jev call: the difficulty answer rides back on the routing decision.
+- Off by default, and everything fails open: no `effort` block in `routing.json`, Jev down,
+  a missing score — the request goes out exactly as it would have without the plugin.
+- The default table maps difficulty to `low / medium / high / xhigh`. It is yours to reshape —
+  fewer levels, different names, anything the provider speaks:
+  `{"effort": {"enabled": true, "levels": ["low", "medium", "high"]}}` in
+  `~/.hermes/jev/routing.json`.
+- Works whether routing is `on`, `shadow`, or `off`: the model swap still obeys the mode,
+  the effort pick applies to whichever model the turn ends up on. The choice is logged
+  (`"kind": "effort"`) to `jev-decisions.jsonl` so a day in shadow tells you where your
+  turns land before you commit.
+- Both spellings go out on the request — the OpenAI-style `reasoning_effort` field and
+  `extra_body.reasoning.effort` — and Hermes's own `/effort` override still wins when you
+  set one yourself.
+- `jevkit/route.py` carries the raw answers back on every decision (a kept turn included),
+  because a kept turn still paid for the judgement. New module `jevkit/effort.py`; tests in
+  `tests/test_effort.py` and `tests/test_plugin_middleware.py`.
 
 **`jev search` stops looping when the pages will not open**
 

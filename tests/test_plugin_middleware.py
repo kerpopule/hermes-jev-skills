@@ -135,6 +135,102 @@ class RoutingMiddlewareTests(unittest.TestCase):
         self.assertFalse([x for x in self.logs if x["kind"] == "route_effective"][-1]["first_request"])
         self.assertEqual(len([x for x in self.logs if x["kind"] == "route" and x.get("from")]), 3)
 
+
+class EffortMiddlewareTests(unittest.TestCase):
+    """The llm_request middleware writes a reasoning-effort level when effort routing is on.
+
+    The level comes from the difficulty answer routing already paid for, so these tests never
+    mock Jev: they hand ``route.decide`` the answers it would have received and let the real
+    code walk its table. Everything fail-open is asserted — off by default, a missing answer,
+    a malformed table — because a wrong effort is worse than no effort at all.
+    """
+
+    ANSWERS = {"difficulty": {"type": "score", "score": 3.0, "confidence": 0.95,
+                              "probabilities": {0: 0.0, 1: 0.0, 2: 0.1, 3: 0.9}},
+               "kind": {"type": "choice", "choice": "coding", "confidence": 0.9, "probabilities": {}},
+               "costly_mistake": {"type": "noul", "noul": 0.4}}
+
+    def setUp(self):
+        plugin._TURNS.clear()
+        self.configs = []
+
+        def fake_load_config(path=None):
+            cfg = dict(plugin.route.DEFAULT_CONFIG)
+            cfg["tiers"] = {"hard": {"coding": ["openrouter:moonshotai/kimi-k3"]}}
+            cfg["cache_repeat_asks"] = False
+            cfg.update(self.effort_config or {})
+            return cfg
+
+        self.effort_config = None
+        for patch in (
+            mock.patch.object(plugin, "_setting", lambda name, default: "on" if name == "routing" else default),
+            mock.patch.object(plugin, "_default_model", lambda: DEFAULT),
+            mock.patch.object(plugin, "_log", lambda entry: None),
+            mock.patch.object(plugin.route, "load_config", side_effect=fake_load_config),
+            mock.patch.object(plugin.route, "_by_ref", lambda rows: {
+                "openrouter:moonshotai/kimi-k3": {"price": 1.0, "context": 256_000, "vision": False}}),
+            mock.patch.object(plugin.route.client, "ask",
+                              lambda state, questions, **kw: {"answers": self.ANSWERS, "latency_ms": 5}),
+        ):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def turn(self, session="eff", turn_id="t1", model=DEFAULT, request_extra=None):
+        plugin._on_pre_llm_call(session_id=session, turn_id=turn_id, user_message=HARD)
+        request = {"messages": [{"role": "user", "content": HARD}], "model": model}
+        if request_extra:
+            request.update(request_extra)
+        return plugin._on_llm_request(request=request, session_id=session, turn_id=turn_id,
+                                      model=model, provider="openrouter")
+
+    def test_off_by_default_leaves_the_request_alone(self):
+        result = self.turn()
+        self.assertIsNotNone(result)  # routing still swapped the model
+        self.assertNotIn("reasoning_effort", result["request"])
+        self.assertNotIn("extra_body", result["request"])
+
+    def test_enabled_maps_expert_to_xhigh(self):
+        self.effort_config = {"effort": {"enabled": True}}
+        result = self.turn()
+        self.assertEqual(result["request"]["reasoning_effort"], "xhigh")
+        self.assertEqual(result["request"]["extra_body"]["reasoning"]["effort"], "xhigh")
+        self.assertTrue(result["request"]["extra_body"]["reasoning"]["enabled"])
+
+    def test_a_custom_table_is_honored_end_to_end(self):
+        self.effort_config = {"effort": {"enabled": True,
+                                          "levels": {"expert": "max"}}}
+        result = self.turn()
+        self.assertEqual(result["request"]["reasoning_effort"], "max")
+
+    def test_an_existing_extra_body_is_preserved(self):
+        self.effort_config = {"effort": {"enabled": True}}
+        result = self.turn(request_extra={"extra_body": {"provider": {"order": ["fireworks"]}}})
+        self.assertEqual(result["request"]["extra_body"]["provider"], {"order": ["fireworks"]})
+        self.assertEqual(result["request"]["extra_body"]["reasoning"]["effort"], "xhigh")
+
+    def test_an_existing_reasoning_block_is_overridden_not_dropped(self):
+        self.effort_config = {"effort": {"enabled": True}}
+        result = self.turn(request_extra={"extra_body": {"reasoning": {"effort": "low", "max_tokens": 512}}})
+        self.assertEqual(result["request"]["extra_body"]["reasoning"]["effort"], "xhigh")
+        self.assertEqual(result["request"]["extra_body"]["reasoning"]["max_tokens"], 512)
+
+    def test_off_mode_with_effort_still_applies_effort(self):
+        # routing=shadow (no model swap) must not gate effort: the kept model wants its budget.
+        self.effort_config = {"effort": {"enabled": True}}
+        with mock.patch.object(plugin, "_setting",
+                               lambda name, default: "shadow" if name == "routing" else default):
+            result = self.turn()
+        self.assertIsNotNone(result)
+        # shadow mode never swaps the model: the request keeps the model the turn arrived with
+        self.assertEqual(result["request"]["model"], DEFAULT)
+        self.assertEqual(result["request"]["reasoning_effort"], "xhigh")
+
+    def test_a_malformed_table_fails_open(self):
+        self.effort_config = {"effort": {"enabled": True, "levels": ["low", "medium", "high"]}}
+        result = self.turn()
+        self.assertNotIn("reasoning_effort", result["request"])
+
+
 class MergedRequestTests(unittest.TestCase):
     """One request for both decisions, and the three ways it can go.
 

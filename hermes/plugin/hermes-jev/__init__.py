@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .jevkit import catalog, choose, compact, keystore, ladder, rerank, route, search, skillpick, supervise, turn
+from .jevkit import catalog, choose, compact, effort, keystore, ladder, rerank, route, search, skillpick, supervise, turn
 
 _LOCK = threading.Lock()
 _TURNS: Dict[str, Dict[str, Any]] = {}      # session_id -> the current turn's text and decision
@@ -239,6 +239,27 @@ def _on_pre_llm_call(session_id: str = "", turn_id: Any = None, user_message: An
                        f"(match {skill['match']}). Load it with skill_view before starting, unless it clearly does not apply."}
 
 
+def _with_effort(request: Dict[str, Any], level: str) -> Dict[str, Any]:
+    """The request with a reasoning-effort level set, leaving every other field untouched.
+
+    Two spellings go out at once because the wire splits by transport: chat-completions routes
+    (Kimi, TokenHub, LM Studio, some custom relays) read the top-level ``reasoning_effort``;
+    reasoning-aware OpenAI-compatible routes read ``extra_body.reasoning.effort``. A route that
+    ignores one spelling still gets the other; a route that knows neither passes both through
+    and applies its own default, which is exactly the pre-plugin behavior. An existing
+    ``extra_body`` is shallow-copied, never mutated in place — the original request object is
+    the caller's and may be reused on retry.
+    """
+    out = {**request, "reasoning_effort": level}
+    extra = dict(out.get("extra_body") or {})
+    reasoning = dict(extra.get("reasoning") or {})
+    reasoning["effort"] = level
+    reasoning.setdefault("enabled", level != "none")
+    extra["reasoning"] = reasoning
+    out["extra_body"] = extra
+    return out
+
+
 def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = "", turn_id: Any = None,
                     model: str = "", provider: str = "", **_: Any) -> Any:
     mode = _setting("routing", "off")
@@ -249,6 +270,7 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
     if not turn or turn["turn_id"] != turn_id:
         return None
     decision = turn["decision"]
+    route_answers: Any = None
     if decision is None:                       # first API call of this turn: ask Jev exactly once
         catalog_provider = catalog.HERMES_ALIASES.get(provider, provider)
         # A custom Hermes endpoint is not a models.dev provider. Never silently lift the
@@ -288,6 +310,9 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
             # going quiet, which would read as "nothing needed routing".
             decision = {"routed": False, "model": current, "reason": f"routing failed ({type(error).__name__})"}
         turn["decision"] = decision
+        # The effort pick reads the same answers routing bought; route.decide now carries
+        # them back on the decision, so no second Jev call is needed.
+        route_answers = decision.get("answers")
         entry = {"kind": "route", "mode": mode, "from": current, **{k: decision.get(k) for k in (
             # has_images is logged so a reader can tell the vision pool from the general
             # one after the fact. Without it a model listed in both is unattributable, and
@@ -314,9 +339,26 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
           "decision_model": decision.get("model"), "reason": decision.get("reason"),
           "first_request": turn.get("request_count", 0) == 0})
     turn["request_count"] = turn.get("request_count", 0) + 1
+    # Effort routing: the difficulty answer routing already bought is reused to pick a
+    # reasoning-effort level for the request. It runs whether or not the model is swapped —
+    # the mode gates the swap, and a kept model still wants the right thinking budget.
+    # Off by default; `jevkit/effort.py` returns None whenever the table is not configured
+    # or the answer is not there, and None leaves the request alone.
+    effort_level = None
+    _effort_levels = effort.levels_from_config(route.load_config())
+    if _effort_levels is not None:
+        effort_level = effort.pick(decision.get("answers"), levels=_effort_levels)
+        if effort_level:
+            _log({"kind": "effort", "mode": mode, "level": effort_level})
     if not applied:
+        # No model swap; still apply the effort pick to the model the turn stays on.
+        if effort_level and isinstance(request, dict):
+            return {"request": _with_effort(request, effort_level)}
         return None
-    return {"request": {**request, "model": effective}}
+    out = {**request, "model": effective}
+    if effort_level:
+        out = _with_effort(out, effort_level)
+    return {"request": out}
 
 
 def _on_transform_output(response_text: str = "", session_id: str = "", **_: Any) -> Any:
