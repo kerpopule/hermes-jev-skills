@@ -571,15 +571,16 @@ def decide(
 
     # An unsure answer is not evidence of a hard turn. Its averaged score lands mid-rubric by arithmetic,
     # so it must never buy the expensive tier: a harmless unsure turn stays put, a risky one gets medium.
-    unsure = confidence < config["min_confidence"]
+    unsure = confidence < config.get("min_confidence", DEFAULT_CONFIG["min_confidence"])
     if unsure and not (risky or stakes > 0.6):
         return _keep(current, f"low confidence {confidence:.2f}", answers=answers, private=private)
 
     if unsure:
         tier = "medium"
-    elif p_hard >= config["hard_needs_probability"]:
+    elif p_hard >= config.get("hard_needs_probability", DEFAULT_CONFIG["hard_needs_probability"]):
         tier = "hard"
-    elif p_simple >= config["simple_needs_probability"] and confidence >= config["simple_needs_confidence"]:
+    elif p_simple >= config.get("simple_needs_probability", DEFAULT_CONFIG["simple_needs_probability"]) \
+            and confidence >= config.get("simple_needs_confidence", DEFAULT_CONFIG["simple_needs_confidence"]):
         tier = "simple"
     else:
         tier = "medium"
