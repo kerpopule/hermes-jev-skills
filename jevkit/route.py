@@ -524,7 +524,20 @@ def decide(
     """Route one fresh user turn. Call it once per turn, never inside a tool loop."""
     config = config or load_config()
     if pinned:
-        return _keep(current, "you pinned this model")
+        # A pinned model never moves, but the difficulty answer is still worth buying —
+        # effort routing spends it to set the thinking budget on the model the person chose.
+        if not prompt.strip():
+            return _keep(current, "you pinned this model")
+        try:
+            limit = int(config.get("ask_chars", 2500))
+            ask = prompt[:limit]
+            private = profile in (config.get("private_profiles") or []) or privacy.is_sensitive(ask)
+            state = state_for(ask, context_tokens=context_tokens, private=private, limit=limit)
+            reply = client.ask(state, questions(), transport=transport, timeout=timeout)
+            answers = reply.get("answers") if isinstance(reply, dict) else None
+        except Exception:
+            answers = None
+        return _keep(current, "you pinned this model", answers=answers)
     if not prompt.strip():
         return _keep(current, "empty turn")
 
