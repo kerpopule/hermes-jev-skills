@@ -350,6 +350,9 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
         effort_level = effort.pick(decision.get("answers"), levels=_effort_levels)
         if effort_level:
             _log({"kind": "effort", "mode": mode, "level": effort_level})
+            # Remember it on the turn so the reply notice can say the budget changed, not
+            # just the model — a silent effort change reads as the model getting dumber.
+            turn["effort"] = effort_level
     if not applied:
         # No model swap; still apply the effort pick to the model the turn stays on.
         if effort_level and isinstance(request, dict):
@@ -362,14 +365,24 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
 
 
 def _on_transform_output(response_text: str = "", session_id: str = "", **_: Any) -> Any:
-    if _setting("notice", "off") != "on" or _setting("routing", "off") != "on":
+    if _setting("notice", "off") != "on":
         return None
     with _LOCK:
         turn = _TURNS.get(session_id or "-")
     decision = (turn or {}).get("decision")
+    effort_tag = f" · effort {(turn or {}).get('effort')}" if (turn or {}).get("effort") else ""
     if not decision or not decision.get("routed"):
+        # A kept model can still have had its thinking budget set; that is worth a line too,
+        # even with routing off — the notice gate is the person's, not the model swap's.
+        if effort_tag:
+            return f"[Jev]{effort_tag}\n\n{response_text}"
         return None
-    return f"{decision['notice']}\n\n{response_text}"
+    if _setting("routing", "off") != "on":
+        # Routing notices are gated on routing being on; effort-only ones are not.
+        if effort_tag:
+            return f"[Jev]{effort_tag}\n\n{response_text}"
+        return None
+    return f"{decision['notice']}{effort_tag}\n\n{response_text}"
 
 
 # ── tools ────────────────────────────────────────────────────────────────────

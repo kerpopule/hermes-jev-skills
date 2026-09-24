@@ -230,6 +230,26 @@ class EffortMiddlewareTests(unittest.TestCase):
         result = self.turn()
         self.assertNotIn("reasoning_effort", result["request"])
 
+    def test_notice_names_the_effort_on_a_routed_turn(self):
+        self.effort_config = {"effort": {"enabled": True}}
+        self.turn()
+        with mock.patch.object(plugin, "_setting", lambda name, default: "on"):
+            out = plugin._on_transform_output(response_text="reply", session_id="eff")
+        self.assertIn("effort xhigh", out)
+
+    def test_notice_names_the_effort_even_when_the_model_stays(self):
+        self.effort_config = {"effort": {"enabled": True}}
+        self.turn()
+        with mock.patch.object(plugin, "_setting",
+                               lambda name, default: "shadow" if name == "routing" else "on"):
+            # Re-run the request leg in shadow mode: model stays, effort still applies.
+            plugin._on_llm_request(
+                request={"messages": [{"role": "user", "content": HARD}], "model": DEFAULT},
+                session_id="eff", turn_id="t1", model=DEFAULT, provider="openrouter")
+            out = plugin._on_transform_output(response_text="reply", session_id="eff")
+        self.assertIn("effort xhigh", out)
+        self.assertIn("reply", out)
+
 
 class MergedRequestTests(unittest.TestCase):
     """One request for both decisions, and the three ways it can go.
