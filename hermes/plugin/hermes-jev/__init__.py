@@ -361,14 +361,14 @@ def _on_transform_output(response_text: str = "", session_id: str = "", **_: Any
         # A kept model can still have had its thinking budget set; that is worth a line too,
         # even with routing off — the notice gate is the person's, not the model swap's.
         if effort_tag:
-            return f"[Jev]{effort_tag}\n\n{response_text}"
+            return f"{response_text}\n\n[Jev]{effort_tag}"
         return None
     if _setting("routing", "off") != "on":
         # Routing notices are gated on routing being on; effort-only ones are not.
         if effort_tag:
-            return f"[Jev]{effort_tag}\n\n{response_text}"
+            return f"{response_text}\n\n[Jev]{effort_tag}"
         return None
-    return f"{decision['notice']}{effort_tag}\n\n{response_text}"
+    return f"{response_text}\n\n{decision['notice']}{effort_tag}"
 
 
 # ── tools ────────────────────────────────────────────────────────────────────
