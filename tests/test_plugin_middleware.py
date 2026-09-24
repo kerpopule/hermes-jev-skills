@@ -235,6 +235,18 @@ class EffortMiddlewareTests(unittest.TestCase):
         self.assertEqual(result["request"]["model"], DEFAULT, "no pools: the model stays")
         self.assertEqual(result["request"]["reasoning_effort"], "xhigh")
 
+    def test_a_pinned_model_still_buys_the_difficulty_for_effort(self):
+        # /model pins the model, but the effort pick must still happen — the thinking budget
+        # belongs on the model the person chose, not on a decision that was never asked.
+        self.effort_config = {"effort": {"enabled": True}}
+        plugin._on_pre_llm_call(session_id="pin", turn_id="t1", user_message=HARD)
+        result = plugin._on_llm_request(
+            request={"messages": [{"role": "user", "content": HARD}], "model": "other/model"},
+            session_id="pin", turn_id="t1", model="other/model", provider="openrouter")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["request"]["model"], "other/model", "pinned: the model stays")
+        self.assertEqual(result["request"]["reasoning_effort"], "xhigh")
+
 
 class MergedRequestTests(unittest.TestCase):
     """One request for both decisions, and the three ways it can go.
