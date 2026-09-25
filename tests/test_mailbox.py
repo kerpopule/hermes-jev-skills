@@ -16,7 +16,6 @@ that has run `jev setup-key`.
 import base64
 import io
 import json
-import os
 import sys
 import time
 import tempfile
@@ -612,9 +611,11 @@ class CostTests(unittest.TestCase):
     def test_the_request_size_recorded_for_a_message_is_the_request_that_was_sent(self):
         """Measured, not assumed: within the model id of what actually went on the wire."""
         sizes = []
+        sent = {}
 
         def measuring(body, headers, timeout):
             sizes.append(len(body))
+            sent["model"] = json.loads(body)["model"]
             return jev()(body, headers, timeout)
 
         out = mailbox.classify({"subject": "Re: the October numbers",
@@ -622,11 +623,12 @@ class CostTests(unittest.TestCase):
                                 "sender": "dana@example-partners.test"}, transport=measuring)
         self.assertEqual(len(sizes), 1)
         self.assertLessEqual(out["request_chars"], sizes[0])
-        # The gap is `,"model":"<the id>"` and nothing else. Computed rather than a
-        # constant, because client.ask reads TYPESAFE_MODEL out of the environment and a
-        # developer with a long model id set would have failed this on a hard-coded 60.
+        # The gap is `,"model":"<the id>"` and nothing else. Read off the request that was
+        # actually sent rather than computed from the environment, because client.ask picks
+        # its model from the provider this machine resolves (and TYPESAFE_MODEL overrides
+        # it): a developer with a key exported was failing this on a hard-coded id length.
         self.assertEqual(sizes[0] - out["request_chars"],
-                         len(',"model":""') + len(os.environ.get("TYPESAFE_MODEL") or client.DEFAULT_MODEL))
+                         len(',"model":""') + len(sent["model"]))
 
     def test_a_full_length_message_costs_three_times_what_the_old_constant_claimed(self):
         """The measurement the old 450-token constant contradicted, pinned so a future
