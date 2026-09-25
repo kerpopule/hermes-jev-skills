@@ -17,9 +17,11 @@ those turns outright. Those tests assert the transport was never called.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -77,6 +79,13 @@ class Wire:
 
 
 class OneRequestTests(unittest.TestCase):
+    def setUp(self):
+        # The fake transport still passes through credential resolution. Keep this
+        # suite independent of a developer's Keychain (and Linux CI's empty store).
+        self.key_patch = patch.dict(os.environ, {"TYPESAFE_API_KEY": "synthetic-test-key"})
+        self.key_patch.start()
+        self.addCleanup(self.key_patch.stop)
+
     def test_one_request_carries_both_decisions(self):
         wire = Wire()
         merged = turn.decide_turn(TURN, SKILLS, config=config(), transport=wire)

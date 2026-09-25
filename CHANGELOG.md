@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- CI regression: offline question-sweep and merged-turn tests now supply a synthetic key to their fake transports, rather than depending on a developer's Keychain; verified with provider keys unset and an empty credential directory.
+
 **Jev backlog integration (2026-09-25; pending release)**
 
 - Venice decisions transport and keychain option (NoTimeforInfinity, PR #6), preserving TypeSafe/OpenRouter precedence. Explicit `TYPESAFE_BASE_URL` compatible-server override (#15, bladedevoff) never forwards provider credentials, accepts plaintext only on numeric loopback, and refuses to claim a local server verified an official key.

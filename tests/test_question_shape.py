@@ -20,11 +20,13 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import re
 import sys
 import unittest
 from pathlib import Path
 from typing import Any, Dict, List, Mapping
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
@@ -101,12 +103,13 @@ def _code_only(source: str) -> str:
     return _DOCSTRING.sub("", source)
 
 
+@patch.dict(os.environ, {"TYPESAFE_API_KEY": KEY})
 def questions_from_every_feature() -> Dict[str, Dict[str, Any]]:
     """The questions each feature actually sends, captured from the feature itself.
 
     Every call here goes through the feature's own public entry point with a recording
     transport, so this stays true when a feature changes: it measures what is sent, not what
-    the test believes is sent.
+    the test believes is sent. A synthetic key avoids relying on the host secret store.
     """
     captured: Dict[str, Dict[str, Any]] = {}
 
