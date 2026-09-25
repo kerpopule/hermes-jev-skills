@@ -83,7 +83,9 @@ python3 <this skill>/scripts/jev_gui_agent.py \
 ```
 
 It drives `cua-driver` over MCP, builds the candidate table from the accessibility tree, sends
-`jev.action_choice_request_v1`, and performs only the action behind the returned id. Exit 0
+`jev.action_choice_request_v1`, and performs only the action behind the returned id. The runner
+uses `jevkit`'s provider selection and credential lookup (TypeSafe, then OpenRouter, then
+Venice); it never copies a fallback provider's credential into `TYPESAFE_API_KEY`. Exit 0
 verified, 4 unverified, 2 refused to start, 6 abstained. `--max-regions` defaults to 26 so the
 table stays inside the 32-candidate contract once `reobserve` and `abstain` are added.
 

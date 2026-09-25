@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- GUI runner credential isolation: delegate provider selection and secret resolution to `jevkit`, never relabel an OpenRouter/Venice key as `TYPESAFE_API_KEY`. Hermetic TypeSafe-only, OpenRouter-only, Venice-only and no-key GUI transport tests pin destination and Authorization provenance without real credentials or network.
+
 - CI regression: offline question-sweep and merged-turn tests now supply a synthetic key to their fake transports, rather than depending on a developer's Keychain; verified with provider keys unset and an empty credential directory.
 
 **Jev backlog integration (2026-09-25; pending release)**

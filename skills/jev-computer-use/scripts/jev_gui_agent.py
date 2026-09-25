@@ -1195,38 +1195,16 @@ def main(argv: list[str] | None = None) -> int:
         print("FAIL: the goal looks sensitive; refusing to send it to Jev.")
         return 2
 
-    if not os.environ.get("TYPESAFE_API_KEY"):
-        # Was a bare call to macOS `security`, which on Linux raised FileNotFoundError and
-        # killed the run before jevkit's own credentials-file fallback could be consulted.
-        # jevkit.keystore already resolves environment → OS secret store → credentials file.
-        try:
-            from jevkit.keystore import resolve as _resolve_credential
-            _key = _resolve_credential()
-        except Exception:  # noqa: BLE001 - a broken credential lookup must not crash the loop
-            _key = None
-        if _key:
-            os.environ["TYPESAFE_API_KEY"] = _key
-    if not os.environ.get("TEXT_MODEL_API_KEY") and not os.environ.get("OPENROUTER_API_KEY"):
-        token = None
-        if shutil.which("security"):  # macOS only; on Linux skip straight to the fallback
-            proc = subprocess.run(
-                # No hardcoded account: whoever runs this is the account. A name baked in
-                # here works on exactly one machine and fails silently on every other.
-                ["security", "find-generic-password", "-s", "OPENROUTER_API_KEY",
-                 "-a", os.environ.get("USER", ""), "-w"],
-                capture_output=True, text=True)
-            if proc.returncode == 0 and proc.stdout.strip():
-                token = proc.stdout.strip()
-        if not token:
-            try:
-                from jevkit.keystore import resolve as _resolve_credential
-                token = _resolve_credential("openrouter")
-            except Exception:  # noqa: BLE001
-                token = None
-        if token:
-            os.environ["OPENROUTER_API_KEY"] = token
-    if not os.environ.get("TYPESAFE_API_KEY"):
-        print("FAIL: no TypeSafe credential. Run `jev setup-key`.")
+    # Let the shared client select the provider and resolve its own credential. A
+    # provider-agnostic resolve() must never be copied into TYPESAFE_API_KEY: that
+    # relabels an OpenRouter/Venice secret and sends it to the TypeSafe endpoint.
+    try:
+        from jevkit import keystore
+        available = keystore.provider() != "absent"
+    except Exception:  # noqa: BLE001 - broken lookup must not crash the loop
+        available = False
+    if not available and not os.environ.get("TYPESAFE_BASE_URL", "").strip():
+        print("FAIL: no Jev credential. Run `jev setup-key`.")
         return 2
 
     try:

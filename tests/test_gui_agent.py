@@ -714,6 +714,51 @@ class PlanExecutionTests(unittest.TestCase):
         self.assertFalse(out["report"]["steps"][0]["ok"])
 
 
+class CredentialIsolationTests(unittest.TestCase):
+    """The GUI runner must not relabel one provider's key as another's."""
+
+    def test_selected_transport_and_authorization_follow_key_provenance(self):
+        from jevkit import client, keystore
+
+        keys = {"typesafe": "synthetic-ts", "openrouter": "synthetic-or",
+                "venice": "synthetic-vn", "none": None}
+        for selected, key in keys.items():
+            with self.subTest(selected=selected):
+                env = {name: "" for name in ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY",
+                                            "VENICE_API_KEY", "TYPESAFE_BASE_URL")}
+                if key:
+                    env[{"typesafe": "TYPESAFE_API_KEY", "openrouter": "OPENROUTER_API_KEY",
+                         "venice": "VENICE_API_KEY"}[selected]] = key
+                calls = []
+
+                def fake_transport(destination):
+                    def send(body, headers, timeout):
+                        calls.append((destination, headers.get("Authorization")))
+                        raise client.JevError("malformed", "synthetic offline response")
+                    return send
+
+                with mock.patch.dict(os.environ, env), \
+                     mock.patch.object(keystore, "_from_keychain", return_value=None), \
+                     mock.patch.object(keystore, "_from_file", return_value=None), \
+                     mock.patch.object(gui, "Driver", return_value=FakeDriver()), \
+                     mock.patch.object(gui, "_find_driver", return_value="synthetic-driver"), \
+                     mock.patch.object(client, "_http_transport", fake_transport("api.typesafe.ai")), \
+                     mock.patch.object(client, "_openrouter_transport", fake_transport("openrouter.ai")), \
+                     mock.patch.object(client, "_venice_transport", fake_transport("api.venice.ai")), \
+                     contextlib.redirect_stdout(io.StringIO()) as output:
+                    code = gui.main(["--pid", "30", "--window-id", "33", "--goal", "Open Storage",
+                                     "--max-steps", "1"])
+                    self.assertEqual(os.environ.get("TYPESAFE_API_KEY"), env["TYPESAFE_API_KEY"])
+                if selected == "none":
+                    self.assertEqual(code, 2)
+                    self.assertIn("no Jev credential", output.getvalue())
+                    self.assertEqual(calls, [])
+                else:
+                    self.assertEqual(calls, [({"typesafe": "api.typesafe.ai",
+                                               "openrouter": "openrouter.ai",
+                                               "venice": "api.venice.ai"}[selected], f"Bearer {key}")])
+
+
 class MainTests(unittest.TestCase):
     def main(self, argv, driver=None, plan=None, chooser=None, env=None):
         driver = driver or FakeDriver()
