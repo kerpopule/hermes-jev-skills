@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+**An authenticated HTTPS proxy under a path prefix gets the environment's `TYPESAFE_API_KEY` as its bearer**
+
+- The compatible-endpoint override from #15 refuses any base URL that carries a path and sends
+  no credential to an override host, so a gateway that mounts the API under a prefix *and*
+  requires a bearer (`https://gw.example/jev`) answered 401 to every call and every caller
+  failed open silently. `_custom_typesafe_endpoint` now accepts a path prefix on `https`, and
+  still refuses one on `http`.
+- For an `https://` override only, the client mirrors the pairing the official SDKs document:
+  the bearer is `TYPESAFE_API_KEY` read from the same process environment as `TYPESAFE_BASE_URL`.
+  No keychain or credentials-file key is ever forwarded, a loopback `http://` override still
+  receives no credential at all, and an explicitly supplied `api_key` still wins.
+- `tests/test_custom_endpoint.py` pins all three cases: the environment bearer on an https
+  proxy, no `Authorization` header at all when the variable is unset (with the secret store
+  asserted unread), and the path prefix reaching `.../v1/systemone`. The jev-setup skill states
+  the same boundary.
+
 - Added `evals/representative/compare.py` with strict paired actual-result scoring for completion, latency, token usage, spurious skills and context misses; no synthetic score is passed off as live quality. No paid comparison or automatic routing activation.
 
 - GUI runner credential isolation: delegate provider selection and secret resolution to `jevkit`, never relabel an OpenRouter/Venice key as `TYPESAFE_API_KEY`. Hermetic TypeSafe-only, OpenRouter-only, Venice-only and no-key GUI transport tests pin destination and Authorization provenance without real credentials or network.
