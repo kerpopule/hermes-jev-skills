@@ -26,14 +26,25 @@ KEY = "apikey_" + "a1" * 30
 # The suite must behave the same on a machine with a real key and on one with none,
 # so it never consults the real environment, secret store or credentials file.
 _key_patch = mock.patch.object(keystore, "resolve", return_value=KEY)
+# ...including which provider `client.ask` would pick with no `provider=` argument: an
+# exported TYPESAFE/OPENROUTER/VENICE/OPENCODE_ZEN_API_KEY or a JEV_PROVIDER changes the model
+# id and the transport these tests are about, and a machine that has one (or a developer who
+# exported one to try it) would fail them for a reason that is not in the code.
+ENV_CLEARED = ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY", "VENICE_API_KEY", "OPENCODE_ZEN_API_KEY",
+               "TYPESAFE_MODEL", keystore.PROVIDER_OVERRIDE_ENV)
+_env_patch = mock.patch.dict(os.environ, {}, clear=False)
 
 
 def setUpModule():
+    _env_patch.start()
+    for _name in ENV_CLEARED:
+        os.environ.pop(_name, None)
     _key_patch.start()
 
 
 def tearDownModule():
     _key_patch.stop()
+    _env_patch.stop()
 
 
 def fake(answer_for):
@@ -763,8 +774,8 @@ class ZenProviderTests(unittest.TestCase):
     """
 
     ZEN_KEY = "sk-zen-" + "z" * 40
-    CLEARED = ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY", "OPENCODE_ZEN_API_KEY", "TYPESAFE_MODEL",
-               keystore.PROVIDER_OVERRIDE_ENV)
+    CLEARED = ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY", "VENICE_API_KEY", "OPENCODE_ZEN_API_KEY",
+               "TYPESAFE_MODEL", keystore.PROVIDER_OVERRIDE_ENV)
 
     def setUp(self):
         # The suite must behave the same on a machine whose shell has a key exported and on
