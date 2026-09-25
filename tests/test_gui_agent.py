@@ -175,6 +175,58 @@ class PortabilityTests(unittest.TestCase):
         self.assertTrue(callable(gui._find_driver))
 
 
+class LinuxTreeTests(unittest.TestCase):
+    """cua-driver on X11 reports AT-SPI roles in bare lower case - "push button", "entry",
+    "check box" - and carries no AXPress action. INTERACTIVE_ROLES held only the macOS
+    spellings, so every control on the window was filtered out: a tree with 35 labelled
+    controls came back as "no interactive elements observed" and the loop could not move.
+    """
+
+    def _state(self, role: str, label: str = "Appearance") -> dict:
+        return {"window_bounds": {"x": 0, "y": 0, "width": 800, "height": 600},
+                "elements": [{"role": role, "label": label, "element_index": 1,
+                              "frame": {"x": 10, "y": 10, "w": 120, "h": 28}}]}
+
+    def test_a_lower_case_at_spi_role_is_offered_to_the_chooser(self):
+        for role in ("push button", "entry", "check box", "page tab", "menu item", "combo box"):
+            with self.subTest(role=role):
+                rows = gui.element_rows(self._state(role), gui.MAX_REGIONS)
+                self.assertEqual([r["label"] for r in rows], ["Appearance"])
+
+    def test_a_lower_case_role_that_is_not_a_control_is_still_dropped(self):
+        """Widening the role set must not widen it to everything: a click on a label or a
+        panel is a candidate spent on nothing, and the contract holds 32 of them."""
+        for role in ("label", "panel", "filler", "separator", "frame"):
+            with self.subTest(role=role):
+                self.assertEqual(gui.element_rows(self._state(role), gui.MAX_REGIONS), [])
+
+
+class DriverReplyShapeTests(unittest.TestCase):
+    """cua-driver 0.23.x answers ``get_window_state`` with ``content[0].text`` - the state as a
+    JSON string - and no ``structuredContent``. Reading only the structured side returned ``{}``
+    for every observation, so the runner reported an empty window on a window it could see.
+    """
+
+    def _driver(self, reply: dict):
+        class Driver:
+            def tool(self, name, args):
+                return reply
+
+        return Driver()
+
+    def test_the_text_reply_is_parsed_when_there_is_no_structured_content(self):
+        state = {"window_bounds": {"x": 0, "y": 0, "width": 100, "height": 100}, "elements": []}
+        driver = self._driver({"result": {"content": [{"type": "text", "text": json.dumps(state)}]}})
+        self.assertEqual(gui.observe(driver, 1, 2, ""), state)
+
+    def test_structured_content_still_wins_and_a_text_part_that_is_not_json_is_not_an_answer(self):
+        both = {"result": {"structuredContent": {"elements": [{"role": "push button"}]},
+                           "content": [{"type": "text", "text": "{\"elements\": [\"from-text\"]}"}]}}
+        self.assertEqual(gui.observe(self._driver(both), 1, 2, ""), {"elements": [{"role": "push button"}]})
+        junk = {"result": {"content": [{"type": "text", "text": "not json at all"}]}}
+        self.assertEqual(gui.observe(self._driver(junk), 1, 2, ""), {})
+
+
 if __name__ == "__main__":
     unittest.main()
 

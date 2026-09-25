@@ -247,6 +247,30 @@ class TestTheRulesAreRefusedRatherThanSent(unittest.TestCase):
         self.assertIn("asks nothing", str(raised.exception))
         self.assertEqual(sent.questions, [])
 
+    def test_instructions_in_a_non_latin_script_are_a_question_not_a_repeat(self):
+        """A CJK question that mentions its own id asks something; it must not be read as bare repeat.
+
+        Regression (2026-09-23, N150): `[^a-z0-9]` stripped every CJK character, so
+        "【i5】该候选的判定档位？" collapsed to "i5" and was refused as repeating the name —
+        no Chinese question could be asked, and three production features that ask in Chinese
+        with ASCII ids (batch classify, collect triage, framework triage) all failed with rc=2.
+        """
+        for name, text in (("i5", "【i5】该候选的判定档位？"),
+                           ("pair0", "【pair0】这两条记忆条目是否应当合并（保留一条）？"),
+                           ("gh1234", "判定采集候选【gh1234】的处置。")):
+            with self.subTest(name=name):
+                checked = client.check_question(name, {"type": "choice", "instructions": text,
+                                                       "criteria": {"a": "one", "b": "two"}})
+                self.assertEqual(checked["instructions"], text)
+
+    def test_the_identifier_still_distinguishes_punctuation_and_case(self):
+        """The letter rule is what the check is about: underscores and case still fold together."""
+        self.assertEqual(client._identifier("Blocked_On-Review"), client._identifier("blocked on review"))
+        self.assertEqual(client._identifier("blocked on review?"), client._identifier("blocked on review"))
+        # The bug in one line: a CJK question keeps its letters, so it is no longer "i5".
+        self.assertNotEqual(client._identifier("【i5】该候选的判定档位？"), client._identifier("i5"))
+        self.assertIn("该候选", client._identifier("【i5】该候选的判定档位？"))
+
     def test_a_question_named_after_its_own_answer_is_still_a_question(self):
         """The rule is about a missing question, not about a short one: 'Is it blocked?' is asked."""
         sent = Recording()

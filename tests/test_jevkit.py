@@ -696,6 +696,31 @@ class OpenRouterProviderTests(unittest.TestCase):
         self.assertEqual(seen["body"]["model"], client.DEFAULT_MODEL)
         self.assertNotIn("X-Title", seen["headers"])
 
+    def test_a_venice_key_sends_the_same_request_to_the_decisions_api(self):
+        with mock.patch.dict(os.environ, {"VENICE_API_KEY": "vn-" + "d" * 40}):
+            self.assertEqual(keystore.provider(), "venice")
+        seen = self.sent(VENICE_API_KEY="vn-" + "d" * 40)
+        self.assertEqual(seen["body"]["model"], client.VENICE_MODEL)
+        self.assertEqual(sorted(seen["body"]), ["model", "questions", "state"])   # same shape
+        # Venice needs no caller-identification headers; those are OpenRouter's convention.
+        self.assertNotIn("X-Title", seen["headers"])
+
+    def test_venice_is_last_so_a_machine_with_both_keys_never_reroutes(self):
+        """Venice is currently free, which makes it tempting to prefer. It is still appended
+        last: an install already resolving through OpenRouter must keep doing exactly that."""
+        self.assertEqual(keystore.PROVIDERS, ("typesafe", "openrouter", "venice"))
+        both = {"OPENROUTER_API_KEY": "sk-or-v1-" + "b" * 40, "VENICE_API_KEY": "vn-" + "d" * 40}
+        with mock.patch.dict(os.environ, both):
+            self.assertEqual(keystore.provider(), "openrouter")
+        seen = self.sent(**both)
+        self.assertEqual(seen["body"]["model"], client.OPENROUTER_MODEL)
+
+    def test_the_venice_url_is_the_decisions_api_not_chat_completions(self):
+        """Venice serves the decision model as its own modality; /chat/completions 404s for it."""
+        self.assertIn("/api/v1/decisions", client.VENICE_ENDPOINT)
+        self.assertNotIn("chat/completions", client.VENICE_ENDPOINT)
+        self.assertEqual(client.VENICE_MODEL, "jev-latest")
+
     def test_the_openrouter_url_is_the_decisions_api_not_chat_completions(self):
         """A chat model asked for JSON is not Jev: no calibration, invented confidence."""
         self.assertIn("/api/alpha/decisions", client.OPENROUTER_ENDPOINT)

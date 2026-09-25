@@ -29,6 +29,8 @@ DEFAULT_MODEL = "jev-latest"
 # made-up confidence, which is the one thing a decision model exists not to do.
 OPENROUTER_ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 OPENROUTER_MODEL = "~typesafe/jev-latest"
+VENICE_ENDPOINT = "https://api.venice.ai/api/v1/decisions"
+VENICE_MODEL = "jev-latest"
 MAX_RESPONSE_BYTES = 1_000_000
 MAX_STATE_CHARS = 60_000
 USER_AGENT = "hermes-jev-skills/0.1"
@@ -78,8 +80,8 @@ MIN_CRITERIA = 2
 
 
 def _identifier(text: Any) -> str:
-    """What a string says once punctuation, case and underscores stop distinguishing it."""
-    return re.sub(r"[^a-z0-9]+", " ", str(text).lower()).strip()
+    """Fold punctuation/case/underscores, keeping letters and digits in every script."""
+    return re.sub(r"[\W_]+", " ", str(text).lower()).strip()
 
 
 def _shown(value: Any) -> str:
@@ -277,6 +279,23 @@ def _http_transport(body: bytes, headers: Dict[str, str], timeout: float, url: s
 def _openrouter_transport(body: bytes, headers: Dict[str, str], timeout: float) -> bytes:
     return _http_transport(body, headers, timeout, OPENROUTER_ENDPOINT)
 
+def _venice_transport(body: bytes, headers: Dict[str, str], timeout: float) -> bytes:
+    return _http_transport(body, headers, timeout, VENICE_ENDPOINT)
+
+def _custom_typesafe_endpoint(base: str) -> str:
+    """Explicit compatible server: never send provider credentials to an override host."""
+    try:
+        parsed = urllib.parse.urlsplit(base)
+        port = parsed.port
+    except ValueError:
+        raise JevError("invalid_endpoint") from None
+    if (parsed.scheme not in ("http", "https") or not parsed.hostname or
+            parsed.username or parsed.password or parsed.query or parsed.fragment or
+            (parsed.scheme == "http" and parsed.hostname not in ("127.0.0.1", "::1")) or
+            (parsed.path and parsed.path != "/") or not parsed.netloc or port == 0):
+        raise JevError("invalid_endpoint")
+    return base.rstrip("/") + "/v1/systemone"
+
 
 def post(url: str, body: bytes, headers: Dict[str, str], timeout: float,
          max_bytes: int = MAX_RESPONSE_BYTES) -> bytes:
@@ -441,29 +460,38 @@ def ask(
     # Where the shape is enforced. A caller that hand-builds a question dict used to reach the
     # wire with it; now it is refused here, before any request is made or any key resolved.
     questions = check_questions(questions)
-    via = provider or ("typesafe" if api_key else keystore.provider())
+    base = os.environ.get("TYPESAFE_BASE_URL", "").strip()
+    if base.rstrip("/") == "https://api.typesafe.ai":
+        base = ""  # the official URL still uses the official credential flow
+    via = provider or ("typesafe" if api_key or base else keystore.provider())
     if via not in keystore.PROVIDERS:
         via = "typesafe"
-    key = api_key or keystore.resolve(via)
-    if not key:
+    endpoint = _custom_typesafe_endpoint(base) if base and via == "typesafe" else None
+    # A compatible endpoint may be a local mock or an explicit HTTPS proxy. Never forward
+    # either an explicit api_key or an automatically discovered provider key to it.
+    key = None if endpoint else api_key or keystore.resolve(via)
+    if not key and not endpoint:
         raise JevError("no_key", "run `jev setup-key`")
     encoded_state = state if isinstance(state, str) else json.dumps(state, separators=(",", ":"), default=str)
     if len(encoded_state) > MAX_STATE_CHARS:
         raise JevError("state_too_large")
-    default_model = OPENROUTER_MODEL if via == "openrouter" else DEFAULT_MODEL
+    default_model = OPENROUTER_MODEL if via == "openrouter" else VENICE_MODEL if via == "venice" else DEFAULT_MODEL
     body = json.dumps(
         {"state": state, "model": model or os.environ.get("TYPESAFE_MODEL") or default_model,
          "questions": {name: dict(q) for name, q in questions.items()}},
         separators=(",", ":"), default=str,
     ).encode("utf-8")
-    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
-               "Accept": "application/json", "User-Agent": USER_AGENT}
+    headers = {"Content-Type": "application/json", "Accept": "application/json", "User-Agent": USER_AGENT}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
     if via == "openrouter":
         # OpenRouter asks callers to identify themselves; neither header carries anything
         # about the person or the decision.
         headers["HTTP-Referer"] = "https://github.com/kerpopule/hermes-jev-skills"
         headers["X-Title"] = "Hermes Jev Skills"
-    send = transport or (_openrouter_transport if via == "openrouter" else _http_transport)
+    send = transport or ((lambda body, headers, timeout: _http_transport(body, headers, timeout, endpoint))
+                         if endpoint else _openrouter_transport if via == "openrouter" else
+                         _venice_transport if via == "venice" else _http_transport)
 
     started = time.monotonic()
     attempt = 0
@@ -494,6 +522,8 @@ def ask(
 
 def verify_key(api_key: str, timeout: float = 10.0, provider: str = "typesafe") -> bool:
     """One tiny synthetic call. True means the key is accepted by that provider."""
+    if provider == "typesafe" and os.environ.get("TYPESAFE_BASE_URL", "").strip().rstrip("/") not in ("", "https://api.typesafe.ai"):
+        return False  # a compatible server cannot authenticate a TypeSafe credential
     try:
         ask("The build finished and all tests passed.",
             {"ok": noul("The text reports a successful outcome")},

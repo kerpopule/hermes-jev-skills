@@ -1,4 +1,9 @@
 #!/bin/sh
 # Runs jevkit from this checkout with whatever python3 is on PATH. No install step, no dependencies.
 here="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")/.." && pwd)"
-PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m jevkit "$@"
+# Run from the checkout so a native Windows Python can import jevkit without MSYS
+# PYTHONPATH translation. Restore the caller's cwd *inside Python* before the CLI
+# reads relative --root/--file paths; changing it for the whole command breaks those.
+caller="$(pwd -W 2>/dev/null || pwd -P)"
+cd "$here" || exit 1
+exec python3 -c 'import os, runpy, sys; sys.path.insert(0, os.getcwd()); os.chdir(sys.argv[1]); sys.argv = [sys.argv[0]] + sys.argv[2:]; runpy.run_module("jevkit", run_name="__main__")' "$caller" "$@"

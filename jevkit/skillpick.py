@@ -40,16 +40,66 @@ def _warn_once(key: Any, message: str, *args: Any) -> None:
         logger.warning(message, *args)
 
 
+# A block scalar header: `>` or `|`, then an indentation indicator and a
+# chomping indicator in either order, then an optional comment. `>2-`, `|+2`
+# and `> # folded` are all valid headers that a fixed list of strings misses.
+_BLOCK_HEADER = re.compile(r"^[>|][0-9+-]*\s*(?:#.*)?$")
+
+
 def _front_matter(text: str) -> Dict[str, str]:
+    """Read the front matter, block scalars included.
+
+    A long description is commonly written as `description: >` with the text
+    indented underneath, which is valid YAML and the only readable way to write
+    the several sentences a good description needs. Reading the key's own line
+    and stopping gave that skill the description ">", so it reached Jev with
+    nothing to be ranked on and could only be picked for what its name already
+    said.
+
+    This is not a YAML parser and does not try to be. It reads the shapes a
+    front matter actually uses: a block runs until a non-blank line is less
+    indented than the block's own first line, and its lines are joined with
+    spaces. `|` is deliberately normalised to one line like `>` rather than
+    keeping its breaks, because the two are the same description to the reader
+    downstream: it is about to be truncated to a few hundred characters and put
+    in a list for a decision model. For the same reason the indentation
+    indicator is accepted but its explicit width is not honoured, and chomping
+    is not applied -- the result is stripped either way.
+    """
     match = re.match(r"^---\s*\n(.*?)\n---\s*\n", text, re.S)
     fields: Dict[str, str] = {}
-    if match:
-        for line in match.group(1).splitlines():
-            key, sep, value = line.partition(":")
-            if sep and not key.startswith((" ", "\t")):
-                fields[key.strip()] = value.strip().strip("'\"")
+    if not match:
+        return fields
+    lines = match.group(1).splitlines()
+    index = 0
+    while index < len(lines):
+        key, sep, value = lines[index].partition(":")
+        if not sep or key.startswith((" ", "\t")):
+            index += 1
+            continue
+        header = _BLOCK_HEADER.match(value.strip())
+        if not header:
+            fields[key.strip()] = value.strip().strip("'\"")
+            index += 1
+            continue
+        index += 1
+        body: List[str] = []
+        indent = None
+        while index < len(lines):
+            line = lines[index]
+            if not line.strip():
+                body.append("")
+                index += 1
+                continue
+            width = len(line) - len(line.lstrip())
+            if indent is None:
+                indent = width
+            elif width < indent:
+                break
+            body.append(line[indent:])
+            index += 1
+        fields[key.strip()] = " ".join(part for part in body if part).strip()
     return fields
-
 
 def discover(roots: Iterable[Path], disabled: Iterable[str] = ()) -> List[Dict[str, str]]:
     """Find SKILL.md files. Works for Hermes, Claude Code and Codex skill folders alike.
@@ -71,7 +121,7 @@ def discover(roots: Iterable[Path], disabled: Iterable[str] = ()) -> List[Dict[s
             except OSError:
                 continue
             name = fields.get("name") or skill_file.parent.name
-            if name not in seen and name not in skip and fields.get("description"):
+            if name not in seen and name not in skip and name not in META_SKILLS and fields.get("description"):
                 seen[name] = {"name": name, "description": fields["description"], "path": str(skill_file)}
     return list(seen.values())
 
@@ -245,8 +295,15 @@ _ACK_PHRASES = frozenset(tuple(phrase.split()) for phrase in (
     "got it", "thank you", "thanks again", "never mind", "no worries", "no problem", "no prob",
     "of course", "all done", "all set", "all good", "all right", "my bad", "hold on",
     "that worked", "that works", "it worked", "it works", "whats up",
+    "how are you", "how are you doing", "how are you today", "how are you doing today",
+    "hows it going", "how is it going", "how are things", "hows things",
+    "good morning", "good night", "nice work", "well done",
 ))
-_LONGEST_PHRASE = max(len(phrase) for phrase in _ACK_PHRASES)
+_CONTINUATION_PHRASES = frozenset(tuple(phrase.split()) for phrase in (
+    "next", "and next", "cool next", "ok next", "next one", "go next", "whats next",
+))
+META_SKILLS = frozenset(("using-superpowers", "skill-selector", "skill-selection"))
+_LONGEST_PHRASE = max(len(phrase) for phrase in _ACK_PHRASES | _CONTINUATION_PHRASES)
 _MAX_TRIVIAL_WORDS = 6
 _QUESTION_MARKS = "?\uff1f\u061f\u00bf"           # ASCII, full-width, Arabic, inverted
 _APOSTROPHES = {ord(mark): None for mark in "'\u2019\u02bc"}
@@ -267,7 +324,10 @@ def looks_trivial(turn: str) -> bool:
     # "all working?" and "that done?" are made of acknowledgement words and are still
     # questions the person wants answered.
     if any(mark in text for mark in _QUESTION_MARKS):
-        return False
+        without_marks = text.translate(str.maketrans("", "", _QUESTION_MARKS))
+        continuation = tuple(word for word in re.split(r"[\W_]+", without_marks.lower().translate(_APOSTROPHES)) if word)
+        if continuation not in _CONTINUATION_PHRASES:
+            return False
     # Nothing to read: punctuation, symbols or emoji only. The test is "no letter or digit
     # in any script". It used to be "no ASCII letter", which is also true of every request
     # written in Chinese, Japanese, Korean, Russian, Arabic, Hebrew, Greek, Hindi or Thai,
@@ -283,6 +343,8 @@ def looks_trivial(turn: str) -> bool:
     # Over the limit, the turn is long enough to carry a real request.
     if not words or len(words) > _MAX_TRIVIAL_WORDS:
         return False
+    if tuple(words) in _CONTINUATION_PHRASES:
+        return True
     position = 0
     while position < len(words):
         for size in range(min(_LONGEST_PHRASE, len(words) - position), 1, -1):
@@ -309,6 +371,7 @@ def pick(
     request that answered routing's questions, through `jevkit/turn.py`. Everything after
     stage 1, including the stage-2 verification and its thresholds, is unchanged.
     """
+    skills = [skill for skill in skills if skill.get("name") not in META_SKILLS]
     if looks_trivial(turn):
         return {"status": "ok", "needs_skill": 0.0, "skills": [], "latency_ms": 0, "skipped": "trivial"}
     if not skills or privacy.is_sensitive(turn):

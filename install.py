@@ -177,11 +177,22 @@ def command_homes(home: Path, every: bool = False) -> List[Path]:
         return [home]
 
 
+def _indent_of(line: str) -> str:
+    """The leading whitespace of a config line: what a new line beside it has to copy."""
+    return line[:len(line) - len(line.lstrip())]
+
+
 def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str, str]:
     """Add or remove each plugin under plugins.enabled by editing only that list.
 
     A text edit, not a YAML round-trip: comments, ordering and every other setting survive.
     One pass for all of them, so a two-plugin install leaves one backup rather than two.
+
+    Every line added here is indented the way the file already indents that list. Both shapes
+    parse -- items level with `enabled:`, and items one level inside it -- so a new name written
+    at the wrong column is not a formatting nit: in a four-space list it lands in the middle of
+    the item above and swallows every name after it, turning
+    `["hermes-handoff", "hermes-jev - a2a-platform - basic - ..."]` into the list Hermes reads.
     """
     text = config.read_text(encoding="utf-8")
     lines = text.split("\n")
@@ -199,7 +210,43 @@ def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str
     if start is not None:
         end = next((i for i in range(start + 1, len(lines)) if lines[i] and not lines[i].startswith((" ", "#"))), len(lines))
         block = lines[start + 1:end]
-        key = next((i for i, line in enumerate(block) if re.match(r"^  enabled:\s*(\[\s*\])?\s*$", line)), None)
+        key = None
+        key_indent = None
+        for i, line in enumerate(block):
+            found = re.match(r"^(\s*)enabled:\s*(\[\s*\])?\s*$", line)
+            if found:
+                key, key_indent = i, found.group(1)
+                break
+            flow = re.match(r"^(\s*)enabled:\s*(\[.*\])\s*$", line)
+            if flow:
+                # A populated inline sequence must not get a second enabled: key. Only
+                # simple plugin identifiers are accepted; unfamiliar YAML stays untouched.
+                import ast
+                try:
+                    values = ast.literal_eval(flow.group(2))
+                except (ValueError, SyntaxError):
+                    raise ValueError("unsupported inline plugins.enabled list") from None
+                if not isinstance(values, list) or any(
+                        not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9._-]+", value)
+                        for value in values):
+                    raise ValueError("unsupported inline plugins.enabled list")
+                key, key_indent = i, flow.group(1)
+                block[i:i + 1] = [f"{key_indent}enabled:"] + [f"{key_indent}  - {value}" for value in values]
+                break
+        if key_indent is None:                 # no `enabled:` yet: sit where its neighbours sit
+            key_indent = next((_indent_of(line) for line in block
+                               if line.strip() and not line.strip().startswith(("#", "-"))),
+                              _indent_of(lines[start]) + "  ")
+        item_indent = key_indent
+        if key is not None:
+            for line in block[key + 1:]:
+                if not line.strip():
+                    continue
+                if line.strip().startswith("-"):    # the list already there fixes the column
+                    item_indent = _indent_of(line)
+                    break
+                if len(_indent_of(line)) <= len(key_indent):
+                    break                      # the next key beside it: this list is empty
         # Every plugin goes in at the same spot, so walking the names backwards leaves
         # them alphabetical in the file.
         for name in sorted(names, reverse=True):
@@ -210,10 +257,10 @@ def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str
                     status[name] = "already enabled"
                     continue
                 if key is None:
-                    block.insert(0, "  enabled:")
+                    block.insert(0, f"{key_indent}enabled:")
                     key = 0
-                block[key] = "  enabled:"          # turns `enabled: []` into a block list
-                block.insert(key + 1, f"  - {name}")
+                block[key] = f"{key_indent}enabled:"   # turns `enabled: []` into a block list
+                block.insert(key + 1, f"{item_indent}- {name}")
                 status[name] = "enabled"
             else:
                 if not present:

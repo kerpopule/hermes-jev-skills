@@ -22,6 +22,18 @@ def read(name: str) -> str:
 
 
 class SkillContentTests(unittest.TestCase):
+    def test_readme_skill_count_matches_shipped_files(self):
+        count = len(list(SKILLS.glob("*/SKILL.md")))
+        number_words = [
+            "zero", "one", "two", "three", "four", "five", "six", "seven",
+            "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
+            "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
+        ]
+        self.assertLessEqual(count, 20, "extend number_words for the new shipped skill count")
+        readme = (REPO / "README.md").read_text(encoding="utf-8")
+        self.assertIn(f"{number_words[count].title()} skills ship as plain `SKILL.md` files", readme)
+        self.assertIn(f"skills/            {number_words[count]} SKILL.md skills", readme)
+
     def test_every_skill_has_matching_frontmatter_name(self):
         for skill_md in sorted(SKILLS.glob("*/SKILL.md")):
             body = skill_md.read_text(encoding="utf-8")
@@ -50,11 +62,9 @@ class SkillContentTests(unittest.TestCase):
     def test_every_description_survives_the_picker_whole(self):
         """The picker truncates a description; a skill whose tail is cut cannot be ranked on it.
 
-        All eight shipped descriptions were 223-284 characters against a 200-character
-        cut, so jev-model-routing and jev-frontier-work both arrived at the ranker as
-        near-identical "delegate work to another model" blurbs with the clauses that
-        separate them missing. Import the constant rather than repeating 200, so the
-        bound moves with the picker.
+        The picker can hide the clauses that distinguish otherwise similar skills when
+        descriptions exceed its limit. Import the constant rather than repeating 200,
+        so the bound moves with the picker.
         """
         from jevkit import skillpick
         shipped = skillpick.discover([SKILLS])

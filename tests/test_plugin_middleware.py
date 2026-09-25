@@ -87,6 +87,33 @@ class RoutingMiddlewareTests(unittest.TestCase):
             session_id="s6", turn_id="t1", model=DEFAULT, provider="openrouter")
         self.assertIsNone(result)
 
+    def test_custom_provider_without_mapping_is_not_routed_across_providers(self):
+        plugin._on_pre_llm_call(session_id="custom", turn_id="t1", user_message=HARD)
+        with mock.patch.object(plugin.route, "load_config", return_value={}):
+            result = plugin._on_llm_request(
+                request={"model": "deepseek-v4-1-flash", "messages": []},
+                session_id="custom", turn_id="t1", model="deepseek-v4-1-flash", provider="custom")
+        self.assertIsNone(result)
+        self.assertEqual(self.decisions, [])
+        self.assertIn("provider_aliases.custom", [x for x in self.logs if x["kind"] == "route"][0]["reason"])
+
+    def test_explicit_custom_provider_alias_limits_the_pool(self):
+        plugin._on_pre_llm_call(session_id="custom-alias", turn_id="t1", user_message=HARD)
+        with mock.patch.object(plugin.route, "load_config", return_value={"provider_aliases": {"custom": "venice"}}):
+            plugin._on_llm_request(
+                request={"model": "deepseek-v4-1-flash", "messages": []},
+                session_id="custom-alias", turn_id="t1", model="deepseek-v4-1-flash", provider="custom")
+        self.assertEqual(self.decisions[0]["only_provider"], "venice")
+        self.assertEqual(self.decisions[0]["current"], "venice:deepseek-v4-1-flash")
+
+    def test_custom_prefixed_model_is_normalised_with_explicit_alias(self):
+        plugin._on_pre_llm_call(session_id="custom-prefixed", turn_id="t1", user_message=HARD)
+        with mock.patch.object(plugin.route, "load_config", return_value={"provider_aliases": {"custom": "venice"}}):
+            plugin._on_llm_request(request={"model": "custom:deepseek-v4-1-flash", "messages": []},
+                                   session_id="custom-prefixed", turn_id="t1",
+                                   model="custom:deepseek-v4-1-flash", provider="custom")
+        self.assertEqual(self.decisions[0]["current"], "venice:deepseek-v4-1-flash")
+
 
     def test_effective_telemetry_tracks_applied_shadow_pin_and_repeated_requests(self):
         self.turn("live", "t1", DEFAULT)

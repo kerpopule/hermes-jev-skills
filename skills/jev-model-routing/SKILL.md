@@ -26,6 +26,8 @@ With the `hermes-jev` plugin enabled, each fresh user turn is routed once, befor
 
 A plugin can swap the model, not the provider connection. On OpenRouter that still means every vendor (DeepSeek, GLM, Kimi, MiniMax, Grok, Qwen, Gemini, GPT). If you run `/model` yourself, your choice wins and Jev stays out of the way.
 
+For a Hermes `custom` provider, the plugin cannot infer the backing models.dev provider. It now keeps the current model and logs `custom provider needs an explicit provider_aliases.custom` instead of blaming an unrelated pool. If and only if that endpoint actually serves the pool's models, set `"provider_aliases": {"custom": "venice"}` (replace `venice` with the real pool prefix) in `routing.json`. Check the endpoint and every pool model before enabling routing; an alias is an operator assertion, not cross-provider discovery. This does not edit any live routing mode.
+
 ## Asking directly (any agent)
 
 Before delegating a task or spawning a sub-agent, ask which model should get it:

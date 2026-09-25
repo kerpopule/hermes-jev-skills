@@ -27,14 +27,28 @@ _SECURITY = "/usr/bin/security"
 # already using OpenRouter for their models. Same request, same answers: only the URL and
 # the model id differ (see client.OPENROUTER_ENDPOINT). Contributed as
 # github.com/kerpopule/hermes-jev-skills/pull/1 by Lorenzo DZ (@Barba2k2).
-PROVIDERS = ("typesafe", "openrouter")
-_ENV = {"typesafe": ENV_VAR, "openrouter": "OPENROUTER_API_KEY"}
-_SERVICE = {"typesafe": KEYCHAIN_SERVICE, "openrouter": "Hermes OpenRouter API"}
+# Venice serves Jev itself, as a first-class decision modality, and currently at zero price
+# (/models?type=decision -> jev-latest, priced 0 usd / 0 diem). Same decisions, same shapes.
+# Appended LAST so no existing install changes where its decisions are routed: an install that
+# already resolves through TypeSafe or OpenRouter keeps doing exactly that.
+PROVIDERS = ("typesafe", "openrouter", "venice")
+_ENV = {"typesafe": ENV_VAR, "openrouter": "OPENROUTER_API_KEY",
+        "venice": "VENICE_API_KEY"}
+_SERVICE = {"typesafe": KEYCHAIN_SERVICE, "openrouter": "Hermes OpenRouter API",
+            "venice": "Hermes Venice API"}
+# Each provider beyond TypeSafe keeps its own 0600 file beside the original.
+_CREDENTIAL_FILE = {"openrouter": "credentials-openrouter", "venice": "credentials-venice"}
 
 
 def credentials_file() -> Path:
     base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
     return Path(base) / "jev" / "credentials"
+
+
+def credentials_file_for(provider: str = "typesafe") -> Path:
+    """The credentials file for one provider. TypeSafe keeps the original filename."""
+    name = _CREDENTIAL_FILE.get(provider)
+    return credentials_file().with_name(name) if name else credentials_file()
 
 
 def looks_like_key(value: str) -> bool:
@@ -61,7 +75,7 @@ def _from_keychain(provider: str = "typesafe") -> Optional[str]:
 
 
 def _from_file(provider: str = "typesafe") -> Optional[str]:
-    path = credentials_file() if provider == "typesafe" else credentials_file().with_name("credentials-openrouter")
+    path = credentials_file_for(provider)
     variable = _ENV.get(provider, ENV_VAR)
     try:
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -199,7 +213,7 @@ def store(value: str, hermes: bool = True, hermes_home: Optional[Path] = None,
         written.append(str(credentials_file()))
     else:
         # A 0600 file next to the TypeSafe one, under this provider's own variable name.
-        path = credentials_file().with_name("credentials-openrouter")
+        path = credentials_file_for(provider)
         upsert_env_file(path, value, _ENV[provider])
         written.append(str(path))
     lanes = 0

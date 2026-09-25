@@ -130,6 +130,12 @@ INTERACTIVE_ROLES = {
     "AXButton", "AXLink", "AXTextField", "AXCheckBox", "AXRadioButton",
     "AXPopUpButton", "AXComboBox", "AXMenuItem", "AXSearchField",
     "AXTab", "AXSlider", "AXDisclosureTriangle", "AXSegmentedControl",
+    # Linux/AT-SPI (cua-driver on X11) reports the bare, lowercase role, so a macOS-only
+    # set filtered every candidate out and the loop reported "no interactive elements
+    # observed" on a window whose tree held 35 labelled controls.
+    "button", "push button", "toggle button", "link", "text box", "entry", "spin button",
+    "check box", "checkbox", "radio button", "combo box", "menu item", "menu",
+    "slider", "tab", "page tab", "search box", "text", "list item", "tree item",
 }
 
 # The chooser contract caps a table at 32 candidates. build_table always appends these,
@@ -239,7 +245,22 @@ def observe(driver: Driver, pid: int, window_id: int, session: str) -> dict:
     if session:
         args["session"] = session
     res = driver.tool("get_window_state", args)
-    return res.get("result", {}).get("structuredContent", {}) or {}
+    result = res.get("result", {}) or {}
+    structured = result.get("structuredContent")
+    if isinstance(structured, dict) and structured.get("elements") is not None:
+        return structured
+    # cua-driver 0.23.x answers with content[0].text (a JSON string) and no
+    # structuredContent, so reading only the structured side returned {} and every
+    # run reported "no interactive elements observed".
+    for part in (result.get("content") or []):
+        if isinstance(part, dict) and part.get("type") == "text" and part.get("text"):
+            try:
+                parsed = json.loads(part["text"])
+            except (ValueError, TypeError):
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+    return {}
 
 
 def with_session(args: dict, session: str) -> dict:
@@ -1175,21 +1196,35 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if not os.environ.get("TYPESAFE_API_KEY"):
-        tok = subprocess.run(
-            ["security", "find-generic-password", "-s", "Hermes TypeSafe API",
-             "-a", "TYPESAFE_API_KEY", "-w"],
-            capture_output=True, text=True)
-        if tok.returncode == 0 and tok.stdout.strip():
-            os.environ["TYPESAFE_API_KEY"] = tok.stdout.strip()
+        # Was a bare call to macOS `security`, which on Linux raised FileNotFoundError and
+        # killed the run before jevkit's own credentials-file fallback could be consulted.
+        # jevkit.keystore already resolves environment → OS secret store → credentials file.
+        try:
+            from jevkit.keystore import resolve as _resolve_credential
+            _key = _resolve_credential()
+        except Exception:  # noqa: BLE001 - a broken credential lookup must not crash the loop
+            _key = None
+        if _key:
+            os.environ["TYPESAFE_API_KEY"] = _key
     if not os.environ.get("TEXT_MODEL_API_KEY") and not os.environ.get("OPENROUTER_API_KEY"):
-        tok = subprocess.run(
-            # No hardcoded account: whoever runs this is the account. A name baked in
-            # here works on exactly one machine and fails silently on every other.
-            ["security", "find-generic-password", "-s", "OPENROUTER_API_KEY",
-             "-a", os.environ.get("USER", ""), "-w"],
-            capture_output=True, text=True)
-        if tok.returncode == 0 and tok.stdout.strip():
-            os.environ["OPENROUTER_API_KEY"] = tok.stdout.strip()
+        token = None
+        if shutil.which("security"):  # macOS only; on Linux skip straight to the fallback
+            proc = subprocess.run(
+                # No hardcoded account: whoever runs this is the account. A name baked in
+                # here works on exactly one machine and fails silently on every other.
+                ["security", "find-generic-password", "-s", "OPENROUTER_API_KEY",
+                 "-a", os.environ.get("USER", ""), "-w"],
+                capture_output=True, text=True)
+            if proc.returncode == 0 and proc.stdout.strip():
+                token = proc.stdout.strip()
+        if not token:
+            try:
+                from jevkit.keystore import resolve as _resolve_credential
+                token = _resolve_credential("openrouter")
+            except Exception:  # noqa: BLE001
+                token = None
+        if token:
+            os.environ["OPENROUTER_API_KEY"] = token
     if not os.environ.get("TYPESAFE_API_KEY"):
         print("FAIL: no TypeSafe credential. Run `jev setup-key`.")
         return 2

@@ -28,7 +28,8 @@ KEYS_URL = "https://console.typesafe.ai/settings/keys"
 # Jev is also served through OpenRouter, which is one key instead of two for anyone already
 # using it for their models. Same page, same secret store, different provider.
 PROVIDER_PAGES = {"typesafe": ("TypeSafe", KEYS_URL, "console.typesafe.ai"),
-                  "openrouter": ("OpenRouter", "https://openrouter.ai/settings/keys", "openrouter.ai")}
+                  "openrouter": ("OpenRouter", "https://openrouter.ai/settings/keys", "openrouter.ai"),
+                  "venice": ("Venice", "https://venice.ai/settings/api", "venice.ai")}
 MAX_BODY = 4096
 
 _PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">

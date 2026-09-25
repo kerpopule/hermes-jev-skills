@@ -11,11 +11,14 @@ provides_tools:
   - jev_supervise
   - jev_escalate
   - jev_memory_filter
+  - jev_search
   - jev_compact_select
   - jev_choose_action
 provides_hooks:
   - pre_llm_call
   - transform_llm_output
+provides_middleware:
+  - llm_request
 tags: [jev, typesafe, routing, memory, compaction, computer-use]
 config_schema:
   routing: {type: str, description: "off | shadow | on"}

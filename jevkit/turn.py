@@ -59,6 +59,7 @@ def decide_turn(
       ``{"status": "fail_open", "reason": ...}`` — Jev did not answer; nothing is invented
     """
     config = config or route.load_config()
+    skills = [skill for skill in skills if skill.get("name") not in skillpick.META_SKILLS]
     if not skills:
         return {"status": "not_mergeable", "reason": "no skills to rank"}
     reason = mergeable(turn, profile=profile, config=config)

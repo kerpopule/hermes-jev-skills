@@ -25,7 +25,7 @@ That is what [Jev](https://docs.typesafe.ai) is. It is TypeSafe's decision model
 | **Computer use** | The next GUI action, from a table of actions you already judged safe. `--plan` splits a multi-step command once, up front | ~0.5 s per decision |
 | **Browser use** | The next page action, same contract | ~0.4 s per step |
 
-Nine skills ship as plain `SKILL.md` files, so they are not Hermes-only. The same folder works in Claude Code, Codex, or anything that reads a skill file.
+Ten skills ship as plain `SKILL.md` files, so they are not Hermes-only. The same folder works in Claude Code, Codex, or anything that reads a skill file.
 
 ```bash
 jev mail --file inbox.json             # sort a mailbox into lanes
@@ -118,7 +118,7 @@ Safety rails that do not depend on Jev being right:
 
 ```
 jevkit/            the library and the `jev` command (stdlib only)
-skills/            nine SKILL.md skills, agent-agnostic
+skills/            ten SKILL.md skills, agent-agnostic
 hermes/plugin/     the Hermes plugin
 router-dashboard/  the model routing page (`jev dashboard`)
 install.py         installer / uninstaller
@@ -134,6 +134,7 @@ docs/              integration notes and hard-won operational lessons
 | [using-jev-in-a-hermes-fleet.md](docs/using-jev-in-a-hermes-fleet.md) | Running Jev across more than one agent: the never-bypass rule, why fail-open is not a bypass, which decisions Jev owns, the thresholds that must not drift, and where a fleet's own facts belong. |
 | [writing-a-jev-question.md](docs/writing-a-jev-question.md) | Before you write a state or a question. The measured finding that one sentence about what is *required* versus merely *preferred* doubled accuracy, and how to phrase each of the three shapes. |
 | [measuring-a-router.md](docs/measuring-a-router.md) | Replaying routing against your own traffic before you trust the savings. |
+| [agent-output-guardrails.md](docs/agent-output-guardrails.md) | Design note for checking draft claims against vetted evidence; privacy boundaries and limitations, not an installed delivery gate. |
 | [search-loop.md](docs/search-loop.md) | Running a search as a loop: which results to open, when to stop, and how to write candidate queries so Jev can pick one. |
 | [wiring-triage-into-a-live-pipeline.md](docs/wiring-triage-into-a-live-pipeline.md) | Adding classification to something already carrying real traffic. |
 | [hermes-compaction.md](docs/hermes-compaction.md) | Handoffs on Hermes: what we measured, what ships, and the two search calls that make a handoff enough. |

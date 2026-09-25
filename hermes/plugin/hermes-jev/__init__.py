@@ -251,15 +251,29 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
     decision = turn["decision"]
     if decision is None:                       # first API call of this turn: ask Jev exactly once
         catalog_provider = catalog.HERMES_ALIASES.get(provider, provider)
+        # A custom Hermes endpoint is not a models.dev provider. Never silently lift the
+        # same-provider guard: another pool could name a model this endpoint cannot serve.
+        # An operator may declare the provider backed by this endpoint explicitly.
+        if provider == "custom":
+            try:
+                aliases = route.load_config().get("provider_aliases")
+            except Exception:  # malformed config keeps the current model
+                aliases = None
+            alias = aliases.get("custom") if isinstance(aliases, dict) else None
+            catalog_provider = alias if isinstance(alias, str) and alias and ":" not in alias else "custom"
         # Some Hermes paths hand us an already-prefixed model id; normalising here keeps
         # the decision string honest and keeps the pinned check comparing like with like.
-        bare = model.split(":", 1)[1] if model.startswith(f"{catalog_provider}:") else model
+        bare = model.split(":", 1)[1] if model.startswith((f"{catalog_provider}:", f"{provider}:")) else model
         current = f"{catalog_provider}:{bare}"
         default = _default_model()
         default_bare = str(default).split(":", 1)[-1] if default else ""
         messages = request.get("messages") or request.get("input") or []
         try:
-            decision = route.decide(
+            if provider == "custom" and catalog_provider == "custom":
+                decision = {"routed": False, "model": current,
+                            "reason": "custom provider needs an explicit provider_aliases.custom in routing.json"}
+            else:
+                decision = route.decide(
                 turn["text"], current=current, profile=_profile(), only_provider=catalog_provider, session_id=session_id,
                 context_tokens=len(json.dumps(messages, default=str)) // 4,
                 has_images="image_url" in json.dumps(messages[-1:], default=str),

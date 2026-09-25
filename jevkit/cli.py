@@ -694,7 +694,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("setup-key", help="open a private page for the person to paste their Jev key")
     p.add_argument("--provider", choices=list(keystore.PROVIDERS), default="typesafe",
                    help="typesafe (default) is a key from console.typesafe.ai; openrouter reaches the same Jev "
-                        "through OpenRouter, which is one key instead of two if you already use it")
+                        "through OpenRouter, which is one key instead of two if you already use it; venice "
+                        "reaches it through Venice, where the decision model is currently free")
     p.add_argument("--tty", action="store_true", help="hidden terminal prompt instead of a browser page")
     p.add_argument("--host", default="127.0.0.1", help="bind address; keep loopback unless you are on a private network")
     p.add_argument("--port", type=int, default=0)

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**Jev backlog integration (2026-09-25; pending release)**
+
+- Venice decisions transport and keychain option (NoTimeforInfinity, PR #6), preserving TypeSafe/OpenRouter precedence. Explicit `TYPESAFE_BASE_URL` compatible-server override (#15, bladedevoff) never forwards provider credentials, accepts plaintext only on numeric loopback, and refuses to claim a local server verified an official key.
+- Launcher works outside the checkout (NoTimeforInfinity, PR #7) without changing the caller's relative-file cwd. Installer preserves existing `plugins.enabled` YAML sequence indentation (Long0308, PR #12; issue #8). PR #9 (zimuge-doudou) additionally restores non-Latin question instructions, with regression tests; PR #11 (C34W-Tsz-dzhang2-0f5) also surfaced populated inline plugin lists, now converted only for simple identifiers and otherwise rejected without modifying config.
+- Block-scalar skill descriptions parse correctly (119533564, PR #10); Linux GUI observation reads accessibility roles and text replies in mocked offline cases (zz8011, PR #13). Real Linux GUI validation remains outstanding.
+- README counts shipped skills accurately (dajiaohuang, PR #16). A privacy-preserving output-guardrail *design note*, not an installed gate, adapts Tosquit's PR #14. Plugin manifest declares the search tool and request middleware (issue #20).
+- `custom` provider routing now requires an explicit matching provider alias rather than silently rejecting pool entries or removing the same-provider guard (#18, NoTimeforInfinity). The skill picker filters selector-only meta-skills and recognises narrow social/continuation turns locally (#19, NoTimeforInfinity). No routing mode or effort level is activated; PR #17 remains pending a provider-capability and override-safe design.
+
 **Context-filter selection regret evaluation and effective middleware routing telemetry**
 
 - Added `evals/context-filter/regret.py` for offline human-labelled, actual-result JSONL comparisons against the unfiltered top-k baseline. Reports needed passages missed, poisoned passages selected, unjudged/clipped selections and incomplete Jev coverage; this is not live recall regret. Tests include real rerank logic with a fake transport; no corpus is shipped.
