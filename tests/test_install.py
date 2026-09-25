@@ -14,6 +14,11 @@ spec = importlib.util.spec_from_file_location("jev_install", Path(__file__).reso
 install = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(install)
 
+try:
+    import yaml                        # only the fold regression below reads a real parser
+except ImportError:                    # the rest of the suite stays stdlib-only
+    yaml = None
+
 CONFIG = """model:
   default: some/model   # keep this comment
 plugins:
@@ -88,6 +93,68 @@ class ConfigEditTests(unittest.TestCase):
             config.write_text("other: 1\n")
             install.enable_plugins(config, install.PLUGINS, True)
             self.assertEqual(config.read_text(), f"other: 1\nplugins:\n  enabled:\n{listed}")
+
+
+class IndentedBlockTests(unittest.TestCase):
+    """The `enabled:` list is written the way the file already writes it.
+
+    A hand-written config.yaml usually nests the items one level below the key. The installer
+    used to write its new names at `  - ` whatever the file used, and in a nested block that is
+    not a second item: YAML folds the entries already there into the new name as one scalar
+    string, so the plugins that were enabled disappear from the parsed list while the file
+    still looks like a list of them. The text assertions here run everywhere; the fold itself
+    is shown to a real parser wherever PyYAML is installed.
+    """
+
+    NESTED = "plugins:\n  enabled:\n    - image_gen/openai-codex\n    - orca-status\nother: 1\n"
+
+    def test_a_nested_block_keeps_its_own_indentation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.yaml"
+            config.write_text(self.NESTED)
+            status = install.enable_plugins(config, install.PLUGINS, True)
+            self.assertEqual(set(status.values()), {"enabled"})
+            self.assertEqual(config.read_text(), "plugins:\n  enabled:\n"
+                             "    - hermes-handoff\n    - hermes-jev\n"
+                             "    - image_gen/openai-codex\n    - orca-status\nother: 1\n")
+            install.enable_plugins(config, install.PLUGINS, False)      # and back again
+            self.assertEqual(config.read_text(), self.NESTED)
+
+    def test_a_four_space_file_is_written_in_four_spaces(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.yaml"
+            config.write_text("plugins:\n    enabled:\n        - image_gen/openai-codex\n")
+            install.enable_plugins(config, install.PLUGINS, True)
+            self.assertEqual(config.read_text(), "plugins:\n    enabled:\n"
+                             "        - hermes-handoff\n        - hermes-jev\n"
+                             "        - image_gen/openai-codex\n")
+
+    def test_a_deeper_plugins_block_gets_its_enabled_key_at_its_own_depth(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.yaml"
+            config.write_text("plugins:\n    paths: some/path\n")
+            install.enable_plugins(config, install.PLUGINS, True)
+            self.assertEqual(config.read_text(), "plugins:\n    enabled:\n"
+                             "    - hermes-handoff\n    - hermes-jev\n    paths: some/path\n")
+
+    def test_the_fold_the_old_writing_caused_cannot_come_back(self):
+        """Skipped where PyYAML is absent; the stdlib-only assertions above still hold there."""
+        if yaml is None:                       # skipTest returns NoReturn, so `yaml` narrows
+            self.skipTest("PyYAML is not installed")
+        # What the installer wrote into a nested block before this fix: the two names at `  - `
+        # above entries at four spaces. Four plugins in, two entries out, one of them a string
+        # running the other two together. This is the exact value PyYAML read on the machine
+        # whose config.yaml found the bug.
+        folded = ("plugins:\n  enabled:\n  - hermes-handoff\n  - hermes-jev\n"
+                  "    - image_gen/openai-codex\n    - orca-status\n")
+        self.assertEqual(yaml.safe_load(folded)["plugins"]["enabled"],
+                         ["hermes-handoff", "hermes-jev - image_gen/openai-codex - orca-status"])
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.yaml"
+            config.write_text(self.NESTED)
+            install.enable_plugins(config, install.PLUGINS, True)
+            self.assertEqual(yaml.safe_load(config.read_text())["plugins"]["enabled"],
+                             ["hermes-handoff", "hermes-jev", "image_gen/openai-codex", "orca-status"])
 
 
 class HermesInstallTests(unittest.TestCase):

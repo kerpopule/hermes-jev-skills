@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**The installer keeps the indentation of the `enabled:` block it edits**
+
+- A hand-written `config.yaml` nests the plugin list one level below the key. The installer
+  wrote its new names at `  - ` regardless, and in a nested block that is not a second item:
+  YAML folds the entries already there into the new name as one scalar string, so
+  `image_gen/openai-codex` and `orca-status` left the parsed list with no error anywhere —
+  PyYAML read `['hermes-handoff', 'hermes-jev - image_gen/openai-codex - orca-status']` from
+  the file the installer had just written. It now reads the key's and the items' own
+  indentation from the file and writes the new names the way the file already writes them;
+  a `plugins:` block with no `enabled:` key gets the key at the block's own depth too.
+- Regression test: `tests/test_install.py` pins the four-space, nested and keyless-deeper
+  shapes by text, and (where PyYAML is installed) parses the installer's output to show the
+  old writing folding four plugins into two entries and the new writing keeping all four.
+  CI installs PyYAML before the suite so that check runs there rather than skipping.
+
 **Context-filter selection regret evaluation and effective middleware routing telemetry**
 
 - Added `evals/context-filter/regret.py` for offline human-labelled, actual-result JSONL comparisons against the unfiltered top-k baseline. Reports needed passages missed, poisoned passages selected, unjudged/clipped selections and incomplete Jev coverage; this is not live recall regret. Tests include real rerank logic with a fake transport; no corpus is shipped.

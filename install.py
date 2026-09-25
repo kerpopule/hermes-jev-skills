@@ -199,7 +199,23 @@ def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str
     if start is not None:
         end = next((i for i in range(start + 1, len(lines)) if lines[i] and not lines[i].startswith((" ", "#"))), len(lines))
         block = lines[start + 1:end]
-        key = next((i for i, line in enumerate(block) if re.match(r"^  enabled:\s*(\[\s*\])?\s*$", line)), None)
+        key = next((i for i, line in enumerate(block) if re.match(r"^(\s*)enabled:\s*(\[\s*\])?\s*$", line)), None)
+        # The key and its items may sit at any depth, and the items are often nested one level
+        # below the key instead of aligned with it. Writing `  - name` into a deeper block does
+        # not add an item: YAML folds the entries already there into the new name as a single
+        # scalar string, so they leave the list with no error anywhere. Everything written here
+        # copies the indentation the file itself uses, which is also the only way that fold
+        # cannot happen.
+        def indent_of(line: str) -> str:
+            return line[:len(line) - len(line.lstrip())]
+        if key is None:
+            head = next((line for line in block if line.strip()), "")
+            lead = indent_of(head) or "  "
+            item_lead = lead
+        else:
+            lead = indent_of(block[key])
+            item_lead = next((indent_of(line) for line in block[key + 1:]
+                              if re.match(r"^\s*-\s", line)), lead)
         # Every plugin goes in at the same spot, so walking the names backwards leaves
         # them alphabetical in the file.
         for name in sorted(names, reverse=True):
@@ -210,10 +226,10 @@ def enable_plugins(config: Path, names: Sequence[str], enable: bool) -> Dict[str
                     status[name] = "already enabled"
                     continue
                 if key is None:
-                    block.insert(0, "  enabled:")
+                    block.insert(0, f"{lead}enabled:")
                     key = 0
-                block[key] = "  enabled:"          # turns `enabled: []` into a block list
-                block.insert(key + 1, f"  - {name}")
+                block[key] = f"{lead}enabled:"     # turns `enabled: []` into a block list
+                block.insert(key + 1, f"{item_lead}- {name}")
                 status[name] = "enabled"
             else:
                 if not present:
