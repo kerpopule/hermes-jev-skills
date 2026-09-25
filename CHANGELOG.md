@@ -14,6 +14,20 @@
 - README counts shipped skills accurately (dajiaohuang, PR #16). A privacy-preserving output-guardrail *design note*, not an installed gate, adapts Tosquit's PR #14. Plugin manifest declares the search tool and request middleware (issue #20).
 - `custom` provider routing now requires an explicit matching provider alias rather than silently rejecting pool entries or removing the same-provider guard (#18, NoTimeforInfinity). The skill picker filters selector-only meta-skills and recognises narrow social/continuation turns locally (#19, NoTimeforInfinity). No routing mode or effort level is activated; PR #17 remains pending a provider-capability and override-safe design.
 
+**Jev through OpenCode Zen (`jev setup-key --provider zen`, `JEV_PROVIDER=zen`)**
+
+- New provider `zen`: key `OPENCODE_ZEN_API_KEY`, endpoint
+  `https://opencode.ai/zen/v1/systemone`, model `jev-1.13-free`. One POST, the same request
+  body and the same `{"answers": {...}}` reply as TypeSafe, with none of OpenRouter's extra
+  headers. TypeSafe is not accepting new signups, so Zen's free tier is the door a machine
+  that has never had a Jev key can actually open.
+- New `JEV_PROVIDER` override: the named provider is used when it is a provider this machine
+  can really resolve a key for. Unset, unknown or keyless leaves the resolution order
+  (`typesafe`, `openrouter`, `venice`, `zen`) exactly as it was, so an existing install never moves.
+- `zen` joins the per-provider table in `keystore`: `OPENCODE_ZEN_API_KEY` in the environment,
+  `Hermes OpenCode Zen API` in the secret store, and its own `credentials-zen` file beside the
+  TypeSafe one, like the other non-TypeSafe providers.
+
 **Context-filter selection regret evaluation and effective middleware routing telemetry**
 
 - Added `evals/context-filter/regret.py` for offline human-labelled, actual-result JSONL comparisons against the unfiltered top-k baseline. Reports needed passages missed, poisoned passages selected, unjudged/clipped selections and incomplete Jev coverage; this is not live recall regret. Tests include real rerank logic with a fake transport; no corpus is shipped.

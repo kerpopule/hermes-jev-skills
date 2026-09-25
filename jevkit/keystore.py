@@ -31,13 +31,23 @@ _SECURITY = "/usr/bin/security"
 # (/models?type=decision -> jev-latest, priced 0 usd / 0 diem). Same decisions, same shapes.
 # Appended LAST so no existing install changes where its decisions are routed: an install that
 # already resolves through TypeSafe or OpenRouter keeps doing exactly that.
-PROVIDERS = ("typesafe", "openrouter", "venice")
+#
+# And through OpenCode Zen (see client.ZEN_ENDPOINT), whose free tier answers the same Jev
+# request with the same shape. TypeSafe still ships first in this tuple, so the scan below
+# keeps its "TypeSafe first, always" order for a machine that has more than one key.
+PROVIDERS = ("typesafe", "openrouter", "venice", "zen")
 _ENV = {"typesafe": ENV_VAR, "openrouter": "OPENROUTER_API_KEY",
-        "venice": "VENICE_API_KEY"}
+        "venice": "VENICE_API_KEY", "zen": "OPENCODE_ZEN_API_KEY"}
 _SERVICE = {"typesafe": KEYCHAIN_SERVICE, "openrouter": "Hermes OpenRouter API",
-            "venice": "Hermes Venice API"}
+            "venice": "Hermes Venice API", "zen": "Hermes OpenCode Zen API"}
 # Each provider beyond TypeSafe keeps its own 0600 file beside the original.
-_CREDENTIAL_FILE = {"openrouter": "credentials-openrouter", "venice": "credentials-venice"}
+_CREDENTIAL_FILE = {"openrouter": "credentials-openrouter", "venice": "credentials-venice",
+                    "zen": "credentials-zen"}
+# An explicit pick, for a machine that has keys for several providers and a reason to use one
+# of them (a free tier it means to stay inside, a key with a quota left on it). It is read as
+# a provider name only when that provider is both known and actually resolvable here; an
+# unset, unknown or keyless value leaves the resolution order above exactly as it was.
+PROVIDER_OVERRIDE_ENV = "JEV_PROVIDER"
 
 
 def credentials_file() -> Path:
@@ -99,7 +109,14 @@ def provider() -> str:
     TypeSafe first, always: an existing install must not start routing its decisions
     somewhere else because an OpenRouter key happens to be in the environment for a text
     model. OpenRouter is the fallback, not a preference.
+
+    ``JEV_PROVIDER`` overrides that order when it names a known provider this machine can
+    actually resolve a key for — the case where a fallback is the wrong answer, because the
+    intended provider has a key and the preferred one only has a leftover one.
     """
+    pinned = (os.environ.get(PROVIDER_OVERRIDE_ENV) or "").strip()
+    if pinned in PROVIDERS and _for(pinned):
+        return pinned
     for name in PROVIDERS:
         if _for(name):
             return name

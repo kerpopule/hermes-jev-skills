@@ -12,15 +12,16 @@ metadata:
 
 Jev is TypeSafe's decision model. It needs one API key. **You must never see, ask for, or handle that key.**
 
-The key can come from either of two places, and the same Jev answers either way:
+The key can come from any of three places, and the same Jev answers either way:
 
 - **TypeSafe** (`jev setup-key`, the default): a key from [console.typesafe.ai](https://console.typesafe.ai/settings/keys).
 - **OpenRouter** (`jev setup-key --provider openrouter`): reaches Jev through OpenRouter's Decisions API. Worth offering when the person already has an OpenRouter key, because it is then one key instead of two and one bill instead of two.
 - **Venice** (`jev setup-key --provider venice`): reaches the same Jev through Venice, which serves it as its own decision modality. Worth considering when the person already has a Venice key; check Venice's current pricing before relying on any cost claim.
+- **OpenCode Zen** (`jev setup-key --provider zen`): reaches Jev through OpenCode Zen, whose free tier answers the same request with the same model id shape. Worth offering when the person has no TypeSafe key — TypeSafe is not accepting new signups — and wants to start without a bill.
 
 `TYPESAFE_BASE_URL` is an explicit compatible-endpoint override for a local mock or HTTPS proxy (for example `http://127.0.0.1:8787`). It is not a built-in provider endpoint editor: the official URLs above stay fixed by default. The client never forwards a saved or supplied provider credential to an override endpoint, permits plaintext only on numeric loopback, and does not follow redirects. Do not send sensitive states to an untrusted proxy. Clear the variable to return to the official endpoint and normal key flow.
 
-If both keys exist, TypeSafe is used: an existing install never starts routing its decisions somewhere else because an OpenRouter key happened to be in the environment for a text model. `jev doctor` reports which one is in use under `key.provider`.
+If more than one key exists, TypeSafe is used: an existing install never starts routing its decisions somewhere else because an OpenRouter or Zen key happened to be in the environment for a text model. To pick a different one on purpose, set `JEV_PROVIDER=openrouter` or `JEV_PROVIDER=zen` in the environment the commands run in; it is honoured only when that provider actually has a key here, and an unset or unknown value changes nothing. `jev doctor` reports which one is in use under `key.provider`.
 
 ## Rules
 

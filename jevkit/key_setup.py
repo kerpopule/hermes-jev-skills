@@ -29,7 +29,9 @@ KEYS_URL = "https://console.typesafe.ai/settings/keys"
 # using it for their models. Same page, same secret store, different provider.
 PROVIDER_PAGES = {"typesafe": ("TypeSafe", KEYS_URL, "console.typesafe.ai"),
                   "openrouter": ("OpenRouter", "https://openrouter.ai/settings/keys", "openrouter.ai"),
-                  "venice": ("Venice", "https://venice.ai/settings/api", "venice.ai")}
+                  "venice": ("Venice", "https://venice.ai/settings/api", "venice.ai"),
+                  # Zen hands out keys on the sign-in page itself; there is no /settings/keys path.
+                  "zen": ("OpenCode Zen", "https://opencode.ai/auth", "opencode.ai")}
 MAX_BODY = 4096
 
 _PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
