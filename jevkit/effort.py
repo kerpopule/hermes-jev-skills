@@ -60,7 +60,7 @@ def levels_from_config(config: Optional[Mapping[str, Any]]) -> Optional[tuple]:
     else:
         return None
     for level in table:
-        if not _LEVEL_RE.match(level):
+        if level not in KNOWN_LEVELS:
             return None
     return table
 

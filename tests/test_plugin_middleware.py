@@ -191,41 +191,53 @@ class EffortMiddlewareTests(unittest.TestCase):
         self.assertNotIn("reasoning_effort", result["request"])
         self.assertNotIn("extra_body", result["request"])
 
-    def test_enabled_maps_expert_to_xhigh(self):
-        self.effort_config = {"effort": {"enabled": True}}
+    def enable_for(self, model="moonshotai/kimi-k3", levels=None):
+        self.effort_config = {"effort": {"enabled": True,
+            "models": {f"openrouter:{model}": levels or ["low", "medium", "high", "xhigh"]}}}
+
+    def test_enabled_maps_expert_only_for_declared_capability(self):
+        self.enable_for()
         result = self.turn()
         self.assertEqual(result["request"]["reasoning_effort"], "xhigh")
-        self.assertEqual(result["request"]["extra_body"]["reasoning"]["effort"], "xhigh")
-        self.assertTrue(result["request"]["extra_body"]["reasoning"]["enabled"])
+        self.assertNotIn("extra_body", result["request"])
+
+    def test_opt_in_without_model_capability_does_not_mutate(self):
+        self.effort_config = {"effort": {"enabled": True}}
+        result = self.turn()
+        self.assertNotIn("reasoning_effort", result["request"])
+
+    def test_unsupported_level_does_not_mutate(self):
+        self.enable_for(levels=["low", "medium", "high"])
+        self.assertNotIn("reasoning_effort", self.turn()["request"])
 
     def test_a_custom_table_is_honored_end_to_end(self):
-        self.effort_config = {"effort": {"enabled": True,
-                                          "levels": {"expert": "max"}}}
-        result = self.turn()
-        self.assertEqual(result["request"]["reasoning_effort"], "max")
+        self.enable_for(levels=["low", "medium", "high", "max"])
+        self.effort_config["effort"]["levels"] = {"expert": "max"}
+        self.assertEqual(self.turn()["request"]["reasoning_effort"], "max")
 
-    def test_an_existing_extra_body_is_preserved(self):
-        self.effort_config = {"effort": {"enabled": True}}
-        result = self.turn(request_extra={"extra_body": {"provider": {"order": ["fireworks"]}}})
-        self.assertEqual(result["request"]["extra_body"]["provider"], {"order": ["fireworks"]})
-        self.assertEqual(result["request"]["extra_body"]["reasoning"]["effort"], "xhigh")
+    def test_unrelated_extra_body_is_preserved(self):
+        self.enable_for()
+        extra = {"provider": {"order": ["fireworks"]}}
+        result = self.turn(request_extra={"extra_body": extra})
+        self.assertEqual(result["request"]["extra_body"], extra)
 
-    def test_an_existing_reasoning_block_is_overridden_not_dropped(self):
-        self.effort_config = {"effort": {"enabled": True}}
-        result = self.turn(request_extra={"extra_body": {"reasoning": {"effort": "low", "max_tokens": 512}}})
-        self.assertEqual(result["request"]["extra_body"]["reasoning"]["effort"], "xhigh")
-        self.assertEqual(result["request"]["extra_body"]["reasoning"]["max_tokens"], 512)
+    def test_existing_reasoning_block_or_manual_effort_wins(self):
+        self.enable_for()
+        extra = {"reasoning": {"effort": "low", "max_tokens": 512}}
+        result = self.turn(request_extra={"extra_body": extra})
+        self.assertEqual(result["request"]["extra_body"], extra)
+        self.assertNotIn("reasoning_effort", result["request"])
+        result = self.turn(session="manual", request_extra={"reasoning_effort": "low"})
+        self.assertEqual(result["request"]["reasoning_effort"], "low")
 
-    def test_off_mode_with_effort_still_applies_effort(self):
-        # routing=shadow (no model swap) must not gate effort: the kept model wants its budget.
-        self.effort_config = {"effort": {"enabled": True}}
+    def test_shadow_and_off_do_not_mutate(self):
+        self.enable_for()
         with mock.patch.object(plugin, "_setting",
                                lambda name, default: "shadow" if name == "routing" else default):
-            result = self.turn()
-        self.assertIsNotNone(result)
-        # shadow mode never swaps the model: the request keeps the model the turn arrived with
-        self.assertEqual(result["request"]["model"], DEFAULT)
-        self.assertEqual(result["request"]["reasoning_effort"], "xhigh")
+            self.assertIsNone(self.turn())
+        with mock.patch.object(plugin, "_setting",
+                               lambda name, default: "off" if name == "routing" else default):
+            self.assertIsNone(self.turn(session="off"))
 
     def test_a_malformed_table_fails_open(self):
         self.effort_config = {"effort": {"enabled": True, "levels": ["low", "medium", "high"]}}
@@ -233,45 +245,34 @@ class EffortMiddlewareTests(unittest.TestCase):
         self.assertNotIn("reasoning_effort", result["request"])
 
     def test_notice_names_the_effort_on_a_routed_turn(self):
-        self.effort_config = {"effort": {"enabled": True}}
+        self.enable_for()
         self.turn()
         with mock.patch.object(plugin, "_setting", lambda name, default: "on"):
             out = plugin._on_transform_output(response_text="reply", session_id="eff")
         self.assertIn("effort xhigh", out)
 
-    def test_notice_names_the_effort_even_when_the_model_stays(self):
-        self.effort_config = {"effort": {"enabled": True}}
-        self.turn()
+    def test_shadow_notice_does_not_claim_effort_applied(self):
+        self.enable_for()
         with mock.patch.object(plugin, "_setting",
-                               lambda name, default: "shadow" if name == "routing" else "on"):
-            # Re-run the request leg in shadow mode: model stays, effort still applies.
-            plugin._on_llm_request(
-                request={"messages": [{"role": "user", "content": HARD}], "model": DEFAULT},
-                session_id="eff", turn_id="t1", model=DEFAULT, provider="openrouter")
+                               lambda name, default: "shadow" if name == "routing" else "off" if name in ("skills", "merge_requests") else "on"):
+            self.turn()
             out = plugin._on_transform_output(response_text="reply", session_id="eff")
-        self.assertIn("effort xhigh", out)
-        self.assertIn("reply", out)
+        self.assertIsNone(out)
 
     def test_no_tiers_still_buys_the_difficulty_for_effort(self):
-        # The "model never moves" setup: no pools at all. The model must stay put AND the
-        # effort pick must still happen — otherwise effort-only users get nothing.
-        self.effort_config = {"effort": {"enabled": True}}
+        self.enable_for(model=DEFAULT)
         self.tiers_override = {}
         result = self.turn()
-        self.assertIsNotNone(result)
-        self.assertEqual(result["request"]["model"], DEFAULT, "no pools: the model stays")
+        self.assertEqual(result["request"]["model"], DEFAULT)
         self.assertEqual(result["request"]["reasoning_effort"], "xhigh")
 
-    def test_a_pinned_model_still_buys_the_difficulty_for_effort(self):
-        # /model pins the model, but the effort pick must still happen — the thinking budget
-        # belongs on the model the person chose, not on a decision that was never asked.
-        self.effort_config = {"effort": {"enabled": True}}
+    def test_pinned_model_requires_its_own_capability(self):
+        self.enable_for(model="other/model")
         plugin._on_pre_llm_call(session_id="pin", turn_id="t1", user_message=HARD)
         result = plugin._on_llm_request(
             request={"messages": [{"role": "user", "content": HARD}], "model": "other/model"},
             session_id="pin", turn_id="t1", model="other/model", provider="openrouter")
-        self.assertIsNotNone(result)
-        self.assertEqual(result["request"]["model"], "other/model", "pinned: the model stays")
+        self.assertEqual(result["request"]["model"], "other/model")
         self.assertEqual(result["request"]["reasoning_effort"], "xhigh")
 
 

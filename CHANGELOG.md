@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added `evals/representative/compare.py` with strict paired actual-result scoring for completion, latency, token usage, spurious skills and context misses; no synthetic score is passed off as live quality. No paid comparison or automatic routing activation.
+
 - GUI runner credential isolation: delegate provider selection and secret resolution to `jevkit`, never relabel an OpenRouter/Venice key as `TYPESAFE_API_KEY`. Hermetic TypeSafe-only, OpenRouter-only, Venice-only and no-key GUI transport tests pin destination and Authorization provenance without real credentials or network.
 
 - CI regression: offline question-sweep and merged-turn tests now supply a synthetic key to their fake transports, rather than depending on a developer's Keychain; verified with provider keys unset and an empty credential directory.
@@ -12,7 +14,7 @@
 - Launcher works outside the checkout (NoTimeforInfinity, PR #7) without changing the caller's relative-file cwd. Installer preserves existing `plugins.enabled` YAML sequence indentation (Long0308, PR #12; issue #8). PR #9 (zimuge-doudou) additionally restores non-Latin question instructions, with regression tests; PR #11 (C34W-Tsz-dzhang2-0f5) also surfaced populated inline plugin lists, now converted only for simple identifiers and otherwise rejected without modifying config.
 - Block-scalar skill descriptions parse correctly (119533564, PR #10); Linux GUI observation reads accessibility roles and text replies in mocked offline cases (zz8011, PR #13). Real Linux GUI validation remains outstanding.
 - README counts shipped skills accurately (dajiaohuang, PR #16). A privacy-preserving output-guardrail *design note*, not an installed gate, adapts Tosquit's PR #14. Plugin manifest declares the search tool and request middleware (issue #20).
-- `custom` provider routing now requires an explicit matching provider alias rather than silently rejecting pool entries or removing the same-provider guard (#18, NoTimeforInfinity). The skill picker filters selector-only meta-skills and recognises narrow social/continuation turns locally (#19, NoTimeforInfinity). No routing mode or effort level is activated; PR #17 remains pending a provider-capability and override-safe design.
+- `custom` provider routing now requires an explicit matching provider alias rather than silently rejecting pool entries or removing the same-provider guard (#18, NoTimeforInfinity). The skill picker filters selector-only meta-skills and recognises narrow social/continuation turns locally (#19, NoTimeforInfinity). Neither routing nor effort is activated by installation.
 
 **Jev through OpenCode Zen (`jev setup-key --provider zen`, `JEV_PROVIDER=zen`)**
 
@@ -47,28 +49,11 @@
   3 observation/2 action calls, `stalled_action`. Local median elapsed 0.4666 ms vs
   0.1392 ms. This is *not* live Jev, driver, or network latency; successful changing
   screens still continue. See `evals/jev-cua-loop/REPORT.md` for protocol and limits.
-**Routing can now set the reasoning effort for the turn it judges**
+**Optional per-model reasoning effort (PR #17, revised)**
 
-- A turn already pays one Jev call to find out how hard it is. The plugin now spends that
-  same answer again to pick the reasoning-effort level for the request, so an easy turn no
-  longer burns a frontier model's full thinking budget, and a hard one is not starved of it.
-  No second Jev call: the difficulty answer rides back on the routing decision.
-- Off by default, and everything fails open: no `effort` block in `routing.json`, Jev down,
-  a missing score — the request goes out exactly as it would have without the plugin.
-- The default table maps difficulty to `low / medium / high / xhigh`. It is yours to reshape —
-  fewer levels, different names, anything the provider speaks:
-  `{"effort": {"enabled": true, "levels": ["low", "medium", "high"]}}` in
-  `~/.hermes/jev/routing.json`.
-- Works whether routing is `on`, `shadow`, or `off`: the model swap still obeys the mode,
-  the effort pick applies to whichever model the turn ends up on. The choice is logged
-  (`"kind": "effort"`) to `jev-decisions.jsonl` so a day in shadow tells you where your
-  turns land before you commit.
-- Both spellings go out on the request — the OpenAI-style `reasoning_effort` field and
-  `extra_body.reasoning.effort` — and Hermes's own `/effort` override still wins when you
-  set one yourself.
-- `jevkit/route.py` carries the raw answers back on every decision (a kept turn included),
-  because a kept turn still paid for the judgement. New module `jevkit/effort.py`; tests in
-  `tests/test_effort.py` and `tests/test_plugin_middleware.py`.
+- Reuses the difficulty answer from the existing routing request; no second Jev call. It is off by default, never writes in shadow/off mode, and requires `effort.enabled` plus an exact provider:model capability list in `routing.json` matching the effective model and requested level. No capability is inferred for `xhigh` or any other level.
+- Sets only top-level `reasoning_effort` when no explicit `reasoning_effort` or `extra_body.reasoning` is present; manual effort wins. Unknown models, unsupported levels, invalid config, or missing answers leave the request untouched. The feature is not activated by installation.
+- `jevkit/route.py` carries available answers for kept as well as routed turns; `jevkit/effort.py` computes the optional level. Middleware and pure-function tests cover fail-open and precedence.
 
 **`jev search` stops looping when the pages will not open**
 

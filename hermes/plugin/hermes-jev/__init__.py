@@ -240,24 +240,8 @@ def _on_pre_llm_call(session_id: str = "", turn_id: Any = None, user_message: An
 
 
 def _with_effort(request: Dict[str, Any], level: str) -> Dict[str, Any]:
-    """The request with a reasoning-effort level set, leaving every other field untouched.
-
-    Two spellings go out at once because the wire splits by transport: chat-completions routes
-    (Kimi, TokenHub, LM Studio, some custom relays) read the top-level ``reasoning_effort``;
-    reasoning-aware OpenAI-compatible routes read ``extra_body.reasoning.effort``. A route that
-    ignores one spelling still gets the other; a route that knows neither passes both through
-    and applies its own default, which is exactly the pre-plugin behavior. An existing
-    ``extra_body`` is shallow-copied, never mutated in place — the original request object is
-    the caller's and may be reused on retry.
-    """
-    out = {**request, "reasoning_effort": level}
-    extra = dict(out.get("extra_body") or {})
-    reasoning = dict(extra.get("reasoning") or {})
-    reasoning["effort"] = level
-    reasoning.setdefault("enabled", level != "none")
-    extra["reasoning"] = reasoning
-    out["extra_body"] = extra
-    return out
+    """Set only the standard top-level field; never touch provider-specific extra_body."""
+    return {**request, "reasoning_effort": level}
 
 
 def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = "", turn_id: Any = None,
@@ -345,17 +329,30 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
     # Off by default; `jevkit/effort.py` returns None whenever the table is not configured
     # or the answer is not there, and None leaves the request alone.
     effort_level = None
-    _effort_levels = effort.levels_from_config(route.load_config())
-    if _effort_levels is not None:
-        effort_level = effort.pick(decision.get("answers"), levels=_effort_levels)
+    model_key = f"{catalog.HERMES_ALIASES.get(provider, provider)}:{effective}"
+    # Shadow is observation only. Explicit user effort, including a provider-specific
+    # reasoning object, always wins. An exact provider:model capability declaration is
+    # required: neither an arbitrary model nor a custom relay can be assumed to accept it.
+    if mode == "on" and "reasoning_effort" not in request and not (
+            isinstance(request.get("extra_body"), dict) and
+            "reasoning" in request["extra_body"]):
+        try:
+            config = route.load_config()
+            levels = effort.levels_from_config(config)
+            caps = config.get("effort", {}).get("models", {})
+            supported = caps.get(model_key) if isinstance(caps, dict) else None
+            if levels is not None and isinstance(supported, list) and supported:
+                candidate = effort.pick(decision.get("answers"), levels=levels)
+                if candidate in supported and candidate in effort.KNOWN_LEVELS:
+                    effort_level = candidate
+        except (TypeError, ValueError, AttributeError):
+            pass  # Invalid opt-in fails open without changing the outgoing request.
         if effort_level:
-            _log({"kind": "effort", "mode": mode, "level": effort_level})
-            # Remember it on the turn so the reply notice can say the budget changed, not
-            # just the model — a silent effort change reads as the model getting dumber.
+            _log({"kind": "effort", "mode": mode, "level": effort_level,
+                  "model": model_key})
             turn["effort"] = effort_level
     if not applied:
-        # No model swap; still apply the effort pick to the model the turn stays on.
-        if effort_level and isinstance(request, dict):
+        if effort_level:
             return {"request": _with_effort(request, effort_level)}
         return None
     out = {**request, "model": effective}

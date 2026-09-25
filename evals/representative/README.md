@@ -1,0 +1,5 @@
+# Paired actual-result evaluation
+
+`python3 evals/representative/compare.py /path/to/labelled-results.jsonl`
+
+Supply two JSONL rows per public or otherwise approved task, `arm=baseline` and `arm=jev`, with the same task_id. Every row needs `completed` (human-verified boolean), `latency_ms` (measured end-to-end), `usage_tokens` (provider-reported), `spurious_skills` (human-labelled count) and `needed_context_missed` (human-labelled count). Run matched prompts and model pools, repeat across samples, record actual responses and evidence privately, and have the labels independently checked. The script rejects missing arms, duplicates, unknown completion, negative or non-finite metrics rather than imputing success. It reports arm totals and median wall latency, not causal savings or a confidence interval. No actual paired-result corpus is included or inferred from mock tests; running a new paid experiment needs explicit approval for its calls and cost. Do not put private prompts or responses in the public repo.
