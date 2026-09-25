@@ -138,6 +138,12 @@ INTERACTIVE_ROLES = {
     "slider", "tab", "page tab", "search box", "text", "list item", "tree item",
 }
 
+# Roles that take typed text. cua-driver on X11 (AT-SPI) reports a GTK entry as bare
+# "text", not AXTextField, so a Linux search box was offered only as "Click" and a goal
+# like "type jazz into the search box" clicked it and stalled: found on a real Xvfb/Openbox
+# desktop, 2026-09-25. "password text" is deliberately absent: the runner never types there.
+TEXT_INPUT_ROLES = {"AXTextField", "AXSearchField", "text", "entry", "text box", "search box"}
+
 # The chooser contract caps a table at 32 candidates. build_table always appends these,
 # so the element budget is whatever is left. Stated here once rather than as a magic 26.
 STANDARD_ACTIONS = (
@@ -442,7 +448,7 @@ def build_table(rows: list[dict], below: list[str] | None = None) -> tuple[list[
             "id": rid, "role": r["role"].replace("AX", "").lower(),
             "label": single_line(r["label"]), "interactive": True,
         })
-        typing = r["role"] in ("AXTextField", "AXSearchField")
+        typing = r["role"] in TEXT_INPUT_ROLES
         verb = "Type into" if typing else "Click"
         # The id used to be `click:<element_token>`, and the driver reissues every token
         # on every observation. So no id in `history` was ever still on the table, and

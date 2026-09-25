@@ -201,6 +201,46 @@ class LinuxTreeTests(unittest.TestCase):
                 self.assertEqual(gui.element_rows(self._state(role), gui.MAX_REGIONS), [])
 
 
+class LinuxTextEntryTests(unittest.TestCase):
+    """A GTK entry on X11 comes back from cua-driver as role "text". It was offered to Jev as
+    "Click", so a typing goal clicked the field and stalled with nothing typed. Found on a
+    real Linux desktop (Debian 13, Xvfb + Openbox, cua-driver 0.28.2), not in a mock."""
+
+    ROW = {"label": "Search the library", "role": "text", "token": "s00000001:5",
+           "x": 10.0, "y": 10.0, "w": 300.0, "h": 30.0}
+
+    def test_a_linux_text_field_is_offered_as_a_typing_target(self):
+        for role in ("text", "entry", "text box", "search box"):
+            with self.subTest(role=role):
+                _, table = gui.build_table([dict(self.ROW, role=role)])
+                self.assertTrue(table[0]["id"].startswith("type:"), table[0])
+                self.assertTrue(table[0]["description"].startswith("Type into"))
+
+    def test_a_linux_button_is_still_a_click(self):
+        _, table = gui.build_table([dict(self.ROW, role="push button", label="Library")])
+        self.assertTrue(table[0]["id"].startswith("click:"))
+
+    def test_a_password_field_is_never_made_a_typing_target(self):
+        self.assertNotIn("password text", gui.TEXT_INPUT_ROLES)
+
+    def test_the_chosen_linux_field_receives_the_allowed_value(self):
+        rows = [dict(self.ROW)]
+        gui.build_table(rows)
+
+        class Driver:
+            calls = []
+
+            def tool(self, name, args, timeout=90.0):
+                self.calls.append((name, args))
+                return {"result": {"content": [{"type": "text", "text": "ok"}]}}
+
+        driver = Driver()
+        op, _ = gui.execute(driver, 7, 8, "", rows[0]["cid"], rows, "Type jazz into the search box", ["jazz"])
+        self.assertEqual(op, "type")
+        name, args = driver.calls[-1]
+        self.assertEqual((name, args["text"], args["element_token"]), ("type_text", "jazz", "s00000001:5"))
+
+
 class DriverReplyShapeTests(unittest.TestCase):
     """cua-driver 0.23.x answers ``get_window_state`` with ``content[0].text`` - the state as a
     JSON string - and no ``structuredContent``. Reading only the structured side returned ``{}``

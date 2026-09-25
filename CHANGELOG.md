@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- GUI runner on Linux: a GTK text field reported by cua-driver/AT-SPI as role `text` (also `entry`, `text box`, `search box`) is now offered to Jev as a typing target, not a click. Found on a real Linux desktop (Debian 13 VM, Xvfb + Openbox, cua-driver 0.28.2): a typing goal clicked the field and stalled. Password fields stay excluded.
+
 - Added `evals/representative/compare.py` with strict paired actual-result scoring for completion, latency, token usage, spurious skills and context misses; no synthetic score is passed off as live quality. No paid comparison or automatic routing activation.
 
 - GUI runner credential isolation: delegate provider selection and secret resolution to `jevkit`, never relabel an OpenRouter/Venice key as `TYPESAFE_API_KEY`. Hermetic TypeSafe-only, OpenRouter-only, Venice-only and no-key GUI transport tests pin destination and Authorization provenance without real credentials or network.
