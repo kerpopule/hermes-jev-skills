@@ -695,7 +695,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--provider", choices=list(keystore.PROVIDERS), default="typesafe",
                    help="typesafe (default) is a key from console.typesafe.ai; openrouter reaches the same Jev "
                         "through OpenRouter, which is one key instead of two if you already use it; venice "
-                        "reaches it through Venice, where the decision model is currently free")
+                        "reaches it through Venice, where the decision model is currently free; zen reaches "
+                        "it through OpenCode Zen, which has a free tier")
     p.add_argument("--tty", action="store_true", help="hidden terminal prompt instead of a browser page")
     p.add_argument("--host", default="127.0.0.1", help="bind address; keep loopback unless you are on a private network")
     p.add_argument("--port", type=int, default=0)

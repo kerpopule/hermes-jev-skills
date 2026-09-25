@@ -705,15 +705,21 @@ class OpenRouterProviderTests(unittest.TestCase):
         # Venice needs no caller-identification headers; those are OpenRouter's convention.
         self.assertNotIn("X-Title", seen["headers"])
 
-    def test_venice_is_last_so_a_machine_with_both_keys_never_reroutes(self):
-        """Venice is currently free, which makes it tempting to prefer. It is still appended
-        last: an install already resolving through OpenRouter must keep doing exactly that."""
-        self.assertEqual(keystore.PROVIDERS, ("typesafe", "openrouter", "venice"))
+    def test_venice_and_zen_are_appended_last_so_a_machine_with_both_keys_never_reroutes(self):
+        """Venice is currently free, and Zen's free tier is the same kind of temptation. Both
+        are still appended last: an install already resolving through OpenRouter — or through
+        Venice, for a Zen key — must keep doing exactly that."""
+        self.assertEqual(keystore.PROVIDERS, ("typesafe", "openrouter", "venice", "zen"))
         both = {"OPENROUTER_API_KEY": "sk-or-v1-" + "b" * 40, "VENICE_API_KEY": "vn-" + "d" * 40}
         with mock.patch.dict(os.environ, both):
             self.assertEqual(keystore.provider(), "openrouter")
         seen = self.sent(**both)
         self.assertEqual(seen["body"]["model"], client.OPENROUTER_MODEL)
+        # A Zen key does not take Venice's place either: with those two keys and no TypeSafe
+        # or OpenRouter one, the machine keeps resolving through Venice.
+        with mock.patch.dict(os.environ, {"VENICE_API_KEY": both["VENICE_API_KEY"],
+                                          "OPENCODE_ZEN_API_KEY": "sk-zen-" + "z" * 40}):
+            self.assertEqual(keystore.provider(), "venice")
 
     def test_the_venice_url_is_the_decisions_api_not_chat_completions(self):
         """Venice serves the decision model as its own modality; /chat/completions 404s for it."""
@@ -745,6 +751,85 @@ class OpenRouterProviderTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "ts-" + "c" * 30}):
             client.ask({"x": 1}, {"ok": client.noul("fine?")}, provider="nonsense", transport=transport)
         self.assertEqual(seen["body"]["model"], client.DEFAULT_MODEL)
+
+
+class ZenProviderTests(unittest.TestCase):
+    """Jev through OpenCode Zen, the door a new install can actually open.
+
+    TypeSafe stopped accepting new signups, so a fresh machine reaches Jev through Zen's
+    free tier. Same request, same model, same reply shape as TypeSafe: these tests pin the
+    model id, the URL, the absence of OpenRouter's extra headers, and that a third entry in
+    `keystore.PROVIDERS` does not move where an existing install already routes.
+    """
+
+    ZEN_KEY = "sk-zen-" + "z" * 40
+    CLEARED = ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY", "OPENCODE_ZEN_API_KEY", "TYPESAFE_MODEL",
+               keystore.PROVIDER_OVERRIDE_ENV)
+
+    def setUp(self):
+        # The suite must behave the same on a machine whose shell has a key exported and on
+        # one that has none, so nothing here reads the real environment or credentials file.
+        patcher = mock.patch.dict(os.environ, {}, clear=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for name in self.CLEARED:
+            os.environ.pop(name, None)
+        for reader in ("_from_keychain", "_from_file"):
+            blind = mock.patch.object(keystore, reader, lambda provider="typesafe": None)
+            blind.start()
+            self.addCleanup(blind.stop)
+
+    def sent(self, **env):
+        seen = {}
+
+        def transport(body, headers, timeout):
+            seen.update(body=json.loads(body), headers=dict(headers))
+            return json.dumps({"answers": {"ok": {"type": "noul", "noul": 0.9}},
+                               "usage": {"input_tokens": 3}}).encode()
+        with mock.patch.dict(os.environ, env):
+            client.ask({"x": 1}, {"ok": client.noul("fine?")}, transport=transport)
+        return seen
+
+    def test_a_zen_key_reaches_zen_with_the_free_model_and_no_openrouter_headers(self):
+        with mock.patch.dict(os.environ, {"OPENCODE_ZEN_API_KEY": self.ZEN_KEY}):
+            self.assertEqual(keystore.provider(), "zen")
+        seen = self.sent(OPENCODE_ZEN_API_KEY=self.ZEN_KEY)
+        self.assertEqual(seen["body"]["model"], client.ZEN_MODEL)
+        self.assertEqual(sorted(seen["body"]), ["model", "questions", "state"])   # same shape
+        self.assertNotIn("HTTP-Referer", seen["headers"])
+        self.assertNotIn("X-Title", seen["headers"])
+
+    def test_jev_provider_picks_zen_over_a_key_for_a_provider_it_prefers_by_default(self):
+        """The override exists for a machine holding more than one key on purpose."""
+        both = {"TYPESAFE_API_KEY": "ts-" + "c" * 30, "OPENCODE_ZEN_API_KEY": self.ZEN_KEY}
+        with mock.patch.dict(os.environ, {**both, keystore.PROVIDER_OVERRIDE_ENV: "zen"}):
+            self.assertEqual(keystore.provider(), "zen")
+        seen = self.sent(**{**both, keystore.PROVIDER_OVERRIDE_ENV: "zen"})
+        self.assertEqual(seen["body"]["model"], client.ZEN_MODEL)
+
+    def test_an_unknown_or_keyless_jev_provider_leaves_the_order_alone(self):
+        ts = {"TYPESAFE_API_KEY": "ts-" + "c" * 30}
+        for override in ("nonsense", "", "zen"):   # zen is named but this machine has no key
+            with mock.patch.dict(os.environ, {**ts, keystore.PROVIDER_OVERRIDE_ENV: override}):
+                self.assertEqual(keystore.provider(), "typesafe")
+            seen = self.sent(**{**ts, keystore.PROVIDER_OVERRIDE_ENV: override})
+            self.assertEqual(seen["body"]["model"], client.DEFAULT_MODEL)
+
+    def test_ask_posts_to_the_zen_url_for_zen_and_nowhere_else(self):
+        """A third provider must not leak its URL into the other two, or theirs into it."""
+        urls = []
+
+        def http(body, headers, timeout, url=client.ENDPOINT, max_bytes=client.MAX_RESPONSE_BYTES):
+            urls.append(url)
+            return json.dumps({"answers": {"ok": {"type": "noul", "noul": 0.9}}, "usage": {}}).encode()
+        with mock.patch.object(client, "_http_transport", http):
+            with mock.patch.dict(os.environ, {"OPENCODE_ZEN_API_KEY": self.ZEN_KEY}):
+                client.ask({"x": 1}, {"ok": client.noul("fine?")})
+            with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "ts-" + "c" * 30}):
+                client.ask({"x": 1}, {"ok": client.noul("fine?")})
+        self.assertEqual(urls, [client.ZEN_ENDPOINT, client.ENDPOINT])
+        self.assertEqual(client.ZEN_ENDPOINT, "https://opencode.ai/zen/v1/systemone")
+        self.assertEqual(client.ZEN_MODEL, "jev-1.13-free")
 
 
 if __name__ == "__main__":

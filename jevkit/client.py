@@ -31,6 +31,11 @@ OPENROUTER_ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 OPENROUTER_MODEL = "~typesafe/jev-latest"
 VENICE_ENDPOINT = "https://api.venice.ai/api/v1/decisions"
 VENICE_MODEL = "jev-latest"
+# Jev through OpenCode Zen. Same request, same answers, same `{"answers": {...}}` reply as
+# TypeSafe — Zen serves the same model — with a free tier for the small model id below.
+# TypeSafe is not accepting new signups, so this is the door a new install can actually open.
+ZEN_ENDPOINT = "https://opencode.ai/zen/v1/systemone"
+ZEN_MODEL = "jev-1.13-free"
 MAX_RESPONSE_BYTES = 1_000_000
 MAX_STATE_CHARS = 60_000
 USER_AGENT = "hermes-jev-skills/0.1"
@@ -297,6 +302,28 @@ def _custom_typesafe_endpoint(base: str) -> str:
     return base.rstrip("/") + "/v1/systemone"
 
 
+def _zen_transport(body: bytes, headers: Dict[str, str], timeout: float) -> bytes:
+    """One POST to Zen's systemone path. No extra headers: Zen asks callers for none, so a
+    request here is the TypeSafe one with a different URL and model id."""
+    return _http_transport(body, headers, timeout, ZEN_ENDPOINT)
+
+
+# Which model id and which door each provider speaks. Kept as lookups rather than an
+# if/elif chain so a provider added to `keystore.PROVIDERS` is one entry in each, and a
+# provider this file does not know (an older/newer kit) falls back to TypeSafe's own values.
+# Both read the module's names at call time: a table built at import would freeze the
+# transport functions, and patching `client._openrouter_transport` (or any other door) is
+# how callers and the offline tests keep a request off the real network.
+def _provider_model(via: str) -> str:
+    return {"openrouter": OPENROUTER_MODEL, "venice": VENICE_MODEL,
+            "zen": ZEN_MODEL}.get(via, DEFAULT_MODEL)
+
+
+def _provider_transport(via: str) -> Transport:
+    return {"openrouter": _openrouter_transport, "venice": _venice_transport,
+            "zen": _zen_transport}.get(via, _http_transport)
+
+
 def post(url: str, body: bytes, headers: Dict[str, str], timeout: float,
          max_bytes: int = MAX_RESPONSE_BYTES) -> bytes:
     """POST one request to ``url`` over the pooled connection.
@@ -475,7 +502,7 @@ def ask(
     encoded_state = state if isinstance(state, str) else json.dumps(state, separators=(",", ":"), default=str)
     if len(encoded_state) > MAX_STATE_CHARS:
         raise JevError("state_too_large")
-    default_model = OPENROUTER_MODEL if via == "openrouter" else VENICE_MODEL if via == "venice" else DEFAULT_MODEL
+    default_model = _provider_model(via)
     body = json.dumps(
         {"state": state, "model": model or os.environ.get("TYPESAFE_MODEL") or default_model,
          "questions": {name: dict(q) for name, q in questions.items()}},
@@ -490,8 +517,7 @@ def ask(
         headers["HTTP-Referer"] = "https://github.com/kerpopule/hermes-jev-skills"
         headers["X-Title"] = "Hermes Jev Skills"
     send = transport or ((lambda body, headers, timeout: _http_transport(body, headers, timeout, endpoint))
-                         if endpoint else _openrouter_transport if via == "openrouter" else
-                         _venice_transport if via == "venice" else _http_transport)
+                         if endpoint else _provider_transport(via))
 
     started = time.monotonic()
     attempt = 0
