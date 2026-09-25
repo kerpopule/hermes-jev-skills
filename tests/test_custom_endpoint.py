@@ -57,6 +57,29 @@ class EndpointTests(unittest.TestCase):
             client.ask("synthetic", QUESTION, provider="typesafe")
         self.assertEqual(send.call_args.args[1]["Authorization"], "Bearer synthetic")
 
+    def test_https_proxy_gets_env_key_only_never_a_stored_credential(self):
+        captured = {}
+
+        def transport(body, headers, timeout, url):
+            captured.update(url=url, headers=headers)
+            return REPLY
+
+        with mock.patch.dict(os.environ, {"TYPESAFE_BASE_URL": "https://proxy.example/", "TYPESAFE_API_KEY": "env-proxy"}), \
+             mock.patch.object(keystore, "resolve", side_effect=AssertionError("key lookup")), \
+             mock.patch.object(client, "_http_transport", side_effect=transport):
+            client.ask("synthetic", QUESTION)
+        self.assertEqual(captured["url"], "https://proxy.example/v1/systemone")
+        self.assertEqual(captured["headers"]["Authorization"], "Bearer env-proxy")
+        with mock.patch.dict(os.environ, {"TYPESAFE_BASE_URL": "https://proxy.example/"}, clear=True), \
+             mock.patch.object(keystore, "resolve", side_effect=AssertionError("key lookup")), \
+             mock.patch.object(client, "_http_transport", side_effect=transport):
+            client.ask("synthetic", QUESTION)
+        self.assertNotIn("Authorization", captured["headers"])
+        with mock.patch.dict(os.environ, {"TYPESAFE_BASE_URL": "https://gw.example/jev/"}, clear=True), \
+             mock.patch.object(client, "_http_transport", side_effect=transport):
+            client.ask("synthetic", QUESTION)
+        self.assertEqual(captured["url"], "https://gw.example/jev/v1/systemone")
+
     def test_custom_server_cannot_claim_to_verify_a_typesafe_credential(self):
         with mock.patch.dict(os.environ, {"TYPESAFE_BASE_URL": "https://proxy.example"}), \
              mock.patch.object(client, "ask", side_effect=AssertionError("must not send")):

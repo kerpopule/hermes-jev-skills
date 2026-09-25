@@ -297,7 +297,9 @@ def _custom_typesafe_endpoint(base: str) -> str:
     if (parsed.scheme not in ("http", "https") or not parsed.hostname or
             parsed.username or parsed.password or parsed.query or parsed.fragment or
             (parsed.scheme == "http" and parsed.hostname not in ("127.0.0.1", "::1")) or
-            (parsed.path and parsed.path != "/") or not parsed.netloc or port == 0):
+            # An HTTPS proxy may mount the API under a path prefix (e.g. a gateway's /jev).
+            (parsed.path and parsed.path != "/" and parsed.scheme != "https") or
+            not parsed.netloc or port == 0):
         raise JevError("invalid_endpoint")
     return base.rstrip("/") + "/v1/systemone"
 
@@ -322,6 +324,16 @@ def _provider_model(via: str) -> str:
 def _provider_transport(via: str) -> Transport:
     return {"openrouter": _openrouter_transport, "venice": _venice_transport,
             "zen": _zen_transport}.get(via, _http_transport)
+
+
+def _proxy_env_key(endpoint: str) -> Optional[str]:
+    """Bearer for an explicit HTTPS proxy: TYPESAFE_API_KEY from the environment only.
+
+    Loopback endpoints (mocks, local servers) keep receiving no credential at all.
+    """
+    if not endpoint.startswith("https://"):
+        return None
+    return (os.environ.get(keystore.ENV_VAR) or "").strip() or None
 
 
 def post(url: str, body: bytes, headers: Dict[str, str], timeout: float,
@@ -495,8 +507,11 @@ def ask(
         via = "typesafe"
     endpoint = _custom_typesafe_endpoint(base) if base and via == "typesafe" else None
     # A compatible endpoint may be a local mock or an explicit HTTPS proxy. Never forward
-    # either an explicit api_key or an automatically discovered provider key to it.
-    key = None if endpoint else api_key or keystore.resolve(via)
+    # either an explicit api_key or an automatically discovered provider key to it. The one
+    # exception mirrors the official SDK contract: an authenticated HTTPS proxy is paired with
+    # TYPESAFE_API_KEY set in the SAME process environment as TYPESAFE_BASE_URL, so that
+    # environment value (never a keychain or credentials-file key) is its bearer.
+    key = (_proxy_env_key(endpoint) if endpoint else api_key or keystore.resolve(via))
     if not key and not endpoint:
         raise JevError("no_key", "run `jev setup-key`")
     encoded_state = state if isinstance(state, str) else json.dumps(state, separators=(",", ":"), default=str)
