@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -148,9 +149,33 @@ def _routing_health(config: Dict[str, Any], rows: Optional[List[Dict[str, Any]]]
     return out
 
 
+def _override_endpoint() -> Optional[Dict[str, Any]]:
+    """What TYPESAFE_BASE_URL points at, if it overrides the official endpoint.
+
+    A gateway that answers 401 used to look exactly like "no key" here, or like nothing at
+    all, because every feature reads a failed call as "Jev had no opinion". The override is
+    named, whether a bearer goes with it, and whether it is usable at all.
+    """
+    base = os.environ.get("TYPESAFE_BASE_URL", "").strip()
+    if not base or base.rstrip("/") == "https://api.typesafe.ai":
+        return None
+    try:
+        endpoint = client._custom_typesafe_endpoint(base)
+    except client.JevError:
+        return {"url": None, "valid": False,
+                "error": "invalid_endpoint: use https:// (or http:// on 127.0.0.1 or ::1), no user, query or fragment"}
+    return {"url": endpoint, "valid": True,
+            "bearer": client.PROXY_KEY_ENV if client._proxy_key() else None}
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     report: Dict[str, Any] = {"version": __version__, "key": keystore.describe()}
-    if report["key"]["present"] and not args.offline:
+    override = _override_endpoint()
+    if override is not None:
+        report["endpoint_override"] = override
+    # An override is asked even without a stored key: the override never receives that key.
+    ask_it = (report["key"]["present"] or (override or {}).get("valid")) and not args.offline
+    if ask_it:
         try:
             reply = client.ask("The build finished and all tests passed.",
                                {"ok": client.noul("The text reports a successful outcome")}, timeout=10)
@@ -174,6 +199,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     _out(report)
     # Only a missing key fails doctor. The routing findings are warnings about cost: an
     # install script that gates on this exit code must not fail because a pool is pricey.
+    # With an override in force the stored key is never used, so the override answering is
+    # what counts, and an invalid override fails even when a key is present.
+    if override is not None:
+        return 0 if override.get("valid") and (args.offline or report.get("jev", {}).get("reachable")) else 1
     return 0 if report["key"]["present"] else 1
 
 

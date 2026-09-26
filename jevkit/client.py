@@ -288,7 +288,12 @@ def _venice_transport(body: bytes, headers: Dict[str, str], timeout: float) -> b
     return _http_transport(body, headers, timeout, VENICE_ENDPOINT)
 
 def _custom_typesafe_endpoint(base: str) -> str:
-    """Explicit compatible server: never send provider credentials to an override host."""
+    """Explicit compatible server: never send provider credentials to an override host.
+
+    The server may mount the API under a path prefix (a gateway's ``/jev``), which becomes
+    part of the endpoint: ``https://gw.example/jev`` -> ``https://gw.example/jev/v1/systemone``.
+    Contributed in github.com/kerpopule/hermes-jev-skills/pull/24 by Timo Goetzken (@HearthCore).
+    """
     try:
         parsed = urllib.parse.urlsplit(base)
         port = parsed.port
@@ -297,9 +302,26 @@ def _custom_typesafe_endpoint(base: str) -> str:
     if (parsed.scheme not in ("http", "https") or not parsed.hostname or
             parsed.username or parsed.password or parsed.query or parsed.fragment or
             (parsed.scheme == "http" and parsed.hostname not in ("127.0.0.1", "::1")) or
-            (parsed.path and parsed.path != "/") or not parsed.netloc or port == 0):
+            not _PATH_PREFIX.fullmatch(parsed.path or "") or not parsed.netloc or port == 0):
         raise JevError("invalid_endpoint")
     return base.rstrip("/") + "/v1/systemone"
+
+
+# A path prefix is plain segments: no spaces, controls, dot segments, backslashes or
+# percent-escapes, so the endpoint that is validated is the endpoint that is requested.
+_PATH_PREFIX = re.compile(r"(?:/(?!\.\.?(?:/|$))[A-Za-z0-9._~!$&'()*+,;=:@-]+)*/?")
+
+# The one credential an override endpoint can ever receive. It is its own variable on
+# purpose: TYPESAFE_API_KEY in the environment is where most installs keep their real
+# TypeSafe key (keystore.resolve reads it first), so forwarding that variable would send a
+# provider key to whatever host TYPESAFE_BASE_URL names, on every existing install that has
+# both set, without anyone opting in. A gateway that wants a bearer gets this one, set by
+# the operator for that gateway and nothing else. Never read from a keychain or a file.
+PROXY_KEY_ENV = "JEV_PROXY_API_KEY"
+
+
+def _proxy_key() -> Optional[str]:
+    return (os.environ.get(PROXY_KEY_ENV) or "").strip() or None
 
 
 def _zen_transport(body: bytes, headers: Dict[str, str], timeout: float) -> bytes:
@@ -495,8 +517,9 @@ def ask(
         via = "typesafe"
     endpoint = _custom_typesafe_endpoint(base) if base and via == "typesafe" else None
     # A compatible endpoint may be a local mock or an explicit HTTPS proxy. Never forward
-    # either an explicit api_key or an automatically discovered provider key to it.
-    key = None if endpoint else api_key or keystore.resolve(via)
+    # either an explicit api_key or an automatically discovered provider key to it. The only
+    # bearer it can get is JEV_PROXY_API_KEY, which an operator sets for that gateway alone.
+    key = _proxy_key() if endpoint else api_key or keystore.resolve(via)
     if not key and not endpoint:
         raise JevError("no_key", "run `jev setup-key`")
     encoded_state = state if isinstance(state, str) else json.dumps(state, separators=(",", ":"), default=str)

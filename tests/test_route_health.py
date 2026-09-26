@@ -298,7 +298,9 @@ class DoctorTests(unittest.TestCase):
     def doctor(self, cfg, rows=LIVE_ROWS, key=True, cached=True):
         catalog_models = mock.Mock(return_value=rows)
         out = io.StringIO()
-        with mock.patch.object(cli.route, "load_config", return_value=cfg), \
+        # An endpoint override changes what doctor asks and what its exit code means.
+        with mock.patch.dict(os.environ, {"TYPESAFE_BASE_URL": ""}), \
+                mock.patch.object(cli.route, "load_config", return_value=cfg), \
                 mock.patch.object(cli.keystore, "describe", return_value={"present": key}), \
                 mock.patch.object(cli, "_catalog_is_cached", return_value=cached), \
                 mock.patch.object(cli.catalog, "models", catalog_models), \
