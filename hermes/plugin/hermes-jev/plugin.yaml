@@ -1,6 +1,6 @@
 name: hermes-jev
 version: 0.19.0
-description: TypeSafe Jev takes the cheap decisions - model routing, skill selection, memory filtering, compaction selection, GUI and browser action choice.
+description: TypeSafe Jev takes the cheap decisions - model routing, skill selection, memory filtering, compaction selection, GUI and browser action choice, and (opt-in) policy decisions and a shadow command-risk gate.
 author: Steve Darlow
 license: MIT
 homepage: https://github.com/kerpopule/hermes-jev-skills
@@ -14,9 +14,14 @@ provides_tools:
   - jev_search
   - jev_compact_select
   - jev_choose_action
+  - jev_decide
+  - jev_score
+  - jev_route_to
 provides_hooks:
   - pre_llm_call
   - transform_llm_output
+  - pre_approval_request
+  - post_approval_response
 provides_middleware:
   - llm_request
 tags: [jev, typesafe, routing, memory, compaction, computer-use]

@@ -2,8 +2,9 @@
 
 The rules are old and each one was learned from a failure: a choice with one option has
 nothing to pick from, a question whose instructions repeat its own name was never written,
-a noul with criteria sends criteria that are never read, and a state over the limit is
-refused by the API for every batch in the request. Until now they were enforced by the three
+a noul's criteria that are not {"true", "false"} are sent and never read, and a state over the
+limit is refused by the API for every batch in the request. (Until the decision-policy change any noul criteria
+were refused; the API does read {"true", "false"}, and the risk gate depends on them.) Until now they were enforced by the three
 builders — which only guard the callers that use them — so a dict written by hand reached the
 wire. `client.ask` now applies them to everything it is handed.
 
@@ -57,21 +58,23 @@ def violations(questions: Mapping[str, Any]) -> List[str]:
             out.append(f"{name}: type {kind!r} is not one of {client.QUESTION_TYPES}")
             continue
         text = question.get("instructions")
-        if not isinstance(text, str) or not text.strip():
+        structured = isinstance(text, (dict, list)) and bool(text)
+        if not structured and (not isinstance(text, str) or not text.strip()):
             out.append(f"{name}: no instructions; the meaning has to be in the question")
             continue
-        if client._identifier(text) == client._identifier(name):
+        if isinstance(text, str) and client._identifier(text) == client._identifier(name):
             out.append(f"{name}: the instructions only repeat the id; the id names the question, "
                        f"the instructions ask it")
         criteria = question.get("criteria")
         if kind == "noul":
-            if criteria is not None:
-                out.append(f"{name}: a noul has no criteria, so these are never sent")
+            if criteria is not None and (not isinstance(criteria, dict) or not criteria
+                                         or not set(criteria) <= {"true", "false"}):
+                out.append(f"{name}: a noul's criteria are {{true, false}} or nothing; others are never read")
         elif kind == "choice":
-            if not isinstance(criteria, dict) or len(criteria) < 2:
-                out.append(f"{name}: a choice needs an object of at least two options")
-        elif not isinstance(criteria, list) or len(criteria) < 2:
-            out.append(f"{name}: a score needs a list of at least two levels")
+            if not isinstance(criteria, dict) or not 2 <= len(criteria) <= 255:
+                out.append(f"{name}: a choice needs an object of 2 to 255 options")
+        elif not isinstance(criteria, list) or not 2 <= len(criteria) <= 10:
+            out.append(f"{name}: a score needs a list of 2 to 10 levels")
     return out
 
 
@@ -163,14 +166,28 @@ def questions_from_every_feature() -> Dict[str, Dict[str, Any]]:
                    transport=recorder)
     captured["skillpick"] = recorder.questions[-1]
 
+    # The decision policies: every shipped policy's questions, as the engine sends them. The
+    # owner policy takes its options at run time, so it is bound to two example profiles.
+    from jevkit import decide as engine, policy as policies
+
+    for name in policies.shipped_names():
+        recorder = Recording()
+        options = {"owner": {"coder": "Writes and fixes code", "writer": "Writes prose"}} if name == "owner" else None
+        engine.decide({"task": "t", "output": "o", "command": "ls", "text": "a card is blocked"}, name,
+                      choices=options, transport=recorder, record=False, use_limits=False)
+        captured[f"policy:{name}"] = recorder.questions[-1]
+
     return captured
 
 
 class TestEveryQuestionThePackageSends(unittest.TestCase):
     def test_the_sweep_covers_the_features_it_claims_to(self):
         captured = questions_from_every_feature()
+        from jevkit import policy as policies
+
         self.assertEqual(set(captured), {"route", "triage", "mailbox", "choose", "compact",
-                                         "search", "rerank", "skillpick"})
+                                         "search", "rerank", "skillpick"}
+                         | {f"policy:{name}" for name in policies.shipped_names()})
         for feature, questions in captured.items():
             self.assertTrue(questions, f"{feature} sent no questions; the sweep is not measuring it")
 

@@ -203,3 +203,43 @@ def summarize(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
                        "p90": latencies[int(len(latencies) * 0.9)] if latencies else None},
         "cost_estimate_usd": round(len(rows) * 1500 * 0.042 / 1e6, 5),
     }
+
+
+# ── presets: the same idea for things that are not support mail ─────────────
+#
+# Support mail keeps `classify` above, unchanged. Everything else is a named policy run
+# through `decide`: the policy file holds the questions and thresholds, so a preset is data a
+# person can read. Each preset carries the article's escalation rule (urgency > 0.90 on the
+# 0..1 scale escalates; @0xMorlex, "Jev Engineering", Step 9's urgency triage) and its own
+# lanes below that, and each fails to the lane that loses nothing: wake, needs the owner,
+# the normal queue.
+
+PRESETS = {
+    "support-mail": None,          # `classify`, unchanged
+    "urgency": "triage-urgency",
+    "cron-wake": "cron-wake",
+    "blockcheck": "blockcheck",
+    "kanban-event": "kanban-event",
+}
+
+
+def classify_state(state: Any, preset: str, *, timeout: float = 4.0, mode: str = "live",
+                   transport: Optional[client.Transport] = None, record: bool = True) -> Dict[str, Any]:
+    """Classify one state with a named preset. Never raises for Jev's sake.
+
+    ``support-mail`` takes ``{"subject", "body", "sender", ...}`` and returns what
+    ``classify`` always returned; every other preset returns a policy decision.
+    """
+    from . import decide as engine
+
+    if preset not in PRESETS:
+        raise ValueError(f"unknown preset {preset!r}; one of {', '.join(PRESETS)}")
+    policy_name = PRESETS[preset]
+    if policy_name is None:
+        message = state if isinstance(state, Mapping) else {"body": str(state)}
+        return classify(str(message.get("subject") or ""), str(message.get("body") or message.get("content") or ""),
+                        sender=str(message.get("sender") or message.get("from") or ""),
+                        to=str(message.get("to") or ""), known_customer=message.get("known_customer"),
+                        timeout=timeout, transport=transport)
+    return engine.decide(state, policy_name, mode=mode, feature=preset.replace("-", "_"), timeout=timeout,
+                         transport=transport, record=record)

@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from . import __version__, catalog, choose, client, compact, key_setup, keystore, ladder, mailbox, memo, plan, rerank, replay, route, search, skillpick, spend, supervise, triage
+from . import __version__, catalog, choose, cli_decide, client, compact, key_setup, keystore, ladder, mailbox, memo, plan, rerank, replay, route, search, skillpick, spend, supervise, triage
 
 
 def _stdin_json() -> Any:
@@ -439,6 +439,14 @@ def cmd_triage(args: argparse.Namespace) -> int:
         # agent reading stdout, and a traceback on stderr never told it what to fix.
         _out({"error": "invalid_request", "detail": str(error)})
         return 2
+    if args.preset and args.preset != "support-mail":
+        # A preset is a named decision policy (cron-wake, blockcheck, kanban-event, urgency):
+        # each entry is a state object, and the answer is the policy's action.
+        states = [m for m in entries if isinstance(m, dict)]
+        if not states:
+            _out({"error": "invalid_request", "detail": "no JSON objects to classify"})
+            return 2
+        return cli_decide.cmd_triage_preset(args, states)
     messages = [m for m in entries if isinstance(m, dict)]
     dropped = len(entries) - len(messages)
     if not messages:
@@ -802,6 +810,9 @@ def build_parser() -> argparse.ArgumentParser:
     # changes what a caller can say, not what an existing caller gets.
     p.add_argument("--timeout", type=float, default=6.0, help="seconds per message, at most 3600")
     p.add_argument("--summary", action="store_true", help="counts only, no per-message rows")
+    p.add_argument("--preset", choices=list(triage.PRESETS), default="support-mail",
+                   help="support-mail (default: now/today/queue/ignore) or a decision preset: urgency, "
+                        "cron-wake, blockcheck, kanban-event (each entry is then a state object)")
     p.set_defaults(func=cmd_triage)
 
     p = sub.add_parser("mail", help="sort a mailbox into lanes: needs reply / updates / promotional / sales / spam")
@@ -870,7 +881,8 @@ questions is a list as above, or an object of name -> question. A question with 
 named q1, q2, ... by its position. "kind" and "text" are accepted for "type" and
 "instructions".
 
-  noul    the probability that the instructions are true. No criteria.
+  noul    the probability that the instructions are true. Optional criteria: an object
+          with "true" and "false" saying what a yes and a no mean.
   choice  one option out of criteria: an object of at least two "option": "what it means".
   score   a position on criteria: a list of at least two levels, lowest first.
 
@@ -878,6 +890,8 @@ Bad input prints {"error": "invalid_request", "detail": ...} and exits 2, and no
 A Jev failure prints {"error": code} and exits 2.""")
     p.add_argument("--timeout", type=float, default=5)
     p.set_defaults(func=cmd_ask)
+
+    cli_decide.add_parsers(sub)
     return parser
 
 

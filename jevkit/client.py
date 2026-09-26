@@ -47,11 +47,14 @@ Transport = Callable[[bytes, Dict[str, str], float], bytes]
 class JevError(RuntimeError):
     """Anything that means "do not trust or use this Jev result"."""
 
-    def __init__(self, code: str, detail: str = "") -> None:
+    def __init__(self, code: str, detail: str = "", retry_after: Optional[float] = None) -> None:
         super().__init__(f"{code}: {detail}" if detail else code)
         self.code = code
         # Set only by a contradiction check (`client._invalid`): which invariant the reply broke.
         self.invariant: Optional[str] = None
+        # Seconds the server asked us to wait (`retry-after-ms` / `retry-after`), when it said.
+        # Only a patient caller (a batch job) waits that long; a live caller keeps its budget.
+        self.retry_after = retry_after
 
 
 # ── question builders ────────────────────────────────────────────────────────
@@ -68,8 +71,18 @@ def score(instructions: str, levels: Sequence[str]) -> Dict[str, Any]:
     return {"type": "score", "instructions": instructions, "criteria": list(levels)}
 
 
-def noul(instructions: str) -> Dict[str, Any]:
-    return {"type": "noul", "instructions": instructions}
+def noul(instructions: Any, criteria: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    """A yes/no question. ``criteria`` optionally says what a yes and a no mean.
+
+    ``{"true": ..., "false": ...}`` is part of the API's Noul (the guardrails cookbook and
+    LangChain's AutoMode both depend on it). Written criteria are always sent: LangChain's
+    AutoModeMiddleware defaults them in ``__init__`` and then never sends them, which is the
+    bug a caller of this builder cannot reproduce.
+    """
+    question: Dict[str, Any] = {"type": "noul", "instructions": instructions}
+    if criteria is not None:
+        question["criteria"] = dict(criteria)
+    return question
 
 
 # ── the shape of a question ──────────────────────────────────────────────────
@@ -82,6 +95,23 @@ def noul(instructions: str) -> Dict[str, Any]:
 
 QUESTION_TYPES = ("choice", "score", "noul")
 MIN_CRITERIA = 2
+# The API's own limits (TypeSafe API reference, read 2026-09-26): at most 255 options in a
+# Choice, and a Score of 2 to 10 levels. Refused here, because the API answers either with a
+# 422 that every feature reads as "Jev had no opinion" — a silent fail-open on a caller bug.
+MAX_CHOICE_OPTIONS = 255
+MAX_SCORE_LEVELS = 10
+NOUL_CRITERIA_KEYS = ("true", "false")
+
+
+def _structured(value: Any) -> bool:
+    """A string with words in it, or a non-empty object or array: what the API takes as text.
+
+    ``instructions`` and every criterion may be an object or an array as well as a string,
+    so a long question can keep its data in named fields and point at them in backticks.
+    """
+    if isinstance(value, str):
+        return bool(value.strip())
+    return isinstance(value, (Mapping, list, tuple)) and bool(value)
 
 
 def _identifier(text: Any) -> str:
@@ -107,10 +137,15 @@ def check_question(name: str, question: Any) -> Dict[str, Any]:
     * ``instructions`` is the question. The name is an identifier — a question whose
       instructions repeat its own name was never written, and Jev scores the state against
       that name;
-    * a choice needs a mapping of at least two options and a score a list of at least two
-      levels, because one option is not a choice and the reply check reads the criteria;
-    * a noul has no criteria, so criteria written here would never be sent — refuse them
-      rather than let a caller believe they did something.
+    * a choice needs a mapping of 2 to 255 options and a score a list of 2 to 10 levels,
+      because one option is not a choice, the reply check reads the criteria, and the API
+      refuses anything past its limits;
+    * a noul's criteria, when written, are exactly ``{"true": ..., "false": ...}`` (either or
+      both). Anything else would be sent and silently ignored, so it is refused.
+
+    ``instructions`` and each criterion may be a string, or an object or array (the API's
+    structured form). Only a string can "repeat its own name", so only a string is checked
+    for that.
     """
     if not isinstance(question, Mapping):
         raise ValueError(f'question "{_shown(name)}" must be an object like {{"type": ..., "instructions": ...}}')
@@ -119,24 +154,45 @@ def check_question(name: str, question: Any) -> Dict[str, Any]:
         found = "has no type" if kind is None else f"has unknown type {_shown(json.dumps(kind, default=str))}"
         raise ValueError(f'question "{_shown(name)}" {found}; use one of {", ".join(QUESTION_TYPES)}')
     text = question.get("instructions")
-    if not isinstance(text, str) or not text.strip():
-        raise ValueError(f'question "{_shown(name)}" has no instructions: the text of the question, as a string')
-    if _identifier(text) == _identifier(name):
+    if not _structured(text):
+        raise ValueError(f'question "{_shown(name)}" has no instructions: the text of the question, as a string '
+                         f'(or a non-empty object or array holding it)')
+    if isinstance(text, str) and _identifier(text) == _identifier(name):
         raise ValueError(f'question "{_shown(name)}" asks nothing: its instructions only repeat its own name. '
                          f'The id names the question, "instructions" asks it')
+    text = text if isinstance(text, str) else json.loads(json.dumps(text, default=str))
     criteria = question.get("criteria")
     if kind == "noul":
-        if criteria is not None:
-            raise ValueError(f'question "{_shown(name)}" is a noul: it has no criteria, so criteria written here '
-                             f'are never sent and never answered')
-        return {"type": "noul", "instructions": text}
-    wanted, shape = ((dict, 'an object of at least two options, {"option": "what it means"}')
-                     if kind == "choice" else (list, "a list of at least two levels, lowest first"))
+        if criteria is None:
+            return {"type": "noul", "instructions": text}
+        if (not isinstance(criteria, Mapping) or not criteria
+                or not set(map(str, criteria)) <= set(NOUL_CRITERIA_KEYS)):
+            raise ValueError(f'question "{_shown(name)}" is a noul: its criteria, if any, must be '
+                             f'{{"true": "what a yes means", "false": "what a no means"}}; anything else '
+                             f'would be sent and never read')
+        for side, meaning in criteria.items():
+            if not _structured(meaning):
+                raise ValueError(f'question "{_shown(name)}": the noul criterion "{side}" is empty')
+        return {"type": "noul", "instructions": text,
+                "criteria": {str(side): criteria[side] for side in criteria}}
+    wanted, shape = ((Mapping, 'an object of 2 to 255 options, {"option": "what it means"}')
+                     if kind == "choice" else (list, "a list of 2 to 10 levels, lowest first"))
     if criteria is None:
         raise ValueError(f'question "{_shown(name)}": criteria are required for a {kind}, as {shape}')
     if not isinstance(criteria, wanted) or len(criteria) < MIN_CRITERIA:
         raise ValueError(f'question "{_shown(name)}": criteria for a {kind} must be {shape}')
-    return {"type": kind, "instructions": text, "criteria": dict(criteria) if kind == "choice" else list(criteria)}
+    if kind == "choice":
+        if len(criteria) > MAX_CHOICE_OPTIONS:
+            raise ValueError(f'question "{_shown(name)}": {len(criteria)} options; a choice takes at most '
+                             f'{MAX_CHOICE_OPTIONS}. Pick a group first, then a member')
+        return {"type": kind, "instructions": text, "criteria": dict(criteria)}
+    if len(criteria) > MAX_SCORE_LEVELS:
+        raise ValueError(f'question "{_shown(name)}": {len(criteria)} levels; a score takes at most '
+                         f'{MAX_SCORE_LEVELS}')
+    for position, level in enumerate(criteria):
+        if not _structured(level):
+            raise ValueError(f'question "{_shown(name)}": score level {position} is empty')
+    return {"type": kind, "instructions": text, "criteria": list(criteria)}
 
 
 def check_questions(questions: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
@@ -275,10 +331,36 @@ def _http_transport(body: bytes, headers: Dict[str, str], timeout: float, url: s
             code = {301: "http_301", 302: "http_302", 303: "http_303", 307: "http_307", 308: "http_308",
                     401: "auth_failed", 403: "auth_failed", 402: "credits_exhausted",
                     429: "rate_limited", 529: "overloaded"}.get(status, f"http_{status}")
-            raise JevError(code)
+            raise JevError(code, retry_after=retry_after_seconds(response))
         _POOL.release(key, connection)
         return raw
     raise JevError("network")
+
+
+MAX_RETRY_AFTER = 60.0
+
+
+def retry_after_seconds(response: Any) -> Optional[float]:
+    """What the server asked for, in seconds: ``retry-after-ms`` first, then ``retry-after``.
+
+    Only the numeric form of ``retry-after`` is read; an HTTP date needs a clock comparison
+    and a wrong clock would turn it into a zero or an hour. Capped at a minute: a batch that
+    is told to wait longer than that is better stopped and resumed.
+    """
+    try:
+        header = getattr(response, "getheader", None)
+        if header is None:
+            return None
+        for name, scale in (("retry-after-ms", 0.001), ("retry-after", 1.0)):
+            raw = header(name)
+            if raw is None:
+                continue
+            value = float(str(raw).strip()) * scale
+            if math.isfinite(value) and value >= 0:
+                return min(value, MAX_RETRY_AFTER)
+    except (TypeError, ValueError):
+        return None
+    return None
 
 
 def _openrouter_transport(body: bytes, headers: Dict[str, str], timeout: float) -> bytes:
@@ -497,12 +579,20 @@ def ask(
     api_key: Optional[str] = None,
     provider: Optional[str] = None,
     transport: Optional[Transport] = None,
+    patient: bool = False,
 ) -> Dict[str, Any]:
     """Ask Jev every question against one state, in a single request.
 
-    Returns ``{"answers": {...validated...}, "usage": {...}, "latency_ms": int}``.
+    Returns ``{"answers": {...validated...}, "usage": {...}, "latency_ms": int,
+    "jev_model": str|None, "input_tokens": int|None, "provider": str}``. ``jev_model`` is
+    the exact version that answered (the reply's ``model``): ``jev-latest`` is an alias that
+    can move, and thresholds tuned on one version are only known to hold on that version.
     Raises ``JevError`` for anything the caller should not act on. ``timeout`` is a
     total wall-clock budget across retries, not a per-attempt one.
+
+    ``patient=True`` is for batch jobs: a 429/529 that names a ``retry-after`` is waited out
+    (within ``timeout``) instead of retried after a quarter second. A live caller never passes
+    it, so a slow provider costs a live feature its short budget and nothing more.
     """
     if not questions:
         raise ValueError("no questions")
@@ -555,7 +645,13 @@ def ask(
             attempt += 1
             if error.code not in _RETRYABLE or attempt > retries:
                 raise
-            time.sleep(min(0.25 * attempt, max(0.0, timeout - (time.monotonic() - started) - 0.1)))
+            left = max(0.0, timeout - (time.monotonic() - started) - 0.1)
+            wait = min(0.25 * attempt, left)
+            if patient and error.retry_after is not None:
+                if error.retry_after > left:
+                    raise  # told to wait past the budget: stop now rather than sleep and fail
+                wait = error.retry_after
+            time.sleep(wait)
 
     try:
         payload = json.loads(raw)
@@ -566,7 +662,13 @@ def ask(
         raise JevError("malformed", "reply has no answers")
     checked = {name: _check_answer(name, question, answers.get(name)) for name, question in questions.items()}
     usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
-    return {"answers": checked, "usage": usage, "latency_ms": int((time.monotonic() - started) * 1000)}
+    model_seen = payload.get("model")
+    tokens = usage.get("input_tokens")
+    return {"answers": checked, "usage": usage, "latency_ms": int((time.monotonic() - started) * 1000),
+            "jev_model": model_seen if isinstance(model_seen, str) and model_seen else None,
+            "input_tokens": int(tokens) if isinstance(tokens, (int, float)) and not isinstance(tokens, bool)
+            and math.isfinite(float(tokens)) and tokens >= 0 else None,
+            "provider": "custom" if endpoint else via}
 
 
 def verify_key(api_key: str, timeout: float = 10.0, provider: str = "typesafe") -> bool:

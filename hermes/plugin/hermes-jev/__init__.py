@@ -8,12 +8,16 @@ Uses only public plugin seams, so it survives `hermes update`:
 * ``transform_tool_result`` (if on) screens web_search / web_extract results for injected instructions
 * ``post_tool_call``       remembers which skills a session loaded, so a suggestion is never a repeat
 * tools + ``/jev``        memory filter, compaction selection, action chooser, status and switches
+* ``pre_approval_request`` / ``post_approval_response``  the command-risk gate in SHADOW only:
+  registered only when ``/jev gate shadow`` was set before the gateway started; observers that
+  queue work and return at once, never a verdict (see jevkit/gate.py)
 
 Everything fails open. If Jev is slow, down, unsure, or the turn looks private,
 Hermes behaves exactly as it did before this plugin existed.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
@@ -22,6 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .jevkit import catalog, choose, compact, effort, keystore, ladder, rerank, route, search, skillpick, supervise, turn, webscreen
+from .jevkit import decide as policy_engine, evaluate, gate, policy as policies, route_to, shadowq, switches
 
 _LOCK = threading.Lock()
 _TURNS: Dict[str, Dict[str, Any]] = {}      # session_id -> the current turn's text and decision
@@ -684,11 +689,155 @@ _TOOLS = {
 }
 
 
+# ── the command-risk gate, shadow only ──────────────────────────────────────
+#
+# Hermes fires these two hooks around every approval (the guardian's and a person's). They are
+# observers: they cannot veto, and the command they carry is already redacted by Hermes. Each
+# callback checks the switches, queues the work and returns — the Jev call runs on the shadow
+# thread, so an approval never waits on TypeSafe. Nothing here returns a verdict.
+
+_GATE_SEEN: Dict[str, float] = {}
+_GATE_SEEN_TTL = 600.0
+
+
+def _digest(text: Any) -> str:
+    return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()[:16]
+
+
+def _gate_log(entry: Dict[str, Any]) -> None:
+    """Ids, hashes and probabilities only. Never the command, never the description."""
+    try:
+        path = _home() / "logs" / "jev-gate.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        entry = {"ts": round(time.time(), 3), "profile": _profile(), **entry}
+        fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, separators=(",", ":"), default=str) + "\n")
+    except OSError:
+        pass
+
+
+def _smart_policy() -> Optional[str]:
+    try:
+        approvals = _hermes_config().get("approvals") or {}
+        text = approvals.get("smart_policy") if isinstance(approvals, dict) else None
+        return str(text) if text else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _gate_job(payload: Dict[str, Any], queued: float) -> None:
+    if switches.mode("gate") == "off":
+        return
+    decision = gate.check(str(payload.get("tool") or "terminal"), command=payload.get("command") or "",
+                          flagged_as=payload.get("pattern_key"), pattern_keys=payload.get("pattern_keys") or (),
+                          surface=payload.get("surface"), operator_policy=_smart_policy(), mode="shadow",
+                          timeout=1.5, record=True)
+    _gate_log({"kind": "gate", "session": _digest(payload.get("session_key")),
+               "tool_call_id": payload.get("tool_call_id"), "turn_id": payload.get("turn_id"),
+               "command_sha256": decision.get("command_sha256"), "pattern_keys": payload.get("pattern_keys"),
+               "surface": payload.get("surface"), "action": decision.get("action"),
+               "tiebreak": gate.tiebreak_verdict(decision), "answers": decision.get("answers"),
+               "policy": decision.get("policy"), "jev_model": decision.get("jev_model"),
+               "drift": decision.get("drift"), "latency_ms": decision.get("latency_ms"),
+               "input_tokens": decision.get("input_tokens"), "status": decision.get("status"),
+               "error": decision.get("error"), "queued_ms": int((time.monotonic() - queued) * 1000),
+               "queue_dropped": shadowq.dropped()})
+
+
+def _on_pre_approval_request(command: str = "", pattern_key: str = "", pattern_keys: Any = None,
+                             session_key: str = "", surface: str = "", **extra: Any) -> None:
+    try:
+        if switches.mode("gate") == "off" or extra.get("coalesced"):
+            return None
+        key = f"{session_key}|{extra.get('tool_call_id')}|{gate.command_sha(command)}"
+        now = time.monotonic()
+        with _LOCK:
+            for old in [k for k, seen in _GATE_SEEN.items() if now - seen > _GATE_SEEN_TTL]:
+                _GATE_SEEN.pop(old, None)
+            if key in _GATE_SEEN:
+                return None  # the guardian and then a person are asked about one command: check it once
+            _GATE_SEEN[key] = now
+        shadowq.submit(_gate_job, {"command": command, "pattern_key": pattern_key,
+                                   "pattern_keys": list(pattern_keys or ()), "session_key": session_key,
+                                   "surface": surface, "tool_call_id": extra.get("tool_call_id"),
+                                   "turn_id": extra.get("turn_id")}, now)
+    except Exception:  # noqa: BLE001 - an observer must never touch the approval it watches
+        pass
+    return None
+
+
+def _on_post_approval_response(command: str = "", choice: str = "", session_key: str = "", surface: str = "",
+                               decided_by: str = "", **extra: Any) -> None:
+    try:
+        if switches.mode("gate") == "off":
+            return None
+        shadowq.submit(_gate_log, {
+            "kind": "gate_outcome", "session": _digest(session_key), "tool_call_id": extra.get("tool_call_id"),
+            "command_sha256": gate.command_sha(command), "choice": str(choice)[:40],
+            "truth": gate.outcome_label(choice), "surface": str(surface)[:40],
+            "decided_by": decided_by or ("aux_llm" if str(choice).startswith("smart_") else "person")})
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+# ── policy tools (only when `/jev decide_tools on` was set before the gateway started) ──
+
+def _decide_tool(args: Dict[str, Any]) -> Dict[str, Any]:
+    state = args.get("state")
+    if args.get("questions"):
+        return policy_engine.adhoc(state, args["questions"])
+    name = str(args.get("policy") or "")
+    if not name or "/" in name or name.endswith(".json"):
+        return {"status": "invalid_request", "error": "give a policy name (see `jev policies`) or questions"}
+    return policy_engine.decide(state, name, choices=args.get("options"))
+
+
+_DECIDE_TOOLS = {
+    "jev_decide": (
+        "LLMs think, Jev decides, tools act. For a yes/no or pick-one decision about a state you already have "
+        "(is this done, is it risky, does it need a person, which lane), ask Jev instead of reasoning it out. "
+        "Give `policy` (a named policy; `jev policies` lists them) or up to 8 `questions` {name: yes/no question}. "
+        "Returns `action` (policy) or `verdicts` yes/no/unsure (questions). `fallback_used` true means Jev was not "
+        "consulted: decide yourself. Never send credentials or customer data.",
+        {"state": {"description": "the facts to judge: an object or text"},
+         "policy": {"type": "string"}, "options": {"type": "object"},
+         "questions": {"type": "object", "maxProperties": 8}},
+        ["state"], _decide_tool),
+    "jev_score": (
+        "Grade an output against its task with rubric scores instead of a second LLM call: returns `action` "
+        "continue / retry / human_review (risk > 0.80 human review, quality < 0.70 retry, relevance > 0.90 "
+        "continue) and the 0..1 `scores`. `caller_default` means Jev was not consulted.",
+        {"state": {"type": "object", "description": '{"task": ..., "output": ...}'},
+         "rubric": {"type": "object"}},
+        ["state"], lambda a: evaluate.score(a["state"], rubric=a.get("rubric"))),
+    "jev_route_to": (
+        "Send a piece of work to one of your destinations (agents, queues, lanes). Returns `dest` only when "
+        "Jev is clear (confidence >= 0.85 and a 0.25 lead); otherwise your `fallback`.",
+        {"state": {"description": "the work"}, "destinations": {"type": "object"},
+         "fallback": {"type": "string"}},
+        ["state", "destinations"],
+        lambda a: route_to.route_to(a["state"], a["destinations"], fallback=a.get("fallback"))),
+}
+
+
 # ── /jev ─────────────────────────────────────────────────────────────────────
 
 def _jev_command(raw_args: str = "") -> str:
     words = (raw_args or "").split()
     everyone = len(words) == 3 and words[2] == "all"
+    if len(words) in (2, 3) and words[0] in switches.MODES and (len(words) == 2 or everyone):
+        try:
+            switches.set_mode(words[0], words[1], shared=everyone)
+        except ValueError as error:
+            return str(error)
+        scope = "the default for EVERY profile (a profile's own setting still wins)" if everyone else f"set for {_profile()}"
+        note = ("" if words[0] not in ("gate", "decide_tools") else
+                " Hooks and tools load when the gateway starts; switching off works at once.")
+        if switches.kill_switch(words[0]).exists():
+            note += f" The kill switch {switches.kill_switch(words[0]).name} exists, so it stays off."
+        return f"Jev {words[0]} = {words[1]} (effective: {switches.mode(words[0])}), {scope}.{note}"
     if len(words) in (2, 3) and words[0] in ("routing", "skills", "notice", "screen") and words[1] in ("on", "off", "shadow") \
             and (len(words) == 2 or everyone):
         path = _state_path(shared=everyone)
@@ -704,8 +853,10 @@ def _jev_command(raw_args: str = "") -> str:
              f"routing: {_setting('routing', 'off')} · skills: {_setting('skills', 'off')} · notice: {_setting('notice', 'off')}"
              f" · screen: {_setting('screen', 'off')}",
              f"tiers configured: {', '.join(sorted(tiers)) or 'none (run `jev models suggest --write`)'}",
+             "policy features: " + " · ".join(f"{name}: {info['mode']}" + (" (KILL SWITCH)" if info["kill_switch"] else "")
+                                             for name, info in switches.describe().items()),
              "usage: /jev routing on|shadow|off [all] · /jev skills on|off [all] · /jev notice on|off [all]"
-             " · /jev screen on|shadow|off [all]"]
+             " · /jev screen on|shadow|off [all] · /jev gate off|shadow [all] · /jev decide_tools on|off [all]"]
     return "\n".join(lines)
 
 
@@ -733,11 +884,22 @@ def register(ctx: Any) -> None:
         ctx.register_tool(name=name, toolset="jev", handler=_tool(fn), schema={
             "name": name, "description": description,
             "parameters": {"type": "object", "properties": properties, "required": required}})
+    if switches.mode("decide_tools") == "on":
+        for name, (description, properties, required, fn) in _DECIDE_TOOLS.items():
+            ctx.register_tool(name=name, toolset="jev", handler=_tool(fn), schema={
+                "name": name, "description": description,
+                "parameters": {"type": "object", "properties": properties, "required": required}})
     ctx.register_hook("pre_llm_call", _on_pre_llm_call)
     ctx.register_hook("transform_llm_output", _on_transform_output)
     ctx.register_hook("transform_tool_result", _on_transform_tool_result)
     ctx.register_hook("post_tool_call", _on_post_tool_call)
+    if switches.mode("gate") in ("shadow", "tiebreak", "ask", "block"):
+        # Only the shadow observers exist today; the stronger modes are library semantics
+        # (jevkit/gate.py) with no host seam wired yet, so they observe like shadow here.
+        ctx.register_hook("pre_approval_request", _on_pre_approval_request)
+        ctx.register_hook("post_approval_response", _on_post_approval_response)
     ctx.register_middleware("llm_request", _on_llm_request)
-    ctx.register_command("jev", _jev_command, description="Jev status and switches", args_hint="[routing|skills|notice|screen on|shadow|off [all]]")
+    ctx.register_command("jev", _jev_command, description="Jev status and switches",
+                         args_hint="[routing|skills|notice|screen on|shadow|off [all]] [gate off|shadow] [decide_tools on|off]")
     rule = _RULE + (_RULE_ESCALATION if ((route.load_config().get("escalation") or {}).get("enabled")) else "")
     ctx.register_system_prompt_section("hermes-jev", rule, max_chars=1400)
