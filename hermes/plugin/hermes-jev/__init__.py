@@ -5,6 +5,7 @@ Uses only public plugin seams, so it survives `hermes update`:
 * ``pre_llm_call``       once per fresh user turn: remembers the turn, and (if on) suggests a skill
 * ``llm_request``        middleware: swaps the model for that turn, within the connected provider
 * ``transform_llm_output`` optionally shows the one-line routing notice
+* ``transform_tool_result`` (if on) screens web_search / web_extract results for injected instructions
 * tools + ``/jev``        memory filter, compaction selection, action chooser, status and switches
 
 Everything fails open. If Jev is slow, down, unsure, or the turn looks private,
@@ -19,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .jevkit import catalog, choose, compact, effort, keystore, ladder, rerank, route, search, skillpick, supervise, turn
+from .jevkit import catalog, choose, compact, effort, keystore, ladder, rerank, route, search, skillpick, supervise, turn, webscreen
 
 _LOCK = threading.Lock()
 _TURNS: Dict[str, Dict[str, Any]] = {}      # session_id -> the current turn's text and decision
@@ -382,6 +383,45 @@ def _on_transform_output(response_text: str = "", session_id: str = "", **_: Any
     return f"{response_text}\n\n{decision['notice']}{effort_tag}"
 
 
+# ── screening what the web hands the agent ───────────────────────────────────
+#
+# The memory and search tools screen passages when the agent remembers to call them. Over one
+# week on a real fleet it called them 57 times while 890 web results went straight into
+# context. This runs where every result passes instead. Browser pages are left out on
+# purpose: a logged-in page is the person's own data, and it is not sent anywhere by default.
+
+SCREEN_TOOLS = ("web_search", "web_extract")
+_SCREEN_MIN_CHARS = 200
+
+
+def _private_profile() -> bool:
+    """A profile in routing.json's private_profiles sends nothing; so does one we cannot check."""
+    try:
+        return _profile() in (route.load_config().get("private_profiles") or [])
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _on_transform_tool_result(tool_name: str = "", args: Any = None, result: Any = None, **_: Any) -> Any:
+    mode = _setting("screen", "off")
+    if mode not in ("on", "shadow") or tool_name not in SCREEN_TOOLS or not isinstance(result, str) \
+            or len(result) < _SCREEN_MIN_CHARS:
+        return None
+    started = time.monotonic()
+    try:
+        verdict = webscreen.screen(tool_name, result, send=not _private_profile())
+        replaced = webscreen.withhold(tool_name, result, verdict) if mode == "on" else None
+    except Exception as error:  # noqa: BLE001 - the unscreened result is always a valid answer
+        _log({"kind": "screen", "mode": mode, "tool": tool_name, "status": "error", "reason": type(error).__name__})
+        return None
+    _log({"kind": "screen", "mode": mode, "tool": tool_name, "status": verdict.get("status"),
+          "screening": verdict.get("screening"), "units": verdict.get("units"), "judged": verdict.get("judged"),
+          "flagged": len(verdict.get("flagged") or []), "local": len(verdict.get("local") or []),
+          "withheld": replaced is not None, "latency_ms": verdict.get("latency_ms"),
+          "elapsed_ms": int((time.monotonic() - started) * 1000), "reason": verdict.get("reason")})
+    return replaced
+
+
 # ── tools ────────────────────────────────────────────────────────────────────
 
 def _escalate(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -500,7 +540,7 @@ _TOOLS = {
 def _jev_command(raw_args: str = "") -> str:
     words = (raw_args or "").split()
     everyone = len(words) == 3 and words[2] == "all"
-    if len(words) in (2, 3) and words[0] in ("routing", "skills", "notice") and words[1] in ("on", "off", "shadow") \
+    if len(words) in (2, 3) and words[0] in ("routing", "skills", "notice", "screen") and words[1] in ("on", "off", "shadow") \
             and (len(words) == 2 or everyone):
         path = _state_path(shared=everyone)
         state = _read(path)
@@ -512,9 +552,11 @@ def _jev_command(raw_args: str = "") -> str:
     key = keystore.describe()
     tiers = route.load_config().get("tiers") or {}
     lines = [f"Jev key: {'present' if key['present'] else 'MISSING (run `jev setup-key` on this machine)'}",
-             f"routing: {_setting('routing', 'off')} · skills: {_setting('skills', 'off')} · notice: {_setting('notice', 'off')}",
+             f"routing: {_setting('routing', 'off')} · skills: {_setting('skills', 'off')} · notice: {_setting('notice', 'off')}"
+             f" · screen: {_setting('screen', 'off')}",
              f"tiers configured: {', '.join(sorted(tiers)) or 'none (run `jev models suggest --write`)'}",
-             "usage: /jev routing on|shadow|off [all] · /jev skills on|off [all] · /jev notice on|off [all]"]
+             "usage: /jev routing on|shadow|off [all] · /jev skills on|off [all] · /jev notice on|off [all]"
+             " · /jev screen on|shadow|off [all]"]
     return "\n".join(lines)
 
 
@@ -544,7 +586,8 @@ def register(ctx: Any) -> None:
             "parameters": {"type": "object", "properties": properties, "required": required}})
     ctx.register_hook("pre_llm_call", _on_pre_llm_call)
     ctx.register_hook("transform_llm_output", _on_transform_output)
+    ctx.register_hook("transform_tool_result", _on_transform_tool_result)
     ctx.register_middleware("llm_request", _on_llm_request)
-    ctx.register_command("jev", _jev_command, description="Jev status and switches", args_hint="[routing|skills|notice on|shadow|off [all]]")
+    ctx.register_command("jev", _jev_command, description="Jev status and switches", args_hint="[routing|skills|notice|screen on|shadow|off [all]]")
     rule = _RULE + (_RULE_ESCALATION if ((route.load_config().get("escalation") or {}).get("enabled")) else "")
     ctx.register_system_prompt_section("hermes-jev", rule, max_chars=1400)

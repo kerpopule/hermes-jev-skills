@@ -17,6 +17,7 @@ That is what [Jev](https://docs.typesafe.ai) is. It is TypeSafe's decision model
 | **Model routing** | Which model is good enough for this turn, from every model you can call | ~0.4 s per turn |
 | **Search** | Which of the results you fetched are worth opening, whether the evidence answers the question, and which of your candidate queries to run next. Jev never writes a query | ~1.9 s per round (median of five live runs, two requests: rank, then sufficiency and the pick) |
 | **Memory** | Which retrieved passages are worth reading, and which contain hidden instructions | 60 passages per request, up to 480 per call; an injection screen runs locally even when Jev is down |
+| **Web screening** (Hermes) | Which parts of a `web_search` / `web_extract` result carry instructions aimed at the agent, withheld before the agent reads them | Attacks planted in 80 real web results: 70 of 79 caught, against 11 for Hermes's own pattern scan; 0 of 1,520 clean chunks withheld; ~0.2 s per result ([scorecard](evals/web-screen/SCORECARD-2026-09-26.md)) |
 | **Handoffs** | Nothing, by default. We measured it: a handoff written from Jev's keep / summarize / drop digest recalled less than one written from the plain transcript. What ships is the whole dialogue, 1,200 words and a way back to the old session | 58.7% recall alone, 75.0% with one search, against 37.5% and 68.3% before ([scorecard](evals/compaction/results/SCORECARD-2026-09-20.md)) |
 | **Choosing turns** | Which turns to keep when a transcript must be cut to a fixed size | 71 turns in 0.95 s; beat choosing by recency 11 questions to 4 |
 | **Skill selection** | Which installed skill this turn needs, or none | 377 skills in ~2.8 s; acknowledgements answered locally for free |
@@ -60,12 +61,14 @@ Start in shadow mode. It is the honest way to see what Jev would do before it do
 /jev routing on              switch models per turn
 /jev skills on               suggest the right skill per turn
 /jev notice on               show "[Jev] hard · coding → kimi-k3 · confidence 0.92" on routed replies
+/jev screen shadow           screen web_search / web_extract results for injected instructions, log only
+/jev screen on               withhold the parts that carry them, with a notice in their place
 /jev routing on all          make it the default for every profile (a profile's own setting still wins)
 ```
 
 The agent gets five tools: `jev_memory_filter`, `jev_compact_select`, `jev_choose_action`, `jev_supervise`, `jev_escalate`.
 
-The `hermes-jev` plugin uses only public plugin seams (`pre_llm_call`, the `llm_request` middleware, tools, a slash command), so `hermes update` does not break it and nothing in Hermes core is patched.
+The `hermes-jev` plugin uses only public plugin seams (`pre_llm_call`, `transform_tool_result`, the `llm_request` middleware, tools, a slash command), so `hermes update` does not break it and nothing in Hermes core is patched.
 
 A plugin can swap the model, not the provider connection. On OpenRouter that still covers every vendor. If you run `/model` yourself, your choice wins.
 
@@ -95,6 +98,7 @@ Jev is a cloud API, so this is spelled out rather than implied:
 - **Memory**: the query and up to 900 characters per passage, redacted. Your store's ids, paths and sources are replaced with `P0`, `P1`… and never sent. A passage that looks like a credential is not sent at all.
 - **Choosing turns** (`jev compact-select`, or handoffs with `HANDOFF_JEV=1`): the first and last 350 characters of each turn, redacted. Turns that look sensitive are skipped. A default handoff sends Jev nothing.
 - **Skills**: the turn, redacted, plus skill names and descriptions.
+- **Web screening** (`/jev screen on` or `shadow`, Hermes only): each `web_search` result's title and description, and each page from `web_extract` in chunks of up to 900 characters, redacted. URLs and the query are not sent. A chunk that looks like a credential is not sent, and on a profile listed in `private_profiles` nothing is sent at all: the local pattern screen decides alone. Browser pages are never screened by this, because a logged-in page is the person's own data.
 - **Search** (`jev search`): the date, the question, the queries already tried, and up to 900 characters of each shortlisted result (title, URL, snippet), redacted. Result ids stay local: Jev sees `P0`, `P1`… A result that looks like a credential is not sent, and neither is one carrying hidden instructions. A question that looks sensitive is not sent at all.
 - **Mailbox sorting** (`jev mail`): the subject and up to 2,500 characters of the body, redacted; the sender's **domain** (never the mailbox); a local class read off the address alone (**automated** for a mailbox that cannot receive a reply, **role** for a shared one a team reads, **list**, or **person**); the message's timestamp, and only the timestamp — a `Received:` header is reduced to the date it carries, because the rest of it is the recipient's address and the internal IP of every hop; whether the mail carries a real `List-Unsubscribe` header, and separately whether the body merely mentions unsubscribing; and whether you have replied in the thread. Mail is **decoded before it is screened** — quoted-printable, percent-encoding, HTML entities and base64 runs — because a newsletter footer carries your own address percent-encoded in the unsubscribe link and base64'd in the tracking link, and a plain-text redactor sees neither. Query strings are stripped from URLs for the same reason. A message that looks like it holds a secret is not sent at all, and the check runs on the decoded text, so a base64 MIME body cannot carry a key past it. What redaction does **not** remove: a person's display name (`Jane Vale <[email]>`) is sent as written. The body is also screened for text aimed at an agent; a hit is **flagged** on the result and never filed away, because one sentence in a body would otherwise be the most useful thing an attacker could reach here.
 - **Computer and browser use**: the goal, short element labels, and your action descriptions. Never screenshots, page text or field values. A goal or label that looks sensitive is refused before sending.

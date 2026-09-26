@@ -42,6 +42,7 @@ A fleet that treats fail-open as "and then do whatever you like" has no rule at 
 | Model routing | Every routed turn | Keep the current model |
 | Skill selection | A turn arrives and a skill might apply | Suggest nothing |
 | Memory filtering | A retrieval returns more than a handful of passages | Return the original list |
+| Web result screening | Every `web_search` / `web_extract` result (`/jev screen on`) | The result as fetched, minus what the local pattern screen withholds |
 | Turn selection | A transcript must be cut to a fixed size | Drop nothing |
 | Search picking | After a search, before opening results | Screened head of the list, marked `unknown` |
 | GUI action | Before each step in a desktop loop | `reobserve` |
