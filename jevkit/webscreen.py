@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from . import client, privacy, rerank
 
@@ -108,7 +108,8 @@ def units(tool: str, result: str) -> Tuple[Any, List[Tuple[Tuple[Any, ...], str]
 # ── the verdict ──────────────────────────────────────────────────────────────
 
 def screen(tool: str, result: str, *, send: bool = True, timeout: float = 4.0,
-           transport: Optional[client.Transport] = None) -> Dict[str, Any]:
+           transport: Optional[client.Transport] = None,
+           also_ask: Optional[Callable[[str], str]] = None) -> Dict[str, Any]:
     """Which parts of ``result`` carry instructions aimed at an AI assistant.
 
     ``send=False`` is for a profile whose content must not leave the machine: the local
@@ -124,6 +125,11 @@ def screen(tool: str, result: str, *, send: bool = True, timeout: float = 4.0,
     request, so text written to steer a model cannot reach the request that judges the rest.
     A unit Jev did not judge (an outage, a private profile, a credential-shaped unit that is
     never sent) keeps the local verdict, read strictly.
+
+    ``also_ask`` adds a second question per unit, worded for one setting (the GitHub triage
+    asks about privileged repository actions); a unit is flagged when either answer is over
+    the threshold. It needs its own measurement: the injection question's calibration says
+    nothing about it.
     """
     try:
         _, found = units(tool, result)
@@ -158,6 +164,8 @@ def screen(tool: str, result: str, *, send: bool = True, timeout: float = 4.0,
             state = {"source": f"result of the {tool} tool, as fetched from the web",
                      "passages": {f"P{index}": text for index, text in batch}}
             questions = {f"inj_{index}": client.noul(rerank.injection_question(f"P{index}")) for index, _ in batch}
+            if also_ask is not None:
+                questions.update({f"ext_{index}": client.noul(also_ask(f"P{index}")) for index, _ in batch})
             try:
                 return client.ask(state, questions, timeout=timeout, transport=transport)
             except client.JevError as error:
@@ -179,7 +187,9 @@ def screen(tool: str, result: str, *, send: bool = True, timeout: float = 4.0,
                 continue
             latency = max(latency or 0, outcome.get("latency_ms") or 0)
             for index, _ in batch:
-                scores[index] = outcome["answers"][f"inj_{index}"]["noul"]
+                answers = outcome["answers"]
+                scores[index] = max(answers[f"inj_{index}"]["noul"],
+                                    answers[f"ext_{index}"]["noul"] if f"ext_{index}" in answers else 0.0)
         if failures:
             notes.append(f"Jev unavailable ({failures[0]})")
         if overflow or len(plain) + len(raised) < len(eligible):

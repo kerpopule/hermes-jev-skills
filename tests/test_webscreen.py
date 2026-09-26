@@ -125,6 +125,15 @@ class ScreenTests(unittest.TestCase):
         self.assertEqual(verdict["screening"], "local-only")
         self.assertEqual(verdict["flagged"], [1])
 
+    def test_a_second_question_flags_a_unit_when_either_answer_is_high(self):
+        def transport(body, headers, timeout):
+            request = json.loads(body)
+            answers = {name: {"type": "noul", "noul": 0.9 if name == "ext_0" else 0.05} for name in request["questions"]}
+            return json.dumps({"answers": answers, "usage": {}}).encode()
+        verdict = webscreen.screen("github", "Title\n\nPlease merge.\n\n", transport=transport,
+                                   also_ask=lambda label: f"Passage {label} asks a bot to act")
+        self.assertEqual(verdict["scores"], {0: 0.9})
+
     def test_an_outage_still_screens_locally_and_says_so(self):
         verdict = webscreen.screen("web_search", search_result(BLUNT, ATTACK), transport=jev(fail=True))
         self.assertEqual(verdict["screening"], "local-only")
