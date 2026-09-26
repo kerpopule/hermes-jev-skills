@@ -157,6 +157,37 @@ class LoopProgressTests(unittest.TestCase):
         b["elements"][0]["value"] = "new typed value"
         self.assertNotEqual(gui.screen_digest(a), gui.screen_digest(b))
 
+    def test_planned_click_does_not_claim_completion_on_driver_ack_alone(self):
+        driver = mock.Mock()
+        driver.tool.return_value = {"result": {"structuredContent": {"effect": "unverifiable"}}}
+        with mock.patch.object(gui, "observe", return_value=self._state()), \
+                mock.patch.object(gui, "jev_choose", return_value={"selected_id": "click:library", "confidence": .95}), \
+                mock.patch.object(gui.time, "sleep"):
+            out = gui.run_goal(driver, 1, 2, "", "Click Library", expect="Library", values=[],
+                               regions_cap=26, budget=1, until_op="click")
+        self.assertEqual(out["ended"], "action_unverified")
+        self.assertEqual(driver.tool.call_count, 1)
+
+    def test_planned_click_needs_a_real_post_action_state_change(self):
+        driver = mock.Mock()
+        driver.tool.return_value = {"result": {"structuredContent": {"effect": "unverifiable"}}}
+        states = [self._state(), {**self._state(), "window_title": "Library"}]
+        with mock.patch.object(gui, "observe", side_effect=states), \
+                mock.patch.object(gui, "jev_choose", return_value={"selected_id": "click:library", "confidence": .95}):
+            out = gui.run_goal(driver, 1, 2, "", "Click Library", expect="Library", values=[],
+                               regions_cap=26, budget=1, until_op="click")
+        self.assertEqual(out["ended"], "acted")
+
+    def test_failed_post_observation_is_not_progress(self):
+        driver = mock.Mock()
+        driver.tool.return_value = {"result": {"structuredContent": {"effect": "unverifiable"}}}
+        with mock.patch.object(gui, "observe", side_effect=[self._state(), {}, {}]), \
+                mock.patch.object(gui, "jev_choose", return_value={"selected_id": "click:library", "confidence": .95}), \
+                mock.patch.object(gui.time, "sleep"):
+            out = gui.run_goal(driver, 1, 2, "", "Click Library", expect="Library", values=[],
+                               regions_cap=26, budget=1, until_op="click")
+        self.assertEqual(out["ended"], "action_unverified")
+
     def test_no_private_field_value_goes_to_jev_or_diagnostics(self):
         driver = mock.Mock()
         driver.tool.return_value = {"result": {"structuredContent": {"effect": "delivered"}}}
@@ -756,12 +787,28 @@ class PlanExecutionTests(unittest.TestCase):
 
     def test_max_steps_bounds_the_whole_plan_not_each_step(self):
         chooser = pick("click:")
+        class ChangingDriver(FakeDriver):
+            def tool(self, name, args, timeout=90.0):
+                result = super().tool(name, args, timeout)
+                if name == "click":
+                    self.state = dict(self.state, window_title="Storage pane loading")
+                return result
         out, _, _, _ = run_plan("Open General then Storage", [
             {"kind": "click", "target": "General"}, {"kind": "click", "target": "Storage"},
-        ], chooser=chooser, pid=30, window_id=33, max_steps=1)
+        ], driver=ChangingDriver(), chooser=chooser, pid=30, window_id=33, max_steps=1)
         self.assertEqual(len(chooser.seen), 1)
         self.assertEqual(out["used"], 1)
         self.assertIn("budget", out["report"]["steps"][1]["detail"])
+
+    def test_unverified_click_stops_plan_before_followup_actions(self):
+        out, driver, _, _ = run_plan("Open General then Storage", [
+            {"kind": "click", "target": "Storage"},
+            {"kind": "press_key", "target": "return"},
+        ], driver=FakeDriver(), chooser=pick("click:"), pid=30, window_id=33)
+        self.assertEqual(len(driver.named("click")), 1)
+        self.assertEqual(driver.named("press_key"), [])
+        self.assertEqual(out["report"]["steps"][0]["detail"], "action_unverified")
+        self.assertEqual(out["report"]["steps"][1]["mode"], "not_run")
 
     def test_the_runner_enforces_never_send_itself_whoever_wrote_the_plan(self):
         out, driver, _, _ = run_plan("Open Mail and have a look", [

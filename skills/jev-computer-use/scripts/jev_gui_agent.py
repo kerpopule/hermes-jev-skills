@@ -788,7 +788,24 @@ def run_goal(driver: Driver, pid: int, window_id: int, session: str, goal: str, 
         if op == "no-op":
             time.sleep(0.3)
         if until_op and op == until_op and _landed(detail):
-            out["ended"] = "acted"
+            # Cua's `effect: unverifiable` means an event was posted, not that the
+            # application accepted it. In a plan, the next step depends on this one.
+            # Reobserve without another click; allow one bounded settle for async UIs.
+            after = observe(driver, pid, window_id, session)
+            def changed(snapshot: dict) -> bool:
+                # An empty/error reply is not a different screen. Never let a failed
+                # read masquerade as post-action progress.
+                return ("window_title" in snapshot and isinstance(snapshot.get("elements"), list)
+                        and screen_digest(snapshot) != digest)
+            if not changed(after):
+                time.sleep(0.3)
+                after = observe(driver, pid, window_id, session)
+            if changed(after):
+                out["title"] = after.get("window_title", "")
+                out["rows"] = element_rows(after, regions_cap, tokens)
+            out["ended"] = "acted" if changed(after) else "action_unverified"
+            if out["ended"] == "action_unverified":
+                print(f"  step {step}: driver posted {op}, but the observed window did not change; stopping plan")
             break
     return out
 

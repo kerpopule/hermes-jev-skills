@@ -104,6 +104,14 @@ back the page. Cua Driver's `effect: unverifiable` means it posted input, not th
 app responded. If grounded clicks still do not change the page, stop rather than
 retrying an inert action or claiming a driver fix.
 
+For an opt-in **end-to-end** local smoke on macOS, run
+`python3 scripts/smoke_gui_fixture.py` from the source checkout. It compiles a disposable
+AppKit window, discovers its exact Cua window id, and runs the bundled Jev chooser +
+Cua AX runner twice against a changing window title. It requires the real driver and
+Jev credential, checks one activation and a verified title transition per run, and
+terminates the fixture even on failure. It does **not** validate custom-drawn Epic UI
+or pixel delivery. Do not treat a passing fixture as Epic navigation proof.
+
 If you cannot run it, fall back to the loop above by hand — but do **not** fall back to
 AppleScript UI scripting, `xdotool` or another GUI driver. Stop and say what is missing.
 
@@ -134,7 +142,12 @@ What it does:
 2. Steps with no on-screen target run directly: `open_app` (`open -a <name>`, a name and never
    a path), `open_url` (`http` and `https` only), `press_key`, `menu`, `scroll`, `wait`.
 3. `click` and `type_text` go through the same Jev loop, one action each. Dictated text is typed
-   as given, into a field Jev picked, never at wherever the focus happens to be.
+   as given, into a field Jev picked, never at wherever the focus happens to be. After the
+   action, the runner reads the window again (and once more after a short settle if unchanged).
+   A driver's delivery acknowledgement alone is not a completed step: an unchanged AX state
+   ends the plan as `action_unverified`, without running dependent steps. An AX change is
+   evidence of progress, **not** proof that every semantic intent succeeded; verify the
+   expected final state independently, and use per-hop checks for consequential actions.
 
 `--pid` and `--window-id` become optional: after `open_app` or `open_url` the runner aims at the
 window that opened, and with neither it starts from the front window. `--max-steps` stays the
