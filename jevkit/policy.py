@@ -24,7 +24,16 @@ or ``{"all"|"any": [conditions]}``. Operands:
 * ``q.choice``, ``q.confidence``, ``q.margin`` (top probability minus the runner-up) and
   ``q.p.<option>`` for a choice;
 * ``q.norm`` (``score / (levels - 1)``, so every threshold is on 0..1, the scale the article's
-  numbers use), ``q.score``, ``q.confidence`` and ``q.p.<level>`` for a score.
+  numbers use), ``q.score``, ``q.confidence`` and ``q.p.<level>`` for a score;
+* ``fact.<key>`` — a value the caller's code computed and handed in (``decide(facts=...)``):
+  a flag, a count, a number of hours. Jev never does sums or dates, and a fact is never sent.
+  A fact the caller did not supply never holds: an unknown is not a yes.
+
+``pre_rules`` are rules over ``fact.*`` only, checked *before* Jev is asked. When one holds,
+code has decided ("the monitor's source failed", "the error says the budget ran out") and no
+request is made: nothing is sent, nothing is paid, and the decision says ``source: "code"``.
+Only put a pre-rule in when the evidence says code gets that case right; ``jev batch --jev-only``
+skips them, so a backtest can measure Jev alone on the same rows.
 
 Ops: ``>=``, ``>``, ``<=``, ``<``, ``==``, ``!=``, ``in``, ``not_in``, ``between`` (inclusive).
 """
@@ -52,8 +61,10 @@ KNOWN_KEYS = {
     "name", "version", "feature", "tuned_on", "description", "questions", "rules", "otherwise",
     "on_error", "on_drift", "uncertain_band", "annotations", "promotion", "state_fields",
     "field_limits", "trusted_instruction_fields", "code_first", "precedence", "actions",
-    "dynamic_choices", "_note", "source",
+    "dynamic_choices", "_note", "source", "pre_rules",
 }
+_FACT = re.compile(r"^fact\.[a-z0-9_]{1,64}$")
+_MISSING = object()
 
 
 class PolicyError(ValueError):
@@ -192,8 +203,15 @@ def readings(questions: Mapping[str, Any], answers: Mapping[str, Any],
     return out
 
 
-def operand_value(operand: str, values: Mapping[str, Mapping[str, Any]]) -> Any:
-    """The number, label or flag an operand names. ``KeyError`` for anything unknown."""
+def operand_value(operand: str, values: Mapping[str, Mapping[str, Any]],
+                  facts: Optional[Mapping[str, Any]] = None) -> Any:
+    """The number, label or flag an operand names. ``KeyError`` for anything unknown.
+
+    A ``fact.<key>`` the caller did not supply reads as a private "missing" marker, which no
+    comparison holds against.
+    """
+    if operand.startswith("fact."):
+        return (facts or {}).get(operand[5:], _MISSING)
     name, _, field = operand.partition(".")
     reading = values[name]
     kind = reading["kind"]
@@ -213,6 +231,10 @@ def operand_value(operand: str, values: Mapping[str, Mapping[str, Any]]) -> Any:
 
 
 def _compare(left: Any, op: str, args: Sequence[Any]) -> bool:
+    if left is _MISSING or left is None:
+        return False
+    if op in NUMERIC_OPS + ("between",) and (isinstance(left, bool) or not isinstance(left, (int, float))):
+        return False  # a fact that is not a number never passes a numeric threshold
     if op == "between":
         return float(args[0]) <= float(left) <= float(args[1])
     right = args[0]
@@ -229,45 +251,70 @@ def _compare(left: Any, op: str, args: Sequence[Any]) -> bool:
             "<=": left_f <= right_f, "<": left_f < right_f}[op]
 
 
-def holds(condition: Any, values: Mapping[str, Mapping[str, Any]]) -> bool:
+def holds(condition: Any, values: Mapping[str, Mapping[str, Any]],
+          facts: Optional[Mapping[str, Any]] = None) -> bool:
     if isinstance(condition, Mapping):
         if "all" in condition:
-            return all(holds(item, values) for item in condition["all"])
-        return any(holds(item, values) for item in condition["any"])
+            return all(holds(item, values, facts) for item in condition["all"])
+        return any(holds(item, values, facts) for item in condition["any"])
     operand, op, *args = condition
-    return _compare(operand_value(operand, values), op, args)
+    return _compare(operand_value(operand, values, facts), op, args)
 
 
-def rule_holds(rule: Mapping[str, Any], values: Mapping[str, Mapping[str, Any]]) -> bool:
+def rule_holds(rule: Mapping[str, Any], values: Mapping[str, Mapping[str, Any]],
+               facts: Optional[Mapping[str, Any]] = None) -> bool:
     if "all" in rule:
-        return all(holds(item, values) for item in rule["all"])
-    return any(holds(item, values) for item in rule["any"])
+        return all(holds(item, values, facts) for item in rule["all"])
+    return any(holds(item, values, facts) for item in rule["any"])
 
 
-def apply(policy: Mapping[str, Any], values: Mapping[str, Mapping[str, Any]]) -> Dict[str, Any]:
+def pre_decide(policy: Mapping[str, Any], facts: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The code-first action, or None: ask Jev. First matching pre-rule wins."""
+    if not facts:
+        return None
+    for index, rule in enumerate(policy.get("pre_rules") or ()):
+        if rule_holds(rule, {}, facts):
+            return {"action": rule["then"], "matched_pre_rule": index}
+    return None
+
+
+def apply(policy: Mapping[str, Any], values: Mapping[str, Mapping[str, Any]],
+          facts: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """First matching rule wins. Also reports every rule that matched, for ``--explain``."""
-    fired: List[int] = [index for index, rule in enumerate(policy["rules"]) if rule_holds(rule, values)]
+    fired: List[int] = [index for index, rule in enumerate(policy["rules"]) if rule_holds(rule, values, facts)]
     action = policy["rules"][fired[0]]["then"] if fired else policy["otherwise"]
-    notes = [str(item["add"]) for item in policy.get("annotations") or () if rule_holds(item, values)]
+    notes = [str(item["add"]) for item in policy.get("annotations") or () if rule_holds(item, values, facts)]
     unsure = sorted(name for name, reading in values.items() if reading.get("unsure"))
     return {"action": action, "matched_rule": fired[0] if fired else None, "fired_rules": fired,
             "annotations": notes, "unsure": unsure}
 
 
-def explain(policy: Mapping[str, Any], values: Mapping[str, Mapping[str, Any]]) -> List[str]:
+def explain(policy: Mapping[str, Any], values: Mapping[str, Mapping[str, Any]],
+            facts: Optional[Mapping[str, Any]] = None) -> List[str]:
     """One plain line per rule: what it would do and whether it matched."""
     lines = []
-    for index, rule in enumerate(policy["rules"]):
+
+    def shown(operand: str) -> str:
+        value = operand_value(operand, values, facts)
+        return "(not supplied)" if value is _MISSING else repr(value)
+
+    sections = [("pre-rule", rule) for rule in policy.get("pre_rules") or ()] + \
+               [("rule", rule) for rule in policy["rules"]]
+    counters = {"pre-rule": 0, "rule": 0}
+    for kind, rule in sections:
+        index = counters[kind]
+        counters[kind] += 1
         joiner = "all" if "all" in rule else "any"
         parts = []
         for item in rule[joiner]:
             if isinstance(item, Mapping):
-                parts.append(("yes " if holds(item, values) else "no  ") + json.dumps(item))
+                parts.append(("yes " if holds(item, values, facts) else "no  ") + json.dumps(item))
             else:
                 operand = item[0]
-                parts.append(f"{'yes' if holds(item, values) else 'no '} {operand}={operand_value(operand, values)!r} "
+                parts.append(f"{'yes' if holds(item, values, facts) else 'no '} {operand}={shown(operand)} "
                              f"{item[1]} {' '.join(json.dumps(a) for a in item[2:])}")
-        lines.append(f"rule {index} -> {rule['then']} ({joiner}): {'MATCH' if rule_holds(rule, values) else 'no match'}")
+        matched = rule_holds(rule, values, facts)
+        lines.append(f"{kind} {index} -> {rule['then']} ({joiner}): {'MATCH' if matched else 'no match'}")
         lines.extend("    " + part for part in parts)
     lines.append(f"otherwise -> {policy['otherwise']}")
     return lines
@@ -278,6 +325,8 @@ def explain(policy: Mapping[str, Any], values: Mapping[str, Mapping[str, Any]]) 
 def _operand_problem(operand: Any, questions: Mapping[str, Any]) -> Optional[str]:
     if not isinstance(operand, str) or not operand:
         return f"operand {operand!r} is not a string"
+    if operand.startswith("fact."):
+        return None if _FACT.match(operand) else f"operand {operand!r}: a fact is fact.<lowercase_key>"
     name, _, field = operand.partition(".")
     question = questions.get(name)
     if not isinstance(question, Mapping):
@@ -302,7 +351,28 @@ def _operand_problem(operand: Any, questions: Mapping[str, Any]) -> Optional[str
     return None
 
 
-def _condition_problems(condition: Any, questions: Mapping[str, Any], where: str) -> List[str]:
+def _fact_problems(op: str, args: Sequence[Any], where: str) -> List[str]:
+    """A fact is the caller's own value, so any JSON scalar goes; only the shape is checked."""
+    if op == "between":
+        if len(args) != 2 or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in args):
+            return [f"{where}: between takes two numbers"]
+        return [] if float(args[0]) <= float(args[1]) else [f"{where}: between {args[0]} and {args[1]} is empty"]
+    if len(args) != 1:
+        return [f"{where}: {op} takes one value"]
+    value = args[0]
+    if op in ("in", "not_in"):
+        return [] if isinstance(value, list) else [f"{where}: {op} takes a list"]
+    if op in NUMERIC_OPS:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+            return [f"{where}: {value!r} is not a number"]
+        return []
+    if value is not None and not isinstance(value, (str, int, float, bool)):
+        return [f"{where}: {op} compares a fact with one plain value"]
+    return []
+
+
+def _condition_problems(condition: Any, questions: Mapping[str, Any], where: str,
+                        facts_only: bool = False) -> List[str]:
     if isinstance(condition, Mapping):
         keys = set(condition) & {"all", "any"}
         if len(keys) != 1 or set(condition) - keys:
@@ -310,15 +380,20 @@ def _condition_problems(condition: Any, questions: Mapping[str, Any], where: str
         items = condition[keys.pop()]
         if not isinstance(items, list) or not items:
             return [f"{where}: an empty all/any"]
-        return [p for i, item in enumerate(items) for p in _condition_problems(item, questions, f"{where}.{i}")]
+        return [p for i, item in enumerate(items)
+                for p in _condition_problems(item, questions, f"{where}.{i}", facts_only)]
     if not isinstance(condition, list) or len(condition) < 3:
         return [f"{where}: a condition is [operand, op, value...]"]
     operand, op, *args = condition
+    if facts_only and not (isinstance(operand, str) and operand.startswith("fact.")):
+        return [f"{where}: a pre-rule runs before Jev is asked, so it can only read fact.<key>, not {operand!r}"]
     problem = _operand_problem(operand, questions)
     if problem:
         return [f"{where}: {problem}"]
     if op not in OPS:
         return [f"{where}: unknown op {op!r}; use one of {', '.join(OPS)}"]
+    if operand.startswith("fact."):
+        return _fact_problems(op, args, where)
     name, _, field = operand.partition(".")
     kind = questions[name]["type"]
     categorical = kind == "choice" and field == "choice"
@@ -357,7 +432,8 @@ def _condition_problems(condition: Any, questions: Mapping[str, Any], where: str
     return []
 
 
-def _rule_problems(rule: Any, questions: Mapping[str, Any], where: str, needs_then: bool) -> List[str]:
+def _rule_problems(rule: Any, questions: Mapping[str, Any], where: str, needs_then: bool,
+                   facts_only: bool = False) -> List[str]:
     if not isinstance(rule, Mapping):
         return [f"{where}: a rule is an object"]
     joiners = [key for key in ("all", "any") if key in rule]
@@ -370,7 +446,7 @@ def _rule_problems(rule: Any, questions: Mapping[str, Any], where: str, needs_th
     if not isinstance(items, list) or not items:
         return problems + [f"{where}: an empty {joiners[0]}"]
     for index, item in enumerate(items):
-        problems += _condition_problems(item, questions, f"{where}.{joiners[0]}.{index}")
+        problems += _condition_problems(item, questions, f"{where}.{joiners[0]}.{index}", facts_only)
     return problems
 
 
@@ -406,6 +482,12 @@ def lint(policy: Mapping[str, Any]) -> List[str]:
     checkable = {q: v for q, v in questions.items() if isinstance(v, Mapping)}
     for index, rule in enumerate(rules):
         problems += _rule_problems(rule, checkable, f"rule {index}", True)
+    pre_rules = policy.get("pre_rules")
+    if pre_rules is not None and not isinstance(pre_rules, list):
+        problems.append("pre_rules must be a list")
+        pre_rules = []
+    for index, rule in enumerate(pre_rules or ()):
+        problems += _rule_problems(rule, checkable, f"pre-rule {index}", True, facts_only=True)
     for index, note in enumerate(policy.get("annotations") or ()):
         if not isinstance(note, Mapping) or not isinstance(note.get("add"), str):
             problems.append(f"annotation {index}: needs \"add\"")
@@ -423,9 +505,10 @@ def lint(policy: Mapping[str, Any]) -> List[str]:
             or not 0 <= band[0] < band[1] <= 1):
         problems.append("uncertain_band must be [low, high] with 0 <= low < high <= 1")
     produced = [rule.get("then") for rule in rules if isinstance(rule, Mapping)]
+    pre_produced = [rule.get("then") for rule in pre_rules or () if isinstance(rule, Mapping)]
     declared = policy.get("actions")
-    everything = set(filter(None, produced + [policy.get("otherwise"), policy.get("on_error"),
-                                                policy.get("on_drift")]))
+    everything = set(filter(None, produced + pre_produced + [policy.get("otherwise"), policy.get("on_error"),
+                                                             policy.get("on_drift")]))
     if declared is not None:
         if not isinstance(declared, list) or not all(isinstance(a, str) for a in declared):
             problems.append("actions must be a list of names")
@@ -471,8 +554,9 @@ def drifted(tuned_on: Optional[str], jev_model: Optional[str]) -> Optional[bool]
 
 def action_set(policy: Mapping[str, Any]) -> List[str]:
     out: List[str] = []
-    for action in [rule["then"] for rule in policy["rules"]] + [policy["otherwise"], policy["on_error"],
-                                                               policy.get("on_drift") or policy["on_error"]]:
+    for action in [rule["then"] for rule in policy.get("pre_rules") or ()] + \
+            [rule["then"] for rule in policy["rules"]] + [policy["otherwise"], policy["on_error"],
+                                                          policy.get("on_drift") or policy["on_error"]]:
         if action not in out:
             out.append(action)
     return out
@@ -490,5 +574,6 @@ def describe(names: Iterable[str] = ()) -> List[Dict[str, Any]]:
         out.append({"name": loaded["name"], "label": label(loaded), "feature": loaded.get("feature"),
                     "origin": loaded["_origin"], "questions": list(loaded["questions"]),
                     "actions": action_set(loaded), "tuned_on": loaded.get("tuned_on"),
+                    "pre_rules": len(loaded.get("pre_rules") or ()),
                     "runtime_choices": sorted(loaded.get("dynamic_choices") or {})})
     return out

@@ -80,11 +80,19 @@ def cmd_decide(args: argparse.Namespace) -> int:
         choices = _read_json(args.options, "--options") if args.options else None
         if choices is not None and not isinstance(choices, dict):
             raise ValueError('--options is {"question": {"option": "what it means", ...}}')
+        facts = _read_json(args.facts, "--facts") if args.facts else None
+        if facts is not None and not isinstance(facts, dict):
+            raise ValueError('--facts is {"key": value, ...}: values your own code computed')
         rules = policies.load(args.policy, choices=choices)
-        decision = engine.decide(state, rules, mode=args.mode, timeout=timeout)
+        decision = engine.decide(state, rules, mode=args.mode, timeout=timeout, facts=facts)
     except (ValueError, policies.PolicyError) as error:
         return _bad(str(error))
-    return _out(_brief(decision, args.explain, rules))
+    out = _brief(decision, False)
+    if args.explain and decision.get("source") == "code":
+        out["explain"] = policies.explain({**rules, "rules": []}, {}, facts)
+    elif args.explain and decision.get("answers"):
+        out["explain"] = policies.explain(rules, decision["answers"], facts)
+    return _out(out)
 
 
 def cmd_score(args: argparse.Namespace) -> int:
@@ -138,7 +146,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 raise ValueError("replay takes FILE.jsonl and --out FILE.jsonl")
             rows = _gate_rows(args.file)
             summary = batches.run(args.policy, rows, Path(args.out), yes=args.yes, workers=args.workers,
-                                  feature="gate", limit=args.limit)
+                                  feature="gate", limit=args.limit, code_first=not args.jev_only)
             if summary.get("status") == "needs_yes":
                 _out(summary)
                 return 3
@@ -174,7 +182,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
         choices = _read_json(args.options, "--options") if args.options else None
         summary = batches.run(args.policy, rows, Path(args.out), yes=args.yes, rescore=args.rescore,
                               workers=args.workers, timeout=_timeout(args.timeout), choices=choices,
-                              limit=args.limit)
+                              limit=args.limit, code_first=not args.jev_only)
     except (ValueError, policies.PolicyError, OSError) as error:
         return _bad(str(error))
     _out(summary)
@@ -189,7 +197,7 @@ def cmd_shadow(args: argparse.Namespace) -> int:
             promotion = policies.load(args.policy).get("promotion")
     except (OSError, ValueError, policies.PolicyError) as error:
         return _bad(str(error))
-    return _out(shadow.report(args.feature, rows, promotion))
+    return _out(shadow.report(args.feature, rows, promotion, by=args.by))
 
 
 def cmd_ledger(args: argparse.Namespace) -> int:
@@ -254,6 +262,7 @@ def add_parsers(sub: Any) -> None:
     p.add_argument("--question", action="append", help='ad-hoc yes/no question: name="..." (repeatable, up to 8)')
     p.add_argument("--state", help="JSON file with the state; - or omitted reads stdin")
     p.add_argument("--options", help='JSON {"question": {"option": "meaning"}} for a policy that takes options at run time')
+    p.add_argument("--facts", help="JSON file of values your code computed (read by pre_rules and fact.* operands; never sent)")
     p.add_argument("--mode", choices=list(engine.MODES), default="live",
                    help="shadow keeps the rule's answer even when the Jev version drifted")
     p.add_argument("--explain", action="store_true", help="show every rule, its readings and whether it matched")
@@ -296,6 +305,7 @@ def add_parsers(sub: Any) -> None:
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--limit", type=int, default=0)
     p.add_argument("--report", action="store_true", help="replay: score rows that carry an `expect` label")
+    p.add_argument("--jev-only", action="store_true", help="replay: skip the policy's pre-rules (measure Jev alone)")
     p.set_defaults(func=cmd_gate)
 
     p = sub.add_parser("batch", help="one policy over a JSONL of states (backtests); resumable, asks before paying")
@@ -304,6 +314,7 @@ def add_parsers(sub: Any) -> None:
     p.add_argument("--out", required=True)
     p.add_argument("--options", help="JSON run-time options for a policy that takes them")
     p.add_argument("--rescore", action="store_true", help="apply the policy to recorded answers; nothing is sent")
+    p.add_argument("--jev-only", action="store_true", help="skip the policy's pre-rules: measure Jev alone on every row")
     p.add_argument("--yes", action="store_true", help="run the paid calls after seeing the estimate")
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--limit", type=int, default=0)
@@ -315,6 +326,7 @@ def add_parsers(sub: Any) -> None:
     p.add_argument("--feature", required=True, choices=sorted(shadow.METRICS))
     p.add_argument("--rows", required=True, help="JSONL from `jev batch` (or joined shadow logs) with truth labels")
     p.add_argument("--policy", help="read the promotion criteria from this policy")
+    p.add_argument("--by", help="also break the report down by this row field (a cron job, a profile, ...)")
     p.set_defaults(func=cmd_shadow)
 
     p = sub.add_parser("ledger", help="what policy decisions cost: calls, latency, errors, dollars, per feature and day")

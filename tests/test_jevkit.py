@@ -220,6 +220,17 @@ class WireContractTests(unittest.TestCase):
         self.assertEqual(error.invariant, "score_matches_its_distribution")
         self.assertIn("2.0", str(error))
 
+    def test_two_decimal_rounding_is_not_a_contradiction(self):
+        """jev-1.13.0 prints probabilities to two decimals. On a 5-level rubric that alone can move
+        the recomputed mean by 0.05; 3.9% of 1,813 real policy calls were refused for 0.03-0.04 gaps."""
+        out = self.ask(self.score(0.68, {"0": 0.52, "1": 0.31, "2": 0.17}), {"q": self.RUBRIC})
+        self.assertAlmostEqual(out["answers"]["q"]["score"], 0.68)
+        self.assertGreater(client.score_mean_tolerance(5), 0.03)
+        self.assertLess(client.score_mean_tolerance(5), 0.1)
+        self.assertEqual(client.score_mean_tolerance(2), client.SCORE_MEAN_TOLERANCE)
+        # The band still refuses the incident it exists for, at every rubric size the API allows.
+        self.assertLess(max(client.score_mean_tolerance(n) for n in range(2, 11)), 0.73)
+
     def test_a_distribution_on_a_level_the_rubric_never_offered_is_refused(self):
         error = self.refusal(self.score(1.0, {"0": 0.5, "1": 0.5, "9": 0.0}), {"q": self.RUBRIC})
         self.assertEqual(error.invariant, "score_distribution_on_rubric")

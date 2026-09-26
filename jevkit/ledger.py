@@ -7,7 +7,8 @@ state, never a command, never a question's text.
 Row fields: ``ts``, ``profile``, ``feature``, ``mode``, ``policy`` (name@version#sha),
 ``jev_model``, ``provider``, ``n_questions``, ``input_tokens``, ``cost_usd`` (billed),
 ``list_usd`` (what the same tokens cost at list price, so a free tier still shows its size),
-``latency_ms``, ``status`` (ok / error / skipped), ``error``, ``action``, ``fallback_used``,
+``latency_ms``, ``status`` (ok / error / skipped / code), ``source`` (code / jev / fallback),
+``error``, ``action``, ``fallback_used``,
 ``shadow``, ``drift``, ``queue_dropped`` and ``llm_avoided_est`` — an *estimate*, labelled
 as one, of the frontier-model tokens a caller said this decision replaces.
 
@@ -29,7 +30,7 @@ USD_PER_INPUT_TOKEN = 0.042 / 1_000_000
 FREE_MODELS = ("jev-1.13-free",)
 FIELDS = ("ts", "profile", "feature", "mode", "policy", "jev_model", "provider", "n_questions",
           "input_tokens", "cost_usd", "list_usd", "latency_ms", "status", "error", "action",
-          "fallback_used", "shadow", "drift", "queue_dropped", "llm_avoided_est")
+          "fallback_used", "shadow", "drift", "queue_dropped", "llm_avoided_est", "source")
 
 
 def hermes_home() -> Path:
@@ -114,6 +115,7 @@ def summarize(rows: Iterable[Mapping[str, Any]], by_day: bool = True) -> Dict[st
         out.append({
             "feature": feature, "day": day, "calls": len(items), "sent": len(sent),
             "skipped": sum(1 for r in items if r.get("status") == "skipped"),
+            "decided_by_code": sum(1 for r in items if r.get("status") == "code"),
             "shadow": sum(1 for r in items if r.get("shadow")),
             "p50_ms": _percentile(latencies, 0.50), "p90_ms": _percentile(latencies, 0.90),
             "p99_ms": _percentile(latencies, 0.99),

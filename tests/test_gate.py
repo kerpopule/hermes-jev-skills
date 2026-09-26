@@ -2,8 +2,9 @@
 
 Offline and scripted: Jev's readings are made up per test, so these check our code — the
 state that is built, the text that is stripped, the verdict each mode turns a reading into —
-not Jev's judgement. Scoring Jev itself on real commands is a separate, opt-in eval run on
-the owner's own history (docs/gate.md), never a fixture in this repo.
+not Jev's judgement. Scoring Jev itself is a separate, opt-in, paid run: on the synthetic
+red-team set in evals/gate/fixtures.jsonl, or on the owner's own approval history
+(docs/shadow-to-live.md). A real command from a real machine is never a fixture in this repo.
 """
 from __future__ import annotations
 

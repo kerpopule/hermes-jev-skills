@@ -5,6 +5,10 @@ Engineering: How to Make AI Agent Loops 200x Faster in 10 Steps", 2026-09-19): o
 question returns a probability; several questions about one state go in one request; the
 surrounding code, not the model, turns the numbers into what happens next.
 
+Code goes first. A policy's ``pre_rules`` read only ``facts`` the caller computed; when one
+holds, the decision is ``source: "code"`` and no request is made. Every decision says where
+it came from — ``code``, ``jev`` or ``fallback`` — so a report can count the calls code saved.
+
 ``decide`` never raises for anything Jev or the network does. Every way it can fail — no key,
 a timeout, a malformed reply, a state that looks like it holds a secret, the daily budget
 spent — returns the policy's ``on_error`` action with ``fallback_used: true``, and that action
@@ -82,7 +86,17 @@ def _fallback(rules: Mapping[str, Any], *, error: str, mode: str, feature: str, 
             "fired_rules": [], "annotations": [], "unsure": [], "answers": {}, "jev_model": None,
             "drift": None, "latency_ms": None, "input_tokens": None, "cost_usd": 0.0, "list_usd": 0.0,
             "policy": started_label, "feature": feature, "mode": mode, "error": error, "status": status,
-            "fallback_used": True, "sent_to_jev": sent}
+            "fallback_used": True, "sent_to_jev": sent, "source": "fallback"}
+
+
+def _by_code(rules: Mapping[str, Any], pre: Mapping[str, Any], *, mode: str, feature: str,
+             started_label: str) -> Dict[str, Any]:
+    """A pre-rule decided from the caller's facts. Nothing was sent; the policy's rule is the answer."""
+    return {"action": pre["action"], "rule_action": pre["action"], "matched_rule": None,
+            "matched_pre_rule": pre["matched_pre_rule"], "fired_rules": [], "annotations": [], "unsure": [],
+            "answers": {}, "jev_model": None, "drift": None, "latency_ms": 0, "input_tokens": 0,
+            "cost_usd": 0.0, "list_usd": 0.0, "policy": started_label, "feature": feature, "mode": mode,
+            "error": None, "status": "code", "fallback_used": False, "sent_to_jev": False, "source": "code"}
 
 
 def decide(
@@ -101,8 +115,15 @@ def decide(
     use_limits: bool = True,
     llm_avoided_est: Optional[int] = None,
     queue_dropped: Optional[int] = None,
+    facts: Optional[Mapping[str, Any]] = None,
+    code_first: bool = True,
 ) -> Dict[str, Any]:
     """Run one policy against one state. Returns a decision dict; never raises for Jev's sake.
+
+    ``facts`` are values the caller's code computed (flags, counts, hours). The policy's
+    ``pre_rules`` and any ``fact.<key>`` operand read them; they are never sent to Jev (put a
+    value in ``state`` too if Jev should see it). ``code_first=False`` skips the pre-rules, for
+    a backtest that measures Jev alone.
 
     A bad *policy* is a caller bug and does raise ``PolicyError`` — silently falling back on a
     policy nobody can read would hide the bug behind the fail-open path.
@@ -124,6 +145,11 @@ def decide(
             ledger.append({**result, "n_questions": len(rules["questions"]), "shadow": shadow,
                            "provider": result.get("provider"), **row_extra})
         return result
+
+    if code_first:
+        pre = policies.pre_decide(rules, facts)
+        if pre is not None:
+            return finish(_by_code(rules, pre, mode=mode, feature=feature, started_label=label))
 
     raw_probe = state if isinstance(state, str) else json.dumps(
         {k: state[k] for k in (rules.get("state_fields") or state) if k in state}
@@ -157,7 +183,7 @@ def decide(
 
     band = rules.get("uncertain_band") or policies.DEFAULT_BAND
     values = policies.readings(rules["questions"], reply["answers"], band)
-    applied = policies.apply(rules, values)
+    applied = policies.apply(rules, values, facts)
     drift = policies.drifted(rules.get("tuned_on"), reply.get("jev_model"))
     action = applied["action"]
     fallback_used = False
@@ -174,20 +200,59 @@ def decide(
         "drift": drift, "latency_ms": reply.get("latency_ms"), "input_tokens": reply.get("input_tokens"),
         **spend, "policy": label, "feature": feature, "mode": mode, "error": "drift" if fallback_used else None,
         "status": "ok", "fallback_used": fallback_used, "sent_to_jev": True, "provider": reply.get("provider"),
-        "state_sha256": digest,
+        "state_sha256": digest, "source": "fallback" if fallback_used else "jev",
     }
     return finish(result)
 
 
+def _recorded_reading(question: Mapping[str, Any], answer: Any) -> Dict[str, Any]:
+    """A logged reading in any of the shapes a log keeps: ours (with ``kind``), or a bare one.
+
+    A bare noul is its probability; a bare choice or score is the reading without ``kind``
+    (a score may lack ``norm``, a choice ``margin``: both are worked out here).
+    """
+    kind = question["type"]
+    if isinstance(answer, bool):
+        raise ValueError("a recorded reading is a number or an object, not true/false")
+    if isinstance(answer, (int, float)):
+        if kind != "noul":
+            raise ValueError(f"a bare number is a noul's probability, but this question is a {kind}")
+        return {"kind": "noul", "p": float(answer)}
+    if not isinstance(answer, Mapping):
+        raise ValueError("a recorded reading is a number or an object")
+    reading = dict(answer)
+    reading.setdefault("kind", kind)
+    if reading["kind"] != kind:
+        raise ValueError(f"recorded a {reading['kind']} reading for a {kind} question")
+    if kind == "score" and "norm" not in reading:
+        levels = len(question.get("criteria") or ()) or 2
+        reading["norm"] = round(min(1.0, max(0.0, float(reading["score"]) / (levels - 1))), 6)
+    if kind == "choice" and "margin" not in reading:
+        reading["margin"] = policies.margin(reading.get("p") or {})
+    if kind != "noul":
+        reading.setdefault("p", {})
+    elif not isinstance(reading.get("p"), (int, float)) or isinstance(reading.get("p"), bool):
+        raise ValueError("a recorded noul reading needs its probability, p")
+    return reading
+
+
 def rescore(policy: Any, answers: Mapping[str, Any], *, choices: Optional[Mapping[str, Mapping[str, Any]]] = None,
-            jev_model: Optional[str] = None, mode: str = "live") -> Dict[str, Any]:
+            jev_model: Optional[str] = None, mode: str = "live", facts: Optional[Mapping[str, Any]] = None,
+            code_first: bool = True) -> Dict[str, Any]:
     """Apply a policy to answers already recorded — new thresholds on old readings, for free.
 
     ``answers`` may be raw validated answers (as ``client.ask`` returns them) or the reduced
-    readings a decision logged. Nothing is sent anywhere.
+    readings a decision logged (with or without ``kind``; a noul may be a bare probability).
+    A pre-rule that holds on ``facts`` decides without any answer. Nothing is sent anywhere.
     """
     rules = policies.load(policy, choices=choices) if not (isinstance(policy, Mapping) and policy.get("_sha")) \
         else dict(policy)
+    if code_first:
+        pre = policies.pre_decide(rules, facts)
+        if pre is not None:
+            return {"action": pre["action"], "rule_action": pre["action"], "matched_rule": None,
+                    "matched_pre_rule": pre["matched_pre_rule"], "fired_rules": [], "annotations": [],
+                    "unsure": [], "answers": {}, "drift": None, "policy": policies.label(rules), "source": "code"}
     band = rules.get("uncertain_band") or policies.DEFAULT_BAND
     low, high = band
     values: Dict[str, Dict[str, Any]] = {}
@@ -200,18 +265,19 @@ def rescore(policy: Any, answers: Mapping[str, Any], *, choices: Optional[Mappin
             checked = client._check_answer(name, client.check_question(name, question), dict(answer))
             values[name] = policies.readings({name: question}, {name: checked}, band)[name]
         else:
-            reading = dict(answer)
+            reading = _recorded_reading(question, answer)
             if reading.get("kind") == "noul":
                 reading["unsure"] = low <= float(reading["p"]) <= high
             values[name] = reading
-    applied = policies.apply(rules, values)
+    applied = policies.apply(rules, values, facts)
     drift = policies.drifted(rules.get("tuned_on"), jev_model)
     action = applied["action"]
     if drift and mode == "live":
         action = rules.get("on_drift") or rules["on_error"]
     return {"action": action, "rule_action": applied["action"], "matched_rule": applied["matched_rule"],
             "fired_rules": applied["fired_rules"], "annotations": applied["annotations"],
-            "unsure": applied["unsure"], "answers": values, "drift": drift, "policy": policies.label(rules)}
+            "unsure": applied["unsure"], "answers": values, "drift": drift, "policy": policies.label(rules),
+            "source": "jev"}
 
 
 def adhoc(state: Any, questions: Mapping[str, Any], *, timeout: float = 4.0,

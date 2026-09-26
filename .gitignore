@@ -8,5 +8,7 @@ credentials
 routing.json
 state.json
 *.jsonl
+# The one JSONL that ships: made-up commands, never a log from a real machine.
+!evals/gate/fixtures.jsonl
 .venv/
 dist/

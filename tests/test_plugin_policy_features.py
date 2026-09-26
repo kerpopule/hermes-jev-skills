@@ -64,6 +64,18 @@ class Registration(TempHome):
         for tool in ("jev_decide", "jev_score", "jev_route_to"):
             self.assertNotIn(tool, ctx.tools)
         self.assertIn("jev_memory_filter", ctx.tools)   # the existing tools are untouched
+        # ...and so are the seams the plugin already had: web screening, skill feedback, routing.
+        for hook in ("pre_llm_call", "transform_llm_output", "transform_tool_result", "post_tool_call"):
+            self.assertIn(hook, ctx.hooks)
+
+    def test_old_and_new_switches_share_one_command(self):
+        plugin = load_plugin()
+        self.assertIn("screen = on", plugin._jev_command("screen on"))
+        self.assertIn("gate = shadow", plugin._jev_command("gate shadow"))
+        status = plugin._jev_command("")
+        self.assertIn("screen: on", status)
+        self.assertIn("gate: shadow", status)
+        self.assertIn("/jev screen on|shadow|off", status)
 
     def test_switches_register_the_hooks_and_tools(self):
         plugin = load_plugin()

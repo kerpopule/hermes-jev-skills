@@ -4,15 +4,13 @@
   "tuned_on": "jev-1.13.0",
   "feature": "cron_wake",
   "code_first": {
-    "wake_without_jev": [
-      "monitor source failed",
-      "first run",
-      "hours since last wake >= max_quiet_hours (default 6)"
-    ],
-    "skip_without_jev": [
-      "collected output unchanged since last wake (plain monitor hash)"
-    ]
+    "wake_without_jev": "pre-rules: the monitor's own source failed (fact.source_failed), or this is the job's first run (fact.first_run). Waking is what happens today, so these can cost a wake but never miss one",
+    "max_quiet_hours": "the caller's valve, not a pre-rule: wake once after N quiet hours (default 6), then reset. A replay of history cannot model the reset, so as a pre-rule it would read as waking on every silent tick",
+    "skip_without_jev": "not a pre-rule: 'output unchanged since the last wake' held on 6 ticks of a 756-tick replay of real history, and all 6 were real reports"
   },
+  "pre_rules": [
+    {"then": "wake", "any": [["fact.source_failed", "==", true], ["fact.first_run", "==", true]]}
+  ],
   "state_fields": [
     "job",
     "purpose",

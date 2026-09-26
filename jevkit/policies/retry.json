@@ -4,10 +4,13 @@
   "tuned_on": "jev-1.13.0",
   "feature": "retry",
   "code_first": {
-    "respawn_guard": "rate limit / auth failures stay with the existing guard (fix its regex in code)",
-    "retry_more_budget": "error says 'Iteration budget exhausted'",
-    "hold": "same normalised error fingerprint twice in a row (also the baseline to beat)"
+    "respawn_guard": "pre-rule: a rate-limit or auth failure (fact.rate_limited_or_auth) goes to the existing respawn guard; Jev is not asked",
+    "retry_more_budget": "candidate, not a pre-rule yet: fact.budget_exhausted ('Iteration budget exhausted'). In a 635-retry replay of real history, 95 of 250 budget-exhausted runs finished on the next try, the same as the base rate, so the fact alone does not say more budget helps",
+    "hold": "not a pre-rule: holding whenever the same error came twice in a row was wrong on 67 of 135 holds in a 580-retry replay (the next run finished). It stays the baseline to beat"
   },
+  "pre_rules": [
+    {"then": "defer_to_respawn_guard", "any": [["fact.rate_limited_or_auth", "==", true]]}
+  ],
   "state_fields": [
     "outcome",
     "exit_kind",

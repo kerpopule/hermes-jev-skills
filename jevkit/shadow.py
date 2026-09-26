@@ -9,6 +9,14 @@ is not in the rows — never a silent pass).
 
 Rows are ``jev batch`` output (or joined shadow logs): ``{"id", "decision": {...}, "truth",
 "current", "baseline", ...}``. The truth vocabulary per feature is in ``TRUTH``.
+
+Beyond pass/fail, the report says how to tune: for the one probability each feature leans on
+(``PROBABILITY``) it gives the AUC (does the number separate the two outcomes at all?), a
+reliability table (when Jev says 0.8, how often is it so?) and a threshold sweep (what each
+cut-off would have flagged, and how often rightly). A threshold is then picked from the sweep
+and written into the policy *before* the next run — never fitted to the run it is judged on.
+``by`` breaks the same numbers down by any row field (a cron job, a profile), and ``sources``
+counts how many decisions code made without asking Jev.
 """
 from __future__ import annotations
 
@@ -24,6 +32,15 @@ TRUTH = {
     "blockcheck": "needed_owner | not_owner (how the block was really cleared)",
     "owner": "the profile that completed the card; creator = the creator's pick",
 }
+# The probability each feature leans on, and the truth label a high value should mean.
+PROBABILITY = {
+    "gate": ("risky", "deny"),
+    "cron_wake": ("worth_waking", "report"),
+    "retry": ("retry_helps", "completed"),
+    "blockcheck": ("needs_owner", "needed_owner"),
+}
+SWEEP = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+KEY_ERROR_IDS = 20
 
 
 def wilson(successes: int, n: int, z: float = Z95) -> Tuple[Optional[float], Optional[float]]:
@@ -48,6 +65,66 @@ def kappa(left: Sequence[Any], right: Sequence[Any]) -> Optional[float]:
     if expected >= 1.0:
         return None
     return round((observed - expected) / (1 - expected), 6)
+
+
+def auc(scores: Sequence[float], positive: Sequence[bool]) -> Optional[float]:
+    """How often a random positive scores above a random negative (ties count half).
+
+    0.5 is a coin: the probability carries no information about the outcome, and no threshold
+    on it can help. None when either class is empty.
+    """
+    pos = sum(1 for y in positive if y)
+    neg = len(positive) - pos
+    if not pos or not neg:
+        return None
+    ranked = sorted(zip(scores, positive), key=lambda pair: pair[0])
+    rank_sum, index = 0.0, 0
+    while index < len(ranked):
+        end = index
+        while end + 1 < len(ranked) and ranked[end + 1][0] == ranked[index][0]:
+            end += 1
+        mean_rank = (index + end) / 2 + 1
+        rank_sum += mean_rank * sum(1 for i in range(index, end + 1) if ranked[i][1])
+        index = end + 1
+    return round((rank_sum - pos * (pos + 1) / 2) / (pos * neg), 6)
+
+
+def probability_of(row: Mapping[str, Any], question: str) -> Optional[float]:
+    """A noul's p from a decision row: our readings ({"kind", "p"}) or a bare logged number."""
+    reading = ((row.get("decision") or {}).get("answers") or {}).get(question)
+    if isinstance(reading, Mapping):
+        reading = reading.get("p")
+    if isinstance(reading, bool) or not isinstance(reading, (int, float)):
+        return None
+    return float(reading)
+
+
+def calibration(rows: Sequence[Mapping[str, Any]], question: str, positive: str) -> Dict[str, Any]:
+    """AUC, a reliability table and a threshold sweep for one probability against the truth."""
+    pairs = [(p, r["truth"] == positive) for r in rows
+             for p in [probability_of(r, question)] if p is not None and r.get("truth") is not None]
+    out: Dict[str, Any] = {"question": question, "positive_truth": positive, "n": len(pairs),
+                           "auc": auc([p for p, _ in pairs], [y for _, y in pairs])}
+    if not pairs:
+        return out
+    bins = []
+    for low in (0.0, 0.2, 0.4, 0.6, 0.8):
+        inside = [y for p, y in pairs if low <= p < low + 0.2 or (low == 0.8 and p == 1.0)]
+        if inside:
+            hits = sum(inside)
+            bins.append({"p_from": low, "p_to": round(low + 0.2, 1), "n": len(inside),
+                         "positive_rate": _rate(hits, len(inside)), "low95": wilson(hits, len(inside))[0],
+                         "high95": wilson(hits, len(inside))[1]})
+    total_pos = sum(1 for _, y in pairs if y)
+    sweep = []
+    for cut in SWEEP:
+        flagged = [y for p, y in pairs if p >= cut]
+        hits = sum(flagged)
+        sweep.append({"p_at_least": cut, "flagged": len(flagged), "precision": _rate(hits, len(flagged)),
+                      "precision_low95": wilson(hits, len(flagged))[0], "recall": _rate(hits, total_pos),
+                      "positives_below": total_pos - hits})
+    out.update(reliability=bins, sweep=sweep)
+    return out
 
 
 def confusion(pairs: Iterable[Tuple[Any, Any]]) -> Dict[str, Dict[str, int]]:
@@ -176,7 +253,33 @@ def _verdict(key: str, measured: Any, wanted: Any) -> str:
     return "PASS" if float(measured) >= float(wanted) else "FAIL"
 
 
-def report(feature: str, rows: Sequence[Mapping[str, Any]], promotion: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+# Which rows make up each feature's key error, so a report can name them (ids only).
+KEY_ERROR_ROWS: Dict[str, Callable[[Mapping[str, Any]], bool]] = {
+    "gate": lambda r: _action(r) == "approve" and r.get("truth") == "deny",
+    "cron_wake": lambda r: r.get("truth") == "report" and _action(r) != "wake",
+    "retry": lambda r: r.get("truth") == "completed" and _action(r) == "hold_for_person",
+    "blockcheck": lambda r: r.get("truth") == "needed_owner" and _action(r) == "probably_not_owner",
+    "owner": lambda r: bool(r.get("truth")) and _action(r) == "suggest_owner" and (
+        ((r.get("decision") or {}).get("answers") or {}).get("owner") or {}).get("choice") != r.get("truth"),
+}
+
+
+def _groups(feature: str, rows: Sequence[Mapping[str, Any]], field: str) -> Dict[str, Any]:
+    buckets: Dict[str, List[Mapping[str, Any]]] = defaultdict(list)
+    for row in rows:
+        buckets[str(row.get(field))].append(row)
+    wrong = KEY_ERROR_ROWS.get(feature, lambda r: False)
+    out = {}
+    for name, items in sorted(buckets.items(), key=lambda kv: -len(kv[1])):
+        labelled = [r for r in items if r.get("truth") is not None]
+        out[name] = {"rows": len(items), "actions": dict(Counter(str(_action(r)) for r in items)),
+                     "truth": dict(Counter(str(r.get("truth")) for r in labelled)),
+                     "key_error": sum(1 for r in items if wrong(r))}
+    return out
+
+
+def report(feature: str, rows: Sequence[Mapping[str, Any]], promotion: Optional[Mapping[str, Any]] = None,
+           by: Optional[str] = None) -> Dict[str, Any]:
     rows = list(rows)
     decisions = [r.get("decision") or {} for r in rows]
     sent = [d for d in decisions if d.get("status") in ("ok", "error")]
@@ -192,6 +295,10 @@ def report(feature: str, rows: Sequence[Mapping[str, Any]], promotion: Optional[
     current_pairs = [(_action(r), r["current"]) for r in rows if r.get("current") is not None]
     out: Dict[str, Any] = {"feature": feature, "truth_means": TRUTH.get(feature), **{
         k: v for k, v in common.items() if k in ("rows", "actions")}}
+    out["sources"] = dict(Counter(str(d.get("source") or "unrecorded") for d in decisions))
+    asked = [d for d in decisions if d.get("source") == "jev" or (d.get("source") is None and d.get("status") == "ok")]
+    out["jev"] = {"asked": len(asked), "input_tokens": sum(int(d.get("input_tokens") or 0) for d in asked),
+                  "models": sorted({str(d.get("jev_model")) for d in asked if d.get("jev_model")})}
     if truth_pairs:
         out["vs_truth"] = {"confusion": confusion(truth_pairs),
                            "agreement": _rate(sum(1 for a, b in truth_pairs if a == b), len(truth_pairs)),
@@ -206,11 +313,17 @@ def report(feature: str, rows: Sequence[Mapping[str, Any]], promotion: Optional[
         extra = special(rows)
         if "_key_error" in extra:
             label, count = extra.pop("_key_error")
-            out["key_error"] = {"what": label, "count": count}
+            wrong = KEY_ERROR_ROWS.get(feature)
+            ids = [str(r.get("id")) for r in rows if wrong and wrong(r)]
+            out["key_error"] = {"what": label, "count": count, "ids": ids[:KEY_ERROR_IDS]}
         if "_friction" in extra:
             out["friction"] = extra.pop("_friction")
         measured.update(extra)
     out["measured"] = {k: v for k, v in measured.items() if k not in ("rows", "actions")}
+    if feature in PROBABILITY:
+        out["calibration"] = calibration(rows, *PROBABILITY[feature])
+    if by:
+        out["by"] = {"field": by, "groups": _groups(feature, rows, by)}
     if promotion:
         checks = []
         for key, wanted in promotion.items():

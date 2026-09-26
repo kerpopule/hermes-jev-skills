@@ -454,6 +454,19 @@ _RETRYABLE = {"rate_limited", "overloaded", "network", "http_500", "http_502", "
 PROBABILITY_SUM_TOLERANCE = 0.01 + 1e-12
 SCORE_MEAN_TOLERANCE = 0.02 + 1e-12
 ARGMAX_TOLERANCE = 1e-9
+# The API prints each level's probability to two decimals, so the expected value recomputed
+# from them carries up to 0.005 x (sum of the level indices) of rounding, and the score itself
+# up to another 0.005. Measured 2026-09-26 on jev-1.13.0 (1,813 policy calls on one fleet's
+# history): 70 replies (3.9%) were refused for gaps of 0.03-0.04 on 4- and 5-level rubrics, and
+# 23 of the 24 re-asked came back clean. The band grows with the rubric but stays far below the
+# incident the check exists for (a gap of 0.73), so rounding stops costing answers and a real
+# contradiction still does not pass.
+ROUNDING_STEP = 0.005
+
+
+def score_mean_tolerance(levels: int) -> float:
+    """How far a score may sit from the mean of its own two-decimal distribution."""
+    return max(SCORE_MEAN_TOLERANCE, ROUNDING_STEP * (sum(range(max(int(levels), 1))) + 1) + 1e-12)
 
 
 def _invalid(name: str, invariant: str, detail: str = "") -> JevError:
@@ -547,7 +560,7 @@ def _check_answer(name: str, question: Mapping[str, Any], answer: Any) -> Dict[s
         spread = {int(key): value for key, value in
                   _distribution(name, raw, sorted(keys, key=int), "score_distribution_mass").items()}
         mean = sum(level * probability for level, probability in spread.items())
-        if abs(mean - float(value)) > SCORE_MEAN_TOLERANCE:
+        if abs(mean - float(value)) > score_mean_tolerance(levels):
             # The incident this rule exists for: a flat 0.2-each spread that averaged to 2.73 was
             # filed at level 4 of 5 by rounding. A score that disagrees with its own distribution
             # is not a reading of the rubric, it is two readings, and neither can be acted on.

@@ -7,9 +7,12 @@ same redaction — and a live shadow later reads the same numbers.
 * **Input**: one JSON object per line: ``{"id": ..., "state": {...}}`` plus any label fields a
   report will need (``truth``, ``current``, ``baseline``, ``expect``, ...). Labels are copied
   to the output; the state is not (it is history, and it already lives in the input file).
+* **Facts**: a row's ``facts`` object is handed to the policy's ``pre_rules`` and ``fact.*``
+  operands, exactly as a live caller hands them in. A row a pre-rule decides is never sent;
+  ``--jev-only`` (``code_first=False``) skips the pre-rules to measure Jev alone.
 * **Rescore**: a row that already carries ``answers`` (a recorded reply, or the readings a
   decision logged) is scored locally with ``--rescore`` — new thresholds on old readings,
-  nothing sent, nothing paid.
+  nothing sent, nothing paid. A row a pre-rule decides needs no answers.
 * **Paid runs** print their estimate and wait for ``--yes``. A run resumes where it stopped:
   ids already in the output file are skipped.
 * ``retry-after`` is honoured (``patient=True``), and the fleet limiter applies.
@@ -26,7 +29,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional
 from . import client, decide as engine, ledger, policy as policies
 
 CHARS_PER_TOKEN = 3.5
-KEEP_FIELDS = ("action", "rule_action", "matched_rule", "fired_rules", "annotations", "unsure", "answers",
+KEEP_FIELDS = ("action", "rule_action", "matched_rule", "matched_pre_rule", "source", "fired_rules",
+               "annotations", "unsure", "answers",
                "jev_model", "drift", "latency_ms", "input_tokens", "cost_usd", "list_usd", "policy", "error",
                "status", "fallback_used", "state_sha256")
 
@@ -51,15 +55,21 @@ def read_rows(path: Path) -> List[Dict[str, Any]]:
     return rows
 
 
-def estimate(rows: Iterable[Mapping[str, Any]], policy: Mapping[str, Any]) -> Dict[str, Any]:
-    """A rough upper estimate: characters of prepared state plus questions, at ~3.5 per token."""
+def estimate(rows: Iterable[Mapping[str, Any]], policy: Mapping[str, Any], code_first: bool = True) -> Dict[str, Any]:
+    """A rough upper estimate: characters of prepared state plus questions, at ~3.5 per token.
+
+    Rows a pre-rule decides from their facts cost nothing and are counted apart.
+    """
     questions = len(json.dumps(policy["questions"]))
-    count = tokens = 0
+    count = tokens = by_code = 0
     for row in rows:
         count += 1
+        if code_first and policies.pre_decide(policy, row.get("facts")) is not None:
+            by_code += 1
+            continue
         prepared = engine.prepare_state(row.get("state"), policy)
         tokens += int((len(json.dumps(prepared, default=str)) + questions) / CHARS_PER_TOKEN) + 60
-    return {"rows": count, "est_input_tokens": tokens,
+    return {"rows": count, "decided_by_code": by_code, "est_input_tokens": tokens,
             "est_usd": round(tokens * ledger.USD_PER_INPUT_TOKEN, 4)}
 
 
@@ -81,7 +91,7 @@ def run(policy: Any, rows: List[Mapping[str, Any]], out_path: Path, *, yes: bool
         rescore: bool = False, workers: int = 4, timeout: float = 10.0,
         transport: Optional[client.Transport] = None,
         choices: Optional[Mapping[str, Mapping[str, Any]]] = None, feature: Optional[str] = None,
-        limit: int = 0) -> Dict[str, Any]:
+        limit: int = 0, code_first: bool = True) -> Dict[str, Any]:
     """Decide every row not already in ``out_path``. Returns a summary; writes one line per row."""
     rules = policies.load(policy, choices=choices)
     done = _done_ids(out_path)
@@ -89,15 +99,16 @@ def run(policy: Any, rows: List[Mapping[str, Any]], out_path: Path, *, yes: bool
     if limit:
         todo = todo[:limit]
     summary: Dict[str, Any] = {"policy": policies.label(rules), "rows": len(rows), "already_done": len(done),
-                               "to_run": len(todo), "out": str(out_path)}
+                               "to_run": len(todo), "out": str(out_path), "code_first": code_first}
     if rescore:
-        missing = [str(row["id"]) for row in todo if not isinstance(row.get("answers"), Mapping)]
+        missing = [str(row["id"]) for row in todo if not isinstance(row.get("answers"), Mapping)
+                   and not (code_first and policies.pre_decide(rules, row.get("facts")) is not None)]
         if missing:
             raise ValueError(f"--rescore needs recorded answers on every row; {len(missing)} have none "
                              f"(first: {missing[0]})")
     else:
-        summary["estimate"] = estimate(todo, rules)
-        if not yes and transport is None and todo:
+        summary["estimate"] = estimate(todo, rules, code_first=code_first)
+        if not yes and transport is None and summary["estimate"]["decided_by_code"] < len(todo):
             summary["status"] = "needs_yes"
             return summary
 
@@ -110,11 +121,13 @@ def run(policy: Any, rows: List[Mapping[str, Any]], out_path: Path, *, yes: bool
     def one(row: Mapping[str, Any]) -> None:
         nonlocal errors
         if rescore:
-            decision = engine.rescore(rules, row["answers"], jev_model=row.get("jev_model"), mode="shadow")
+            decision = engine.rescore(rules, row.get("answers") or {}, jev_model=row.get("jev_model"), mode="shadow",
+                                      facts=row.get("facts"), code_first=code_first)
             decision.setdefault("status", "rescored")
         else:
             decision = engine.decide(row.get("state"), rules, mode="shadow", feature=feature, timeout=timeout,
-                                     transport=transport, patient=True, retries=4)
+                                     transport=transport, patient=True, retries=4, facts=row.get("facts"),
+                                     code_first=code_first)
         kept = {key: decision.get(key) for key in KEEP_FIELDS if key in decision}
         labels = {key: value for key, value in row.items() if key not in ("state", "answers")}
         line = json.dumps({**labels, "decision": kept}, separators=(",", ":"), default=str) + "\n"
