@@ -26,6 +26,20 @@ With `/jev routing on` as well, the stage-1 questions travel in routing's reques
 
 The suggestion is then checked against Hermes's own loader before it is made: a name that `skill_view` cannot open in this session is never offered, and the name offered is the one the loader answers to. So you will not be sent to a procedure you do not have — which matters on a profile whose catalog is smaller than the one Jev was ranking, and on a machine where a skill was never installed. Unverifiable means silent, because a suggestion is never worth a call that fails.
 
+Two more rules keep suggestions worth reading:
+
+- A skill the session has already loaded is not suggested again.
+- A skill the agent keeps declining stops being offered on that profile. It is suppressed when it was loaded after fewer than 1 in 10 of its last 5 or more suggestions, within 14 days. It is still offered once every 6 hours, so a skill that became useful can come back.
+
+The plugin records each suggestion when it makes it. The profile's `jev/skill-feedback.json` holds only skill names, times and whether the agent loaded the skill. Set `"skill_feedback": "off"` in `jev/state.json` to switch the second rule off.
+
+Measured by replaying one real week (1,188 suggestions):
+
+- **Before:** 403 were loaded within five minutes (34%).
+- **With both rules:** 771 suggestions and 395 loads (51%).
+
+That is 115 repeats and 294 declined offers removed, at the cost of 8 loads. A load within five minutes is correlation, not proof the suggestion caused it.
+
 ## Asking directly (any agent)
 
 ```bash
