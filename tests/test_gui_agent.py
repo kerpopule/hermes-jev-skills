@@ -761,14 +761,16 @@ class CredentialIsolationTests(unittest.TestCase):
         from jevkit import client, keystore
 
         keys = {"typesafe": "synthetic-ts", "openrouter": "synthetic-or",
-                "venice": "synthetic-vn", "none": None}
+                "venice": "synthetic-vn", "zen": "synthetic-zn", "none": None}
         for selected, key in keys.items():
             with self.subTest(selected=selected):
-                env = {name: "" for name in ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY",
-                                            "VENICE_API_KEY", "TYPESAFE_BASE_URL")}
+                # Every provider the key store knows is blanked, and the explicit pick with
+                # them: a machine with an OpenCode Zen key or JEV_PROVIDER in its environment
+                # failed the "none" case, because Zen resolved and the runner went ahead.
+                env = {name: "" for name in list(keystore._ENV.values()) +
+                       ["TYPESAFE_BASE_URL", keystore.PROVIDER_OVERRIDE_ENV]}
                 if key:
-                    env[{"typesafe": "TYPESAFE_API_KEY", "openrouter": "OPENROUTER_API_KEY",
-                         "venice": "VENICE_API_KEY"}[selected]] = key
+                    env[keystore._ENV[selected]] = key
                 calls = []
 
                 def fake_transport(destination):
@@ -785,6 +787,7 @@ class CredentialIsolationTests(unittest.TestCase):
                      mock.patch.object(client, "_http_transport", fake_transport("api.typesafe.ai")), \
                      mock.patch.object(client, "_openrouter_transport", fake_transport("openrouter.ai")), \
                      mock.patch.object(client, "_venice_transport", fake_transport("api.venice.ai")), \
+                     mock.patch.object(client, "_zen_transport", fake_transport("opencode.ai")), \
                      contextlib.redirect_stdout(io.StringIO()) as output:
                     code = gui.main(["--pid", "30", "--window-id", "33", "--goal", "Open Storage",
                                      "--max-steps", "1"])
@@ -796,7 +799,8 @@ class CredentialIsolationTests(unittest.TestCase):
                 else:
                     self.assertEqual(calls, [({"typesafe": "api.typesafe.ai",
                                                "openrouter": "openrouter.ai",
-                                               "venice": "api.venice.ai"}[selected], f"Bearer {key}")])
+                                               "venice": "api.venice.ai",
+                                               "zen": "opencode.ai"}[selected], f"Bearer {key}")])
 
 
 class MainTests(unittest.TestCase):

@@ -386,9 +386,12 @@ class PluginCase(unittest.TestCase):
                                            "JEV_LADDER_STATE": str(self.home / "ladder.json")})
         env.start()
         self.addCleanup(env.stop)
-        # Where Hermes is importable these would read the machine's real config.yaml.
+        # Where Hermes is importable these would read the machine's real config.yaml, and
+        # Hermes's own skill roots would win over the jevkit helper these tests exercise
+        # (run under the Hermes venv, three root tests saw the machine's folders instead).
         for patch in (mock.patch.object(plugin, "_default_model", lambda: DEFAULT),
-                      mock.patch.object(plugin, "_hermes_config", lambda: {})):
+                      mock.patch.object(plugin, "_hermes_config", lambda: {}),
+                      mock.patch.object(plugin, "_hermes_skill_roots", lambda: [])):
             patch.start()
             self.addCleanup(patch.stop)
         self.addCleanup(plugin._TURNS.clear)
