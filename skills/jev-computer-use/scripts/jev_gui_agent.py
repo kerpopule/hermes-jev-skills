@@ -344,6 +344,19 @@ def element_rows(state: dict, max_regions: int, tokens: list[str] | None = None)
     # view - it has no frame - and that is exactly the row you most need to know about.
     by_index = {el.get("element_index"): el for el in state.get("elements", [])}
 
+    def _in_system_menu(el: dict) -> bool:
+        # A chrome-only app has no content controls, but its global macOS menu
+        # still appears in the same AX snapshot. Those labels are not app-page
+        # actions, and some (Quit, Restart) are unsafe to offer as navigation.
+        node = el
+        for _ in range(12):
+            if node.get("role") == "AXMenuBar":
+                return True
+            node = by_index.get(node.get("parent_index"))
+            if node is None:
+                break
+        return False
+
     def _row_of(el: dict) -> dict | None:
         """The enclosing row, preferring AXRow over AXCell.
 
@@ -364,6 +377,8 @@ def element_rows(state: dict, max_regions: int, tokens: list[str] | None = None)
         return cell
 
     for el in state.get("elements", []):
+        if _in_system_menu(el):
+            continue
         label = (el.get("label") or "").strip()
         if not label:
             continue

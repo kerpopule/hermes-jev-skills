@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- GUI runner: exclude the global macOS menu and its descendants from app-navigation candidates. A chrome-only Epic Games Launcher AX snapshot previously offered `Epic Games Launcher` as a clickable menu item; Jev chose it with 0.91 confidence and Cua Driver refused it as outside the target window. The runner now stops without acting. Regression tests cover the actual window/menu ancestry shape. This does not resolve Cua Driver pixel clicks that reach the right Epic sidebar location but leave the page unchanged; those remain unverified and must not be reported as navigation.
+
 - **`scripts/triage_github.py` screens each item's own text before anything reads it.** An agent reads this report, and a PR is an easy place to hide text aimed at it. The title, body, reviews and comments (except the repo owner's own) of every open PR and issue now go through `webscreen.screen`. Beside the injection question it asks one worded for a repository (`repo_action_question`): does the text try to get an AI agent or bot to merge, push, release, change access, add keys, run a command, weaken tests or checks, or report the change as already reviewed or safe. An item that trips either question is marked `hostile_text`, its first need says so, and the rendered report marks it HOSTILE TEXT. Measured on this repo's 24 real PRs and issues, each also screened with one of 10 written attacks planted in its body:
   - the local patterns alone caught 5 of 24;
   - the injection question alone caught 10;

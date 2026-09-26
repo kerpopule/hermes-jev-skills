@@ -59,7 +59,9 @@ This is a **conceptual adaptation** of the fresh-observation/unchanged-state loo
 tracked license at that commit, so no code was copied. Its sped-up demo preview is
 not evidence of runtime speed, and its no-confirmation queue does not supersede the
 approval rules below. Our runner retains cua-driver, closed candidate ids, and
-independent goal verification; it does not use raw coordinate or AppleScript input.
+independent goal verification. The bundled AX runner does not issue raw coordinate input;
+a grounded manual Jev + Cua Driver pixel loop remains available for AX-invisible content.
+Neither path uses AppleScript input.
 
 ## Authority
 
@@ -92,8 +94,18 @@ table stays inside the 32-candidate contract once `reobserve` and `abstain` are 
 If the driver binary is missing or does not speak MCP, the runner prints one `FAIL:` line and
 exits 2. Set `CUA_DRIVER_BIN` or install the driver; do not retry the same command.
 
+If the AX snapshot contains only window chrome and the macOS menu bar (as Epic Games
+Launcher can), the runner now stops with `no interactive elements observed` rather than
+asking Jev to click a global menu item. This is a *safe stop*, not proof that the app
+has no visible controls. A grounded manual Jev + Cua Driver pixel loop may be used for
+custom-drawn content: derive coordinates from the current screenshot's actual pixel
+geometry, not `screenshot_scale`; choose only safe actions, then independently read
+back the page. Cua Driver's `effect: unverifiable` means it posted input, not that the
+app responded. If grounded clicks still do not change the page, stop rather than
+retrying an inert action or claiming a driver fix.
+
 If you cannot run it, fall back to the loop above by hand — but do **not** fall back to
-AppleScript UI scripting, `xdotool` or coordinate clicking. Stop and say what is missing.
+AppleScript UI scripting, `xdotool` or another GUI driver. Stop and say what is missing.
 
 ### `--plan`: a multi-step command in one run
 

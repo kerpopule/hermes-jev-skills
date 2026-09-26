@@ -79,6 +79,35 @@ class CandidateBudgetTests(unittest.TestCase):
         self.assertIn("reobserve", ids)
         self.assertIn("abstain", ids)
 
+class ChromeOnlyWindowTests(unittest.TestCase):
+    """A Chromium app may expose only window controls and the global macOS menu."""
+
+    STATE = {"elements": [
+        {"element_index": 0, "role": "AXWindow", "label": "Epic Games Launcher",
+         "frame": {"x": 167, "y": 124, "w": 1344, "h": 868}},
+        {"element_index": 1, "role": "AXMenuBar"},
+        {"element_index": 2, "parent_index": 1, "role": "AXMenuBarItem",
+         "label": "Epic Games Launcher", "element_token": "menu",
+         "frame": {"x": 44, "y": 0, "w": 159, "h": 33}},
+        {"element_index": 3, "parent_index": 2, "role": "AXMenu"},
+        {"element_index": 4, "parent_index": 3, "role": "AXMenuItem",
+         "label": "Quit EpicGamesLauncher", "element_token": "quit",
+         "frame": {"x": 44, "y": 33, "w": 159, "h": 33}},
+    ], "window_title": "Epic Games Launcher"}
+
+    def test_macos_menu_descendants_are_not_app_navigation_candidates(self):
+        self.assertEqual(gui.element_rows(self.STATE, 26, ["epic", "library"]), [])
+
+    def test_chrome_only_window_stops_before_jev_or_driver_action(self):
+        with mock.patch.object(gui, "observe", return_value=self.STATE), \
+                mock.patch.object(gui, "jev_choose") as choose:
+            driver = mock.Mock()
+            out = gui.run_goal(driver, 1, 2, "", "Open Epic Library", expect="Library",
+                               values=[], regions_cap=26, budget=1)
+        self.assertEqual(out["ended"], "nothing_observed")
+        choose.assert_not_called()
+        driver.tool.assert_not_called()
+
 class LoopProgressTests(unittest.TestCase):
     """Repeated ineffective actions must not burn the entire model-call budget."""
 
