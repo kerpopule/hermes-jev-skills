@@ -14,6 +14,8 @@ Arms:
   lanes  `jev lane classify` picks the first lane; after each attempt the deterministic check
          decides (loop-step pre-rules), escalating one lane at a time, at most --max-steps runs.
   top    every task on the top lane (Opus, high effort), one attempt, the usual default.
+  floor  every task starts in the small lane (Haiku, low) and escalates on the same evidence as
+         `lanes`: tests how far the lowest lane gets, and what escalation costs when it does not.
 
 `claude -p` runs in a throwaway worktree with edits allowed and shell limited to python3 and git
 read commands. Each run is capped by --budget-usd. Costs are Claude Code's own reported numbers.
@@ -158,6 +160,9 @@ def cmd_run(args: argparse.Namespace) -> int:
             if args.arm == "top":
                 lane = "escalate"
                 record["classified"] = None
+            elif args.arm == "floor":
+                lane = "small"
+                record["classified"] = "small"
             else:
                 first = lanes.classify(task["message"], record=False)
                 lane = first["lane"] if first["lane"] in lanes.LANES else "high"
@@ -172,12 +177,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                          "out_of_scope_files": 1 if tests_edited else 0, "diff_empty": False, "expects_changes": True,
                          "security_changed": False}
                 decision = lanes.step(task["message"], lane=lane, attempts=attempt, facts=facts,
-                                      state={"checks": result["tail"]}, record=False) if args.arm == "lanes" else None
+                                      state={"checks": result["tail"]}, record=False) if args.arm != "top" else None
                 steps.append({**run, "lane": lane, "passed": result["passed"], "tests_edited": tests_edited,
                               "decision": decision and {k: decision[k] for k in ("action", "lane", "source")}})
                 if result["passed"] and not tests_edited:
                     break
-                if args.arm != "lanes":
+                if args.arm == "top":
                     break
                 if decision["action"] == "escalate":
                     if decision["lane"] not in lanes.LANES:
@@ -217,15 +222,16 @@ def cmd_report(args: argparse.Namespace) -> int:
                     "final_lane": dict(sorted({r["final_lane"]: sum(1 for x in rows if x["final_lane"] == r["final_lane"]) for r in rows}.items())),
                     "escalated": sum(1 for r in rows if r["attempts"] > 1)}
     both = set.intersection(*[{r["id"] for r in rows} for rows in arms.values()]) if len(arms) > 1 else set()
-    if both and {"lanes", "top"} <= set(arms):
-        lanes_rows = {r["id"]: r for r in arms["lanes"]}
+    if both and "top" in arms:
         top_rows = {r["id"]: r for r in arms["top"]}
-        paired_l = sum(lanes_rows[i]["cost_usd"] for i in both)
         paired_t = sum(top_rows[i]["cost_usd"] for i in both)
-        out["paired"] = {"tasks": len(both), "lanes_passed": sum(lanes_rows[i]["passed"] for i in both),
-                         "top_passed": sum(top_rows[i]["passed"] for i in both),
-                         "lanes_cost_usd": round(paired_l, 3), "top_cost_usd": round(paired_t, 3),
-                         "lanes_vs_top_cost": round(paired_l / paired_t - 1, 3) if paired_t else None}
+        for arm in sorted(set(arms) - {"top"}):
+            rows = {r["id"]: r for r in arms[arm]}
+            paired = sum(rows[i]["cost_usd"] for i in both)
+            out[f"paired_{arm}_vs_top"] = {
+                "tasks": len(both), f"{arm}_passed": sum(rows[i]["passed"] for i in both),
+                "top_passed": sum(top_rows[i]["passed"] for i in both), f"{arm}_cost_usd": round(paired, 3),
+                "top_cost_usd": round(paired_t, 3), "cost_change": round(paired / paired_t - 1, 3) if paired_t else None}
     print(json.dumps(out, indent=2))
     return 0
 
@@ -244,7 +250,7 @@ def main() -> int:
     p = sub.add_parser("run")
     p.add_argument("--repo", default=".")
     p.add_argument("--tasks", required=True)
-    p.add_argument("--arm", choices=["lanes", "top"], required=True)
+    p.add_argument("--arm", choices=["lanes", "top", "floor"], required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--budget-usd", type=float, default=3.0)
     p.add_argument("--max-steps", type=int, default=3)
