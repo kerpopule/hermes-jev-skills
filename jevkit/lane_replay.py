@@ -431,13 +431,16 @@ def build_claude_rows(projects: Any, *, body_chars: int = 3_000) -> List[Dict[st
 def claude_report(rows: Sequence[Mapping[str, Any]], *, top: str = "escalate") -> Dict[str, Any]:
     """Cost by lane at each lane's model against running every task on the top lane's model.
 
+    ``lanes_vs_always_top`` prices ``keep_current`` runs on the top model too, so the two sides
+    differ only in the lanes Jev chose; ``lanes_vs_as_ran`` keeps them at what they ran on.
+
     Token counts are held equal across models, which flatters nothing: a smaller model that
     needs more turns would cost more than shown, so parity must come from a controlled replay.
     """
     mapped = lanes.targets("claude-code")
     top_model = mapped[top]["model"]
     out: Dict[str, Any] = {"runs": len(rows), "lanes": {}, "lane_map": mapped}
-    total_ran = total_lanes = total_top = 0.0
+    total_ran = total_lanes = total_top = total_keep_top = 0.0
     for lane in lanes.LANES + ("keep_current",):
         members = [r for r in rows if (r.get("decision") or {}).get("action") == lane]
         if not members:
@@ -451,12 +454,14 @@ def claude_report(rows: Sequence[Mapping[str, Any]], *, top: str = "escalate") -
         at_lane = sum(priced(r, target) if target else float(r.get("cost_usd") or 0) for r in members)
         at_top = sum(priced(r, top_model) for r in members)
         total_ran, total_lanes, total_top = total_ran + ran, total_lanes + at_lane, total_top + at_top
+        total_keep_top += at_top if lane == "keep_current" else at_lane
         out["lanes"][lane] = {"runs": len(members), "share": round(len(members) / len(rows), 3),
                               "cost_as_ran": round(ran, 2), "cost_at_lane_model": round(at_lane, 2),
                               "cost_always_top": round(at_top, 2), "models_ran": _count(r.get("model") for r in members),
                               "tokens": sum(int(r.get("tokens") or 0) + int(r.get("cache_read_tokens") or 0) for r in members)}
     out["totals"] = {"cost_as_ran": round(total_ran, 2), "cost_lanes": round(total_lanes, 2),
                      "cost_always_top": round(total_top, 2),
-                     "lanes_vs_always_top": round(total_lanes / total_top - 1, 3) if total_top else None,
+                     "cost_lanes_keep_current_on_top": round(total_keep_top, 2),
+                     "lanes_vs_always_top": round(total_keep_top / total_top - 1, 3) if total_top else None,
                      "lanes_vs_as_ran": round(total_lanes / total_ran - 1, 3) if total_ran else None}
     return out

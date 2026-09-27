@@ -1,7 +1,7 @@
 ---
 name: jev-model-routing
-description: Use to pick the cheapest model that is good enough for a turn — choosing a model, delegating a sub-task to a sub-agent, cutting model spend, or setting up and tuning Jev routing pools.
-version: 0.1.0
+description: Use to pick the cheapest good-enough model or effort for a turn or a delegated task (lanes small to escalate), to decide continue/retry/verify/escalate/complete after each cycle, or to tune routing.
+version: 0.2.0
 license: MIT
 metadata:
   hermes:
@@ -37,6 +37,35 @@ jev route --prompt "<the task, in the person's words>" --current "<provider:mode
 ```
 
 Use `model_id` from the reply. `routed: false` means stay where you are; `reason` says why. Relay `notice` if the person likes to see routing.
+
+## Lanes: delegating a task, and every step after it
+
+For work you hand to a sub-agent or worker, finish with the smallest model and lowest effort that still gets it right. Jev decides; it never writes code, patches or designs.
+
+```bash
+jev lane classify --task "<the work, in the person's words>"        # first lane + model/effort
+jev lane step --task "..." --lane <lane> --attempt <n> \
+    --run "<test cmd>" --run "<lint/typecheck cmd>" --scope "<path glob>"   # after each cycle
+```
+
+| Lane | Claude Code (subagent) | Hermes Kanban card (default map) |
+|---|---|---|
+| `small` | `jev-lane-small`: Haiku, low | `gpt-5.6-luna`, medium |
+| `medium` | `jev-lane-medium`: Sonnet, medium | `gpt-6-sol`, medium (today's default) |
+| `high` | `jev-lane-high`: Opus, medium | `gpt-6-sol`, medium |
+| `escalate` | `jev-lane-escalate`: Opus, high | `gpt-6-astra`, high |
+
+`jev lane targets --host hermes` shows the map in force; `<hermes root>/jev/lanes.json` (or `~/.config/jev/lanes.json`) overrides any field. The Hermes map was calibrated on one fleet's own history (see `docs/lanes.md`); re-measure yours with `jev lane replay-build` / `replay-report`.
+
+- **One request, all questions.** `classify` asks the lane (with an `other` escape: work a person should see first), security sensitivity and underspecification together. Code applies the thresholds: a `small` pick needs 0.7 confidence; a `medium` pick below 0.5 goes to `high`; security ≥ 0.7 is at least `high`. `keep_current` means keep the model you had (do it yourself, or ask).
+- **Code first.** A model the person named, two failed attempts, or your own security-path check decide without asking Jev.
+- **Deterministic checks first.** `step` runs the tests, compiler, type checker and linter you name and reads `git diff`. A failing check is `retry` (and `escalate` once the same lane failed twice); files outside `--scope` are `retry`; unrun checks are `verify`; security files changed on small/medium are `escalate`. Jev is asked only what is left: is it implemented, is it in scope, what next.
+- **Escalate one lane at a time, on evidence only.** `escalate` from the top lane returns `person`.
+- **Complete is earned.** `complete` is refused (becomes `verify`, with `complete_refused`) unless the checks ran and passed and the diff stayed in scope. Say when a check failed; never hide it.
+- Only the tail of each long check output goes to Jev. Never compact or filter the agent's own reasoning.
+- Jev down: `classify` keeps the current model, `step` says `verify`.
+
+On Hermes, `jev lane shadow` (from cron) classifies new Kanban cards and logs what it would choose; `/jev lanes shadow|on|off` is the switch and `<hermes root>/jev/LANES_OFF` wins. `on` sets the card's model and effort before dispatch; turn it on only after `jev lane shadow-report` shows fewer tokens at the same first-try success, and with the owner's yes.
 
 ## The pools
 

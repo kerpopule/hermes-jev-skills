@@ -166,7 +166,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
             raise ValueError("give --command TEXT or --args FILE (the tool's arguments as JSON)")
         decision = gate.check(args.tool, command=command, args=tool_args, flagged_as=args.flagged_as,
                               pattern_keys=args.pattern_key or (), workdir=args.workdir, policy=args.policy,
-                              timeout=timeout, mode="shadow" if args.dry_run else "live")
+                              timeout=timeout, mode="shadow" if args.dry_run else "live", task=args.task)
     except (ValueError, policies.PolicyError) as error:
         return _bad(str(error))
     decision["would_return"] = {mode: gate.hook_result(decision, mode) for mode in ("shadow", "ask", "block")}
@@ -297,6 +297,7 @@ def add_parsers(sub: Any) -> None:
     p.add_argument("--flagged-as", help="what the host's pattern list called it, if anything")
     p.add_argument("--pattern-key", action="append", help="a host pattern key (repeatable)")
     p.add_argument("--workdir", help="the folder it would run in; its kind is worked out locally")
+    p.add_argument("--task", help="the work the agent was given: adds the fits-the-task and external-write checks")
     p.add_argument("--policy", default=gate.DEFAULT_POLICY)
     p.add_argument("--dry-run", action="store_true", help="shadow mode: log it, change nothing")
     p.add_argument("--timeout", type=float, default=1.5)

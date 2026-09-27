@@ -253,5 +253,130 @@ class ClaudeInstall(unittest.TestCase):
         self.assertFalse((self.claude / "CLAUDE.md").exists())
 
 
+class HermesShadow(TempHome):
+    """The Kanban tick: off does nothing, shadow logs and changes nothing, on applies once."""
+
+    def make_board(self, cards):
+        import sqlite3
+        db = self.home / "kanban.db"
+        con = sqlite3.connect(db)
+        con.execute("CREATE TABLE tasks (id TEXT, title TEXT, body TEXT, status TEXT, assignee TEXT, "
+                    "created_at INTEGER, model_override TEXT, reasoning_effort TEXT)")
+        con.executemany("INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?)", cards)
+        con.commit()
+        con.close()
+        return db
+
+    def set_mode(self, mode):
+        (self.home / "jev").mkdir(exist_ok=True)
+        (self.home / "jev" / "state.json").write_text(json.dumps({"lanes": mode}))
+
+    def test_off_shadow_and_on(self):
+        from jevkit import lane_shadow
+        now = 2_000_000_000
+        db = self.make_board([
+            ("t_a", "Fix typo in README", "", "todo", "qa", now - 60, None, None),
+            ("t_b", "Pinned card", "", "todo", "qa", now - 50, "gpt-6-astra", None),
+            ("t_c", "Old card", "", "todo", "qa", now - 99_999, None, None),
+        ])
+        fake = Scripted({"lane": "small", "security_sensitive": 0.05, "underspecified": 0.1})
+        applied = []
+        self.assertEqual(lane_shadow.tick(kanban_db=db, now=now, transport=fake,
+                                          apply=lambda i, t: applied.append(i) or True)["mode"], "off")
+        self.assertEqual(fake.requests, [])
+        self.set_mode("shadow")
+        out = lane_shadow.tick(kanban_db=db, now=now, transport=fake, apply=lambda i, t: applied.append(i) or True)
+        self.assertEqual(out["classified"], 2)           # the old card is outside the first look-back
+        self.assertEqual(out["lanes"], {"small": 1, "keep_current": 1})
+        self.assertEqual(applied, [])
+        self.assertEqual(len(fake.requests), 1)          # the pinned card is decided by code
+        rows = [json.loads(l) for l in lane_shadow.log_path().read_text().splitlines()]
+        self.assertNotIn("Fix typo", json.dumps(rows))
+        self.assertEqual(rows[0]["target"]["model"], lanes.targets("hermes")["small"]["model"])
+        again = lane_shadow.tick(kanban_db=db, now=now + 60, transport=fake)
+        self.assertEqual(again["classified"], 0)        # the cursor moved on
+        self.set_mode("on")
+        (self.home / "jev" / "lanes-shadow.cursor.json").unlink()
+        out = lane_shadow.tick(kanban_db=db, now=now, transport=fake, apply=lambda i, t: applied.append(i) or True)
+        self.assertEqual(applied, ["t_a"])
+        (self.home / "jev" / "LANES_OFF").write_text("")
+        self.assertEqual(lane_shadow.tick(kanban_db=db, now=now, transport=fake)["mode"], "off")
+
+
+class Replay(unittest.TestCase):
+    """The backtest reads history read-only, never sends text, and prices both sides the same way."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_kanban_rows_join_sessions_and_skip_private_profiles(self):
+        import sqlite3
+        from jevkit import lane_replay
+        db = self.root / "kanban.db"
+        con = sqlite3.connect(db)
+        con.execute("CREATE TABLE tasks (id TEXT, title TEXT, body TEXT, status TEXT, assignee TEXT, created_at INTEGER, "
+                    "model_override TEXT, reasoning_effort TEXT)")
+        con.execute("CREATE TABLE task_runs (id INTEGER, task_id TEXT, profile TEXT, outcome TEXT, status TEXT, "
+                    "metadata TEXT, started_at INTEGER, ended_at INTEGER)")
+        con.executemany("INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?)", [
+            ("t1", "Fix the parser", "details", "done", "qa", 10, None, None),
+            ("t2", "Pay the invoice", "", "done", "billing", 11, None, None)])
+        con.executemany("INSERT INTO task_runs VALUES (?,?,?,?,?,?,?,?)", [
+            (1, "t1", "qa", "crashed", "crashed", json.dumps({"worker_session_id": "s1"}), 1, 2),
+            (2, "t1", "qa", "completed", "done", json.dumps({"worker_session_id": "s2"}), 3, 4),
+            (3, "t2", "billing", "completed", "done", json.dumps({"worker_session_id": "s3"}), 5, 6)])
+        con.commit()
+        con.close()
+        for profile, sessions in (("qa", ("s1", "s2")), ("billing", ("s3",))):
+            (self.root / "profiles" / profile).mkdir(parents=True)
+            con = sqlite3.connect(self.root / "profiles" / profile / "state.db")
+            con.execute("CREATE TABLE sessions (id TEXT, model TEXT, model_config TEXT, input_tokens INT, output_tokens INT, "
+                        "cache_read_tokens INT, reasoning_tokens INT, estimated_cost_usd REAL, api_call_count INT)")
+            for sid in sessions:
+                con.execute("INSERT INTO sessions VALUES (?,?,?,?,?,?,?,?,?)", (
+                    sid, "sol", json.dumps({"reasoning_config": {"effort": "medium", "enabled": True}}), 100, 10, 5, 2, 0, 3))
+            con.commit()
+            con.close()
+        (self.root / "jev").mkdir()
+        (self.root / "jev" / "routing.json").write_text(json.dumps({"private_profiles": ["billing"]}))
+        rows = lane_replay.build_rows(db, self.root)
+        self.assertEqual([r["id"] for r in rows], ["t1"])
+        row = rows[0]
+        self.assertEqual((row["tokens"], row["runs"], row["failed_runs"]), (220, 2, 1))
+        self.assertFalse(row["first_try_success"])
+        self.assertEqual(row["outcome"], "success")
+        self.assertEqual(row["effort"], "medium")
+
+    def test_claude_report_prices_both_sides_on_the_same_tokens(self):
+        from jevkit import lane_replay
+        base = {"input_tokens": 0, "output_tokens": 1_000_000, "cache_read_tokens": 0, "cache_write_tokens": 0}
+        rows = [{**base, "model": "claude-opus-5-5", "cost_usd": 20.0, "decision": {"action": "medium"}},
+                {**base, "model": "claude-fable-5", "cost_usd": 50.0, "decision": {"action": "keep_current"}}]
+        out = lane_replay.claude_report(rows)
+        self.assertEqual(out["lanes"]["medium"]["cost_at_lane_model"], 10.0)     # Sonnet 5 output
+        self.assertEqual(out["totals"]["cost_always_top"], 40.0)                 # both on Opus 5.5
+        self.assertEqual(out["totals"]["cost_lanes_keep_current_on_top"], 30.0)
+        self.assertEqual(out["totals"]["lanes_vs_always_top"], -0.25)
+
+    def test_subagent_transcripts_count_each_message_once(self):
+        from jevkit import lane_replay
+        folder = self.root / "proj" / "session" / "subagents"
+        folder.mkdir(parents=True)
+        usage = {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 100, "cache_creation_input_tokens": 1}
+        lines = [{"type": "user", "message": {"role": "user", "content": "Rename foo to bar"}},
+                 {"type": "assistant", "message": {"id": "m1", "model": "claude-haiku-4-5", "usage": usage}},
+                 {"type": "assistant", "message": {"id": "m1", "model": "claude-haiku-4-5", "usage": usage}},
+                 {"type": "assistant", "message": {"id": "m2", "model": "<synthetic>", "usage": usage}}]
+        (folder / "agent-x.jsonl").write_text("\n".join(json.dumps(l) for l in lines))
+        rows = lane_replay.build_claude_rows(self.root / "proj")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["turns"], rows[0]["output_tokens"], rows[0]["model"]), (1, 5, "claude-haiku-4-5"))
+        self.assertEqual(rows[0]["state"], {"task": "Rename foo to bar"})
+
+
 if __name__ == "__main__":
     unittest.main()

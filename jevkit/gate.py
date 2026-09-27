@@ -34,6 +34,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 from . import client, decide as engine
 
 DEFAULT_POLICY = "gate-strict"
+TASK_POLICY = "gate-task"
 COMMAND_CHARS = 2_000
 ACTIONS = ("approve", "deny", "ask_human", "no_opinion")
 SHELL_TOOLS = ("terminal", "execute_code", "bash", "shell")
@@ -122,7 +123,7 @@ def workdir_kind(path: Optional[str], home: Optional[str] = None) -> str:
 def build_state(tool: str, *, command: Optional[str] = None, args: Any = None,
                 flagged_as: Optional[str] = None, pattern_keys: Sequence[str] = (),
                 workdir: Optional[str] = None, surface: Optional[str] = None,
-                workdir_kind_value: Optional[str] = None) -> Dict[str, Any]:
+                workdir_kind_value: Optional[str] = None, task: Optional[str] = None) -> Dict[str, Any]:
     """The fields the gate questions read, and nothing else. Redaction happens in ``decide``."""
     state: Dict[str, Any] = {"tool": str(tool or "unknown")[:64]}
     if command is not None:
@@ -139,6 +140,8 @@ def build_state(tool: str, *, command: Optional[str] = None, args: Any = None,
     state["workdir_kind"] = workdir_kind_value or workdir_kind(workdir)
     if surface:
         state["surface"] = str(surface)[:40]
+    if task:
+        state["task"] = str(task)[:1_200]
     return state
 
 
@@ -150,8 +153,13 @@ def check(tool: str, *, command: Optional[str] = None, args: Any = None, flagged
           pattern_keys: Sequence[str] = (), workdir: Optional[str] = None, surface: Optional[str] = None,
           workdir_kind_value: Optional[str] = None, operator_policy: Optional[str] = None,
           policy: Any = DEFAULT_POLICY, mode: str = "live", timeout: float = 1.5,
-          transport: Optional[client.Transport] = None, record: bool = True) -> Dict[str, Any]:
+          transport: Optional[client.Transport] = None, record: bool = True,
+          task: Optional[str] = None) -> Dict[str, Any]:
     """One verdict: approve / deny / ask_human, or no_opinion when Jev could not be asked.
+
+    ``task`` is the work the agent was given. With it, the default policy becomes ``gate-task``,
+    which also asks whether the call fits that work and whether it writes somewhere other people
+    see (the task is judged as data, like the command, never obeyed).
 
     ``operator_policy`` is the owner's own approval policy text (Hermes' ``approvals.smart_policy``).
     It is trusted, so it goes into the questions' instructions — never into the state, where
@@ -159,7 +167,9 @@ def check(tool: str, *, command: Optional[str] = None, args: Any = None, flagged
     answer is ``no_opinion`` and the host decides as it always did.
     """
     state = build_state(tool, command=command, args=args, flagged_as=flagged_as, pattern_keys=pattern_keys,
-                        workdir=workdir, surface=surface, workdir_kind_value=workdir_kind_value)
+                        workdir=workdir, surface=surface, workdir_kind_value=workdir_kind_value, task=task)
+    if task and policy == DEFAULT_POLICY:
+        policy = TASK_POLICY
     context = {"operator_policy": str(operator_policy)[:1_500]} if operator_policy else None
     decision = engine.decide(state, policy, mode=mode, feature="gate", timeout=timeout, transport=transport,
                              trusted_context=context, record=record, retries=0)

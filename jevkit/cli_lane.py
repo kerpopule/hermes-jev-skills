@@ -5,6 +5,9 @@
     jev lane evidence --run "pytest -q" --run "ruff check ."             # the facts alone, no Jev
     jev lane next --lane medium                                           # one step up the ladder
     jev lane targets --host hermes                                        # the lane map in force
+    jev lane shadow                                                       # Hermes: one shadow tick (cron)
+    jev lane shadow-report                                                # Hermes: shadow log vs outcomes
+    jev lane replay-build / replay-report                                 # backtest on your own history
 
 Same contract as every other `jev` command: JSON on stdout; bad input exits 2 with nothing
 sent; a Jev failure is a normal answer carrying the fallback (keep the current model; verify).
@@ -16,7 +19,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from . import decide as engine, lane_replay, lanes
+from . import decide as engine, lane_replay, lane_shadow, lanes
 
 
 def _out(value: Any) -> int:
@@ -69,6 +72,14 @@ def cmd_lane(args: Any) -> int:
             up = lanes.next_lane(args.lane)
             return _out({"from": args.lane, "lane": up or "person",
                          "target": lanes.targets(args.host).get(up) if up else None})
+        if args.action == "shadow":
+            return _out(lane_shadow.tick(kanban_db=Path(args.kanban_db).expanduser() if args.kanban_db else None,
+                                         policy=args.policy or lane_shadow.DEFAULT_POLICY))
+        if args.action == "shadow-report":
+            return _out(lane_shadow.shadow_report(
+                kanban_db=Path(args.kanban_db).expanduser() if args.kanban_db else None,
+                hermes_root=Path(args.hermes_root).expanduser() if args.hermes_root else None,
+                min_cell=args.min_cell))
         if args.action == "replay-build" and args.claude_projects:
             if not args.out:
                 return _bad("give --out")
@@ -127,7 +138,7 @@ def add_parsers(sub: Any) -> None:
     p = sub.add_parser("lane", help="smallest sufficient model lane, and continue/retry/verify/escalate/complete "
                                     "after each cycle with deterministic checks first")
     p.add_argument("action", choices=["classify", "step", "evidence", "next", "targets", "replay-build",
-                                         "replay-report"])
+                                         "replay-report", "shadow", "shadow-report"])
     p.add_argument("--task", help="the work, in the person's words (- reads stdin)")
     p.add_argument("--context", help="classify: a line of context (repo, files involved)")
     p.add_argument("--facts", help="JSON object or file of values your code computed; never sent")
@@ -144,6 +155,7 @@ def add_parsers(sub: Any) -> None:
     p.add_argument("--notes", help="step: one short paragraph of what this cycle did")
     p.add_argument("--mode", choices=list(engine.MODES), default="live")
     p.add_argument("--timeout", type=float, default=4.0)
+    p.add_argument("--policy", help="shadow: the lane policy (default lane-kanban)")
     p.add_argument("--kanban-db", help="replay-build: the fleet's kanban.db (opened read-only)")
     p.add_argument("--claude-projects", help="replay-build: a Claude Code projects folder (subagent transcripts)")
     p.add_argument("--hermes-root", help="replay-build: the Hermes root holding profiles/*/state.db")

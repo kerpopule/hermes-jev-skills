@@ -23,6 +23,7 @@ MODES: Dict[str, Tuple[str, ...]] = {
     "owner": ("off", "shadow", "advise"),
     "kanban_event": ("off", "shadow", "advise"),
     "decide_tools": ("off", "on"),
+    "lanes": ("off", "shadow", "on"),
 }
 # Block is the one mode that can stop an agent. It needs a second key that only a person makes.
 BLOCK_MARKER = "GATE_BLOCK_ALLOWED"
