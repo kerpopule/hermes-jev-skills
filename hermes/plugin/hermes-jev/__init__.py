@@ -6,7 +6,9 @@ Uses only public plugin seams, so it survives `hermes update`:
 * ``llm_request``        middleware: swaps the model for that turn, within the connected provider
 * ``transform_llm_output`` optionally shows the one-line routing notice
 * ``transform_tool_result`` (if on) screens web_search / web_extract results for injected instructions
-* ``post_tool_call``       remembers which skills a session loaded, so a suggestion is never a repeat
+* ``post_tool_call``       remembers which skills a session loaded, so a suggestion is never a repeat;
+  with ``/jev vision shadow`` it also queues a local Jev-Omni answer to each decision-shaped
+  ``vision_analyze`` question and logs how it compares, never changing the result (jevkit/omni_vision.py)
 * tools + ``/jev``        memory filter, compaction selection, action chooser, status and switches
 * ``pre_approval_request`` / ``post_approval_response``  the command-risk gate in SHADOW only:
   registered only when ``/jev gate shadow`` was set before the gateway started; observers that
@@ -26,7 +28,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .jevkit import catalog, choose, compact, effort, keystore, ladder, rerank, route, search, skillpick, supervise, turn, webscreen
-from .jevkit import decide as policy_engine, evaluate, gate, policy as policies, route_to, shadowq, switches
+from .jevkit import decide as policy_engine, evaluate, gate, omni_vision, policy as policies, route_to, shadowq, switches
 
 _LOCK = threading.Lock()
 _TURNS: Dict[str, Dict[str, Any]] = {}      # session_id -> the current turn's text and decision
@@ -372,8 +374,12 @@ def _feedback_accepted(name: str, token: str) -> None:
 
 
 def _on_post_tool_call(tool_name: str = "", args: Any = None, session_id: str = "", status: Any = None,
-                       **_: Any) -> None:
-    """Remember what a session loaded; settle the pending suggestion if this was it."""
+                       **extra: Any) -> None:
+    """Remember what a session loaded; settle the pending suggestion if this was it.
+    A vision call goes to the vision shadow instead (off unless switched on)."""
+    if tool_name in omni_vision.VISION_TOOLS:
+        _vision_observe(tool_name, args, session_id, extra)
+        return None
     if tool_name != "skill_view" or status == "error":
         return None
     name = _bare((args or {}).get("name") if isinstance(args, dict) else "")
@@ -782,6 +788,30 @@ def _on_post_approval_response(command: str = "", choice: str = "", session_key:
     return None
 
 
+# ── vision shadow: a local Jev-Omni answer beside the vision tool's, log only ──
+#
+# Off unless `/jev vision shadow`; the VISION_OFF kill switch always wins. The hook takes a
+# snapshot (one stat, no file reads) and queues; the model runs in its own process on the shadow
+# thread, one at a time machine-wide. The tool result is never touched and nothing is returned.
+
+def _vision_job(payload: Dict[str, Any], queued: float) -> None:
+    omni_vision.job(payload, queued, mode=lambda: switches.mode("vision"), dropped=shadowq.dropped,
+                    lock_path=switches.jev_dir(True) / "vision-omni.lock")
+
+
+def _vision_observe(tool_name: str, args: Any, session_id: str, extra: Dict[str, Any]) -> None:
+    try:
+        if switches.mode("vision") != "shadow":
+            return
+        payload = omni_vision.snapshot(tool_name, args, extra.get("result"),
+                                       {"session_id": session_id, "tool_call_id": extra.get("tool_call_id"),
+                                        "turn_id": extra.get("turn_id")})
+        if payload is not None:
+            shadowq.submit(_vision_job, payload, time.monotonic())
+    except Exception:  # noqa: BLE001 - an observer must never touch the call it watches
+        pass
+
+
 # ── policy tools (only when `/jev decide_tools on` was set before the gateway started) ──
 
 def _decide_tool(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -856,7 +886,8 @@ def _jev_command(raw_args: str = "") -> str:
              "policy features: " + " · ".join(f"{name}: {info['mode']}" + (" (KILL SWITCH)" if info["kill_switch"] else "")
                                              for name, info in switches.describe().items()),
              "usage: /jev routing on|shadow|off [all] · /jev skills on|off [all] · /jev notice on|off [all]"
-             " · /jev screen on|shadow|off [all] · /jev gate off|shadow [all] · /jev decide_tools on|off [all]"]
+             " · /jev screen on|shadow|off [all] · /jev gate off|shadow [all] · /jev decide_tools on|off [all]"
+             " · /jev vision off|shadow [all]"]
     return "\n".join(lines)
 
 
@@ -900,6 +931,6 @@ def register(ctx: Any) -> None:
         ctx.register_hook("post_approval_response", _on_post_approval_response)
     ctx.register_middleware("llm_request", _on_llm_request)
     ctx.register_command("jev", _jev_command, description="Jev status and switches",
-                         args_hint="[routing|skills|notice|screen on|shadow|off [all]] [gate off|shadow] [decide_tools on|off]")
+                         args_hint="[routing|skills|notice|screen on|shadow|off [all]] [gate off|shadow] [decide_tools on|off] [vision off|shadow]")
     rule = _RULE + (_RULE_ESCALATION if ((route.load_config().get("escalation") or {}).get("enabled")) else "")
     ctx.register_system_prompt_section("hermes-jev", rule, max_chars=1400)
