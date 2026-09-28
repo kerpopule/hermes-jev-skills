@@ -1,0 +1,99 @@
+{"case": "queue", "items": ["concurrent/futures/_base:Future.add_done_callback"], "kind": "context", "mode": "single", "seq": 1}
+{"heuristic_wire_tokens": 146, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 1, "wire_bytes": 581, "wire_sha256": "ffa21a6ad49b0f82ca1e2c7d383af2f67dc5e2c4db536f0186ae707b3e8f2ca0"}
+{"elapsed_ms": 248.73166699999993, "kind": "response", "list_usd_estimate": 1.73e-05, "model": "jev-1.13.0", "provider_input_tokens": 412, "seq": 1}
+{"case": "queue", "items": ["concurrent/futures/_base:Future.cancel"], "kind": "context", "mode": "single", "seq": 2}
+{"heuristic_wire_tokens": 207, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 2, "wire_bytes": 827, "wire_sha256": "47edc92eb8967651c8c02271c722982504dcf1789c371cffb73d474a93e03329"}
+{"elapsed_ms": 163.5470830000001, "kind": "response", "list_usd_estimate": 1.949e-05, "model": "jev-1.13.0", "provider_input_tokens": 464, "seq": 2}
+{"case": "queue", "items": ["concurrent/futures/_base:Future.result"], "kind": "context", "mode": "single", "seq": 3}
+{"heuristic_wire_tokens": 208, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 3, "wire_bytes": 829, "wire_sha256": "544b63a54f00e24b03f366316f04f4db5ad4073c5f4f4e55a9475d51a7c5d223"}
+{"elapsed_ms": 169.12804199999988, "kind": "response", "list_usd_estimate": 1.953e-05, "model": "jev-1.13.0", "provider_input_tokens": 465, "seq": 3}
+{"case": "queue", "items": ["concurrent/futures/_base:Future.set_result"], "kind": "context", "mode": "single", "seq": 4}
+{"heuristic_wire_tokens": 224, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 4, "wire_bytes": 895, "wire_sha256": "1645671d765fb2a8d4cd3629475828bcc64b84ccde1e8467f2de5d314eb9c3c2"}
+{"elapsed_ms": 132.27066699999978, "kind": "response", "list_usd_estimate": 2.037e-05, "model": "jev-1.13.0", "provider_input_tokens": 485, "seq": 4}
+{"case": "queue", "items": ["contextlib:ExitStack.__exit__"], "kind": "context", "mode": "single", "seq": 5}
+{"heuristic_wire_tokens": 224, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 5, "wire_bytes": 896, "wire_sha256": "f45dd314c8b8152c554f5903281db8cb18c7995b13497ab7c6e3b52f46e7c4f7"}
+{"elapsed_ms": 148.66599999999997, "kind": "response", "list_usd_estimate": 2.029e-05, "model": "jev-1.13.0", "provider_input_tokens": 483, "seq": 5}
+{"case": "queue", "items": ["contextlib:_BaseExitStack.enter_context"], "kind": "context", "mode": "single", "seq": 6}
+{"heuristic_wire_tokens": 193, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 6, "wire_bytes": 770, "wire_sha256": "d4eb3eca57639f2f8fb2fa195ff99fea3ce379ba6a6591af8d2e943a9f598293"}
+{"elapsed_ms": 194.97829200000007, "kind": "response", "list_usd_estimate": 1.911e-05, "model": "jev-1.13.0", "provider_input_tokens": 455, "seq": 6}
+{"case": "queue", "items": ["contextlib:_BaseExitStack.pop_all"], "kind": "context", "mode": "single", "seq": 7}
+{"heuristic_wire_tokens": 194, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 7, "wire_bytes": 776, "wire_sha256": "342cecff96a9fdeddd8d96322440302f44e91be8d1e12fbaa775b981a15cd1a4"}
+{"elapsed_ms": 266.1797909999999, "kind": "response", "list_usd_estimate": 1.898e-05, "model": "jev-1.13.0", "provider_input_tokens": 452, "seq": 7}
+{"case": "queue", "items": ["functools:cached_property.__get__"], "kind": "context", "mode": "single", "seq": 8}
+{"heuristic_wire_tokens": 180, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 8, "wire_bytes": 718, "wire_sha256": "ecfbd53cd501458f29d447156c2600c5f1c140f6f4d873fcf5dccc7f888ec698"}
+{"elapsed_ms": 238.65791699999983, "kind": "response", "list_usd_estimate": 1.823e-05, "model": "jev-1.13.0", "provider_input_tokens": 434, "seq": 8}
+{"case": "queue", "items": ["functools:lru_cache"], "kind": "context", "mode": "single", "seq": 9}
+{"heuristic_wire_tokens": 220, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 9, "wire_bytes": 877, "wire_sha256": "7537dec71530f94510f2f8db431981f9fdced1c10e5f76504668c9a76a9940ef"}
+{"elapsed_ms": 180.83854099999996, "kind": "response", "list_usd_estimate": 2.033e-05, "model": "jev-1.13.0", "provider_input_tokens": 484, "seq": 9}
+{"case": "queue", "items": ["functools:update_wrapper"], "kind": "context", "mode": "single", "seq": 10}
+{"heuristic_wire_tokens": 182, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 10, "wire_bytes": 727, "wire_sha256": "63641bb2391dfe475ddb47ef6aee0c3b65154973d12dc8602b9f715b51d73d83"}
+{"elapsed_ms": 131.71329200000014, "kind": "response", "list_usd_estimate": 1.873e-05, "model": "jev-1.13.0", "provider_input_tokens": 446, "seq": 10}
+{"case": "queue", "items": ["functools:wraps"], "kind": "context", "mode": "single", "seq": 11}
+{"heuristic_wire_tokens": 201, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 11, "wire_bytes": 804, "wire_sha256": "67da22662fae94c86addfc45113dee2f07c0b9a178230cce9de05e0049adf037"}
+{"elapsed_ms": 177.40508300000002, "kind": "response", "list_usd_estimate": 1.898e-05, "model": "jev-1.13.0", "provider_input_tokens": 452, "seq": 11}
+{"case": "queue", "items": ["gzip:GzipFile.close"], "kind": "context", "mode": "single", "seq": 12}
+{"heuristic_wire_tokens": 186, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 12, "wire_bytes": 744, "wire_sha256": "3ec926b940dbed5aaf95fc84d4543c914fc25de82d3f589ef7e69f9d55350cc6"}
+{"elapsed_ms": 164.19650000000007, "kind": "response", "list_usd_estimate": 1.877e-05, "model": "jev-1.13.0", "provider_input_tokens": 447, "seq": 12}
+{"case": "queue", "items": ["gzip:GzipFile.read"], "kind": "context", "mode": "single", "seq": 13}
+{"heuristic_wire_tokens": 188, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 13, "wire_bytes": 751, "wire_sha256": "346136afedb31a377f22abf49292adff43d954f1a8ce69e13efbb3708201e567"}
+{"elapsed_ms": 139.31433299999975, "kind": "response", "list_usd_estimate": 1.915e-05, "model": "jev-1.13.0", "provider_input_tokens": 456, "seq": 13}
+{"case": "queue", "items": ["gzip:GzipFile.write"], "kind": "context", "mode": "single", "seq": 14}
+{"heuristic_wire_tokens": 204, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 14, "wire_bytes": 814, "wire_sha256": "2ba3a61bf6fb4cecb0a93da77eba29dfaf452a5c54c943026d554b8834b3d6a9"}
+{"elapsed_ms": 199.949959, "kind": "response", "list_usd_estimate": 1.974e-05, "model": "jev-1.13.0", "provider_input_tokens": 470, "seq": 14}
+{"case": "queue", "items": ["pathlib:Path.mkdir"], "kind": "context", "mode": "single", "seq": 15}
+{"heuristic_wire_tokens": 183, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 15, "wire_bytes": 732, "wire_sha256": "6fcae71b6714ba2b525c192b1630a93a1b44b39ac8c82e304ab2a5dc66ac41dc"}
+{"elapsed_ms": 132.51954099999975, "kind": "response", "list_usd_estimate": 1.869e-05, "model": "jev-1.13.0", "provider_input_tokens": 445, "seq": 15}
+{"case": "queue", "items": ["pathlib:Path.rename"], "kind": "context", "mode": "single", "seq": 16}
+{"heuristic_wire_tokens": 198, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 16, "wire_bytes": 791, "wire_sha256": "b8f7d290e5aa9e4f0f90dfdd8e7a310571230af3d1d259bcb13b461220275b16"}
+{"elapsed_ms": 166.7847499999997, "kind": "response", "list_usd_estimate": 1.903e-05, "model": "jev-1.13.0", "provider_input_tokens": 453, "seq": 16}
+{"case": "queue", "items": ["pathlib:Path.replace"], "kind": "context", "mode": "single", "seq": 17}
+{"heuristic_wire_tokens": 207, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 17, "wire_bytes": 825, "wire_sha256": "d0762f5b202672b1fe219160ded131828249ed661e00d4e751c0563c7a4f76b1"}
+{"elapsed_ms": 196.4108339999999, "kind": "response", "list_usd_estimate": 1.936e-05, "model": "jev-1.13.0", "provider_input_tokens": 461, "seq": 17}
+{"case": "queue", "items": ["pathlib:Path.unlink"], "kind": "context", "mode": "single", "seq": 18}
+{"heuristic_wire_tokens": 188, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 18, "wire_bytes": 752, "wire_sha256": "5a1479fc289e55c623fc3cd83c131438e506eb8fb498db4141445b68cddab0a9"}
+{"elapsed_ms": 138.33275, "kind": "response", "list_usd_estimate": 1.89e-05, "model": "jev-1.13.0", "provider_input_tokens": 450, "seq": 18}
+{"case": "queue", "items": ["queue:Queue.get"], "kind": "context", "mode": "single", "seq": 19}
+{"heuristic_wire_tokens": 254, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 19, "wire_bytes": 1015, "wire_sha256": "507ef35b875dea7f2e67cf33294bcc801af9ab34f29c8d77d84293ebfcb5397b"}
+{"elapsed_ms": 159.23358399999987, "kind": "response", "list_usd_estimate": 2.121e-05, "model": "jev-1.13.0", "provider_input_tokens": 505, "seq": 19}
+{"case": "queue", "items": ["queue:Queue.join"], "kind": "context", "mode": "single", "seq": 20}
+{"heuristic_wire_tokens": 230, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 20, "wire_bytes": 918, "wire_sha256": "c6c6ab8d7e03e99e5ce2a7bd1cbabbc4aa7fbc1ed6a7c57bb3a3ad5d5b5ed64b"}
+{"elapsed_ms": 196.01795800000053, "kind": "response", "list_usd_estimate": 2.016e-05, "model": "jev-1.13.0", "provider_input_tokens": 480, "seq": 20}
+{"case": "queue", "items": ["queue:Queue.put"], "kind": "context", "mode": "single", "seq": 21}
+{"heuristic_wire_tokens": 254, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 21, "wire_bytes": 1015, "wire_sha256": "7d4f59125bb150a50c54021e2e449942d33cb07e29217ea817b636914ef48d5a"}
+{"elapsed_ms": 136.55433400000038, "kind": "response", "list_usd_estimate": 2.134e-05, "model": "jev-1.13.0", "provider_input_tokens": 508, "seq": 21}
+{"case": "queue", "items": ["queue:Queue.task_done"], "kind": "context", "mode": "single", "seq": 22}
+{"heuristic_wire_tokens": 229, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 22, "wire_bytes": 913, "wire_sha256": "4b480eaa0d2f4e85a4213e2cf37c9816e3a2c3e073fdbfec0dd085d28856025a"}
+{"elapsed_ms": 175.3197910000006, "kind": "response", "list_usd_estimate": 2.033e-05, "model": "jev-1.13.0", "provider_input_tokens": 484, "seq": 22}
+{"case": "queue", "items": ["shutil:copyfile"], "kind": "context", "mode": "single", "seq": 23}
+{"heuristic_wire_tokens": 193, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 23, "wire_bytes": 769, "wire_sha256": "57a5d9e42068da0ede6d0ba91a2f39a321a9a80f17e84b38ec2a5fed2e87474e"}
+{"elapsed_ms": 182.82920799999937, "kind": "response", "list_usd_estimate": 1.924e-05, "model": "jev-1.13.0", "provider_input_tokens": 458, "seq": 23}
+{"case": "queue", "items": ["shutil:copytree"], "kind": "context", "mode": "single", "seq": 24}
+{"heuristic_wire_tokens": 238, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 24, "wire_bytes": 949, "wire_sha256": "a9b4f3e94769f29fdfaa2b2d07321a4a227a1190cdb81603eb4e1de6148c4f2a"}
+{"elapsed_ms": 179.44937499999992, "kind": "response", "list_usd_estimate": 2.087e-05, "model": "jev-1.13.0", "provider_input_tokens": 497, "seq": 24}
+{"case": "queue", "items": ["shutil:move"], "kind": "context", "mode": "single", "seq": 25}
+{"heuristic_wire_tokens": 225, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 25, "wire_bytes": 899, "wire_sha256": "c45487ff7dd5ea91835799fafd14c530a6749fdeb65c0f888dad4e765659f286"}
+{"elapsed_ms": 147.1598750000007, "kind": "response", "list_usd_estimate": 2.05e-05, "model": "jev-1.13.0", "provider_input_tokens": 488, "seq": 25}
+{"case": "queue", "items": ["tempfile:TemporaryDirectory.__exit__"], "kind": "context", "mode": "single", "seq": 26}
+{"heuristic_wire_tokens": 144, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 26, "wire_bytes": 573, "wire_sha256": "66cda7225edc3d41ca18238bc833058b4eeeede1d881482c60109193ccfcadae"}
+{"elapsed_ms": 177.19554099999968, "kind": "response", "list_usd_estimate": 1.747e-05, "model": "jev-1.13.0", "provider_input_tokens": 416, "seq": 26}
+{"case": "queue", "items": ["tempfile:TemporaryDirectory.cleanup"], "kind": "context", "mode": "single", "seq": 27}
+{"heuristic_wire_tokens": 170, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 27, "wire_bytes": 680, "wire_sha256": "76742f3f9a22af12eedc82cc10e4415d997efee19d02f7e8295d4abfccc9f67a"}
+{"elapsed_ms": 143.94162500000007, "kind": "response", "list_usd_estimate": 1.84e-05, "model": "jev-1.13.0", "provider_input_tokens": 438, "seq": 27}
+{"case": "queue", "items": ["tempfile:_mkstemp_inner"], "kind": "context", "mode": "single", "seq": 28}
+{"heuristic_wire_tokens": 200, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 28, "wire_bytes": 800, "wire_sha256": "7826923ed120561c0146bc4c11be04d71c41db9b6f360a3c01815b2c7188aff8"}
+{"elapsed_ms": 151.81945800000028, "kind": "response", "list_usd_estimate": 2.003e-05, "model": "jev-1.13.0", "provider_input_tokens": 477, "seq": 28}
+{"case": "queue", "items": ["tempfile:mkstemp"], "kind": "context", "mode": "single", "seq": 29}
+{"heuristic_wire_tokens": 182, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 29, "wire_bytes": 728, "wire_sha256": "d32b650e64b0dcefe3d0d536f076a60fe604e5cb0f64cc420c3b36d6feb1191d"}
+{"elapsed_ms": 196.599333, "kind": "response", "list_usd_estimate": 1.898e-05, "model": "jev-1.13.0", "provider_input_tokens": 452, "seq": 29}
+{"case": "queue", "items": ["concurrent/futures/_base:Future.add_done_callback", "concurrent/futures/_base:Future.cancel", "concurrent/futures/_base:Future.result", "concurrent/futures/_base:Future.set_result", "contextlib:ExitStack.__exit__", "contextlib:_BaseExitStack.callback", "contextlib:_BaseExitStack.enter_context", "contextlib:_BaseExitStack.pop_all"], "kind": "context", "mode": "batch", "seq": 30}
+{"heuristic_wire_tokens": 1335, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 30, "wire_bytes": 5340, "wire_sha256": "cc266ed2af680e36c96cc2f3b8484e1f719bc3682777376449b880c917beecee"}
+{"elapsed_ms": 316.7416249999997, "kind": "response", "list_usd_estimate": 6.8e-05, "model": "jev-1.13.0", "provider_input_tokens": 1619, "seq": 30}
+{"case": "queue", "items": ["functools:cached_property.__get__", "functools:lru_cache", "functools:update_wrapper", "functools:wraps", "gzip:GzipFile.close", "gzip:GzipFile.read", "gzip:GzipFile.write", "gzip:_GzipReader._read_eof"], "kind": "context", "mode": "batch", "seq": 31}
+{"heuristic_wire_tokens": 1301, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 31, "wire_bytes": 5201, "wire_sha256": "2557f8e50645be4eacf2e24f08e4de1d998ae3f70a59cef5a75cd513bd37575e"}
+{"elapsed_ms": 268.77745800000065, "kind": "response", "list_usd_estimate": 6.686e-05, "model": "jev-1.13.0", "provider_input_tokens": 1592, "seq": 31}
+{"case": "queue", "items": ["pathlib:Path.mkdir", "pathlib:Path.rename", "pathlib:Path.replace", "pathlib:Path.unlink", "queue:Queue.get", "queue:Queue.join", "queue:Queue.put", "queue:Queue.task_done"], "kind": "context", "mode": "batch", "seq": 32}
+{"heuristic_wire_tokens": 1669, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 32, "wire_bytes": 6675, "wire_sha256": "7277a104461db07ed357448bffcfa5ef405fe04b36cfc1c2f123ac94ef7c57aa"}
+{"elapsed_ms": 389.166833, "kind": "response", "list_usd_estimate": 8.068e-05, "model": "jev-1.13.0", "provider_input_tokens": 1921, "seq": 32}
+{"case": "queue", "items": ["shutil:copyfile", "shutil:copytree", "shutil:move", "shutil:rmtree", "tempfile:TemporaryDirectory.__exit__", "tempfile:TemporaryDirectory.cleanup", "tempfile:_mkstemp_inner", "tempfile:mkstemp"], "kind": "context", "mode": "batch", "seq": 33}
+{"heuristic_wire_tokens": 1291, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 33, "wire_bytes": 5164, "wire_sha256": "b1707d8de994f9b4cbaaf25e8a991be7b43da51e706f3ce74129ecaf0d164696"}
+{"elapsed_ms": 272.2213330000001, "kind": "response", "list_usd_estimate": 6.842e-05, "model": "jev-1.13.0", "provider_input_tokens": 1629, "seq": 33}

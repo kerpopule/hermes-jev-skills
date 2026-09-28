@@ -1,0 +1,102 @@
+{"case": "executed-15", "items": ["executed-15"], "kind": "context", "mode": "triage", "seq": 1}
+{"heuristic_wire_tokens": 213, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 1, "wire_bytes": 852, "wire_sha256": "cd573e7e22356333afbdd833a9889f4d89f49a69ff0a4012fbb14e7df69c7699"}
+{"elapsed_ms": 229.15470799999994, "kind": "response", "list_usd_estimate": 2.108e-05, "model": "jev-1.13.0", "provider_input_tokens": 502, "seq": 1}
+{"case": "executed-16", "items": ["executed-16"], "kind": "context", "mode": "triage", "seq": 2}
+{"heuristic_wire_tokens": 212, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 2, "wire_bytes": 846, "wire_sha256": "89b5df8d4f0927e9deb7731b1c12fe5e4ef8d2b4fe7ba1cebed6c6381f05b824"}
+{"elapsed_ms": 157.07291699999993, "kind": "response", "list_usd_estimate": 2.104e-05, "model": "jev-1.13.0", "provider_input_tokens": 501, "seq": 2}
+{"case": "executed-17", "items": ["executed-17"], "kind": "context", "mode": "triage", "seq": 3}
+{"heuristic_wire_tokens": 225, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 3, "wire_bytes": 899, "wire_sha256": "e29b64df60f4307588beba704a1413f02cd49ae0e032bfa53abcf835e443e935"}
+{"elapsed_ms": 224.40174999999996, "kind": "response", "list_usd_estimate": 2.163e-05, "model": "jev-1.13.0", "provider_input_tokens": 515, "seq": 3}
+{"case": "executed-18", "items": ["executed-18"], "kind": "context", "mode": "triage", "seq": 4}
+{"heuristic_wire_tokens": 217, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 4, "wire_bytes": 868, "wire_sha256": "beb12ecc71b531ed25e4d0a23cd8bdb6b280350a754d4f0d66b0f4a0ece80619"}
+{"elapsed_ms": 141.48604200000003, "kind": "response", "list_usd_estimate": 2.129e-05, "model": "jev-1.13.0", "provider_input_tokens": 507, "seq": 4}
+{"case": "executed-19", "items": ["executed-19"], "kind": "context", "mode": "triage", "seq": 5}
+{"heuristic_wire_tokens": 302, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 5, "wire_bytes": 1207, "wire_sha256": "d605b636bebff79919f48843e8f8938efba63ff99e2c82db013e370e86440994"}
+{"elapsed_ms": 350.19987499999996, "kind": "response", "list_usd_estimate": 2.57e-05, "model": "jev-1.13.0", "provider_input_tokens": 612, "seq": 5}
+{"case": "executed-20", "items": ["executed-20"], "kind": "context", "mode": "triage", "seq": 6}
+{"heuristic_wire_tokens": 221, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 6, "wire_bytes": 882, "wire_sha256": "b81f566d9f3b04bc9ddb640f48bfcf4478963d3323cc4a5865974058cb0ebdbc"}
+{"elapsed_ms": 196.3783749999999, "kind": "response", "list_usd_estimate": 2.129e-05, "model": "jev-1.13.0", "provider_input_tokens": 507, "seq": 6}
+{"case": "executed-21", "items": ["executed-21"], "kind": "context", "mode": "triage", "seq": 7}
+{"heuristic_wire_tokens": 363, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 7, "wire_bytes": 1451, "wire_sha256": "a27f449847b750bd1255cd911a6b0b9274583df01de474ff56f7260406681db3"}
+{"elapsed_ms": 334.900875, "kind": "response", "list_usd_estimate": 2.885e-05, "model": "jev-1.13.0", "provider_input_tokens": 687, "seq": 7}
+{"case": "executed-22", "items": ["executed-22"], "kind": "context", "mode": "triage", "seq": 8}
+{"heuristic_wire_tokens": 246, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 8, "wire_bytes": 981, "wire_sha256": "70207fc331642266fe6c69c727424cfb21159dae56a9d82cbe80fb4079543dd4"}
+{"elapsed_ms": 136.73195900000002, "kind": "response", "list_usd_estimate": 2.272e-05, "model": "jev-1.13.0", "provider_input_tokens": 541, "seq": 8}
+{"case": "executed-23", "items": ["executed-23"], "kind": "context", "mode": "triage", "seq": 9}
+{"heuristic_wire_tokens": 216, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 9, "wire_bytes": 862, "wire_sha256": "b45af4475f3c7cf890d0dd091fbfbece6eeadb9c5edac07f2cd8a63dc4f8aaad"}
+{"elapsed_ms": 164.01462500000008, "kind": "response", "list_usd_estimate": 2.117e-05, "model": "jev-1.13.0", "provider_input_tokens": 504, "seq": 9}
+{"case": "authored-assertion-00", "items": ["authored-assertion-00"], "kind": "context", "mode": "triage", "seq": 10}
+{"heuristic_wire_tokens": 207, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 10, "wire_bytes": 828, "wire_sha256": "20c85aafaf57e243da8f78efb3ba9c71514ecdc151b555b8b3207fb5b8cbe997"}
+{"elapsed_ms": 285.26300000000003, "kind": "response", "list_usd_estimate": 2.096e-05, "model": "jev-1.13.0", "provider_input_tokens": 499, "seq": 10}
+{"case": "authored-assertion-01", "items": ["authored-assertion-01"], "kind": "context", "mode": "triage", "seq": 11}
+{"heuristic_wire_tokens": 214, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 11, "wire_bytes": 854, "wire_sha256": "5e8e03adf07e28e37b2325dbc66bfeb71f6679a7e8f6b21d4459f92d03165153"}
+{"elapsed_ms": 138.1688750000003, "kind": "response", "list_usd_estimate": 2.146e-05, "model": "jev-1.13.0", "provider_input_tokens": 511, "seq": 11}
+{"case": "authored-assertion-02", "items": ["authored-assertion-02"], "kind": "context", "mode": "triage", "seq": 12}
+{"heuristic_wire_tokens": 215, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 12, "wire_bytes": 858, "wire_sha256": "f0c2b09e63cf5f04aead3562b8c08dffade9407247d6e5ad59aa758e3872b306"}
+{"elapsed_ms": 166.42733399999975, "kind": "response", "list_usd_estimate": 2.142e-05, "model": "jev-1.13.0", "provider_input_tokens": 510, "seq": 12}
+{"case": "authored-assertion-03", "items": ["authored-assertion-03"], "kind": "context", "mode": "triage", "seq": 13}
+{"heuristic_wire_tokens": 215, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 13, "wire_bytes": 860, "wire_sha256": "2114452d7d71eee1f283d8f8262a8b3a8d9e7a04211eb9cd3317d37ce48d3e3e"}
+{"elapsed_ms": 158.587625, "kind": "response", "list_usd_estimate": 2.184e-05, "model": "jev-1.13.0", "provider_input_tokens": 520, "seq": 13}
+{"case": "authored-dependency-00", "items": ["authored-dependency-00"], "kind": "context", "mode": "triage", "seq": 14}
+{"heuristic_wire_tokens": 211, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 14, "wire_bytes": 844, "wire_sha256": "4f1264a4df1e3a44a75988818c7e147f8926f55ca8660c267ae6da4e49c8e9d3"}
+{"elapsed_ms": 255.24024999999995, "kind": "response", "list_usd_estimate": 2.075e-05, "model": "jev-1.13.0", "provider_input_tokens": 494, "seq": 14}
+{"case": "authored-dependency-01", "items": ["authored-dependency-01"], "kind": "context", "mode": "triage", "seq": 15}
+{"heuristic_wire_tokens": 211, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 15, "wire_bytes": 844, "wire_sha256": "3139483fd786f057538274e455dbf9e8d90054e9a35431100e432330b5af2911"}
+{"elapsed_ms": 282.019875, "kind": "response", "list_usd_estimate": 2.083e-05, "model": "jev-1.13.0", "provider_input_tokens": 496, "seq": 15}
+{"case": "authored-dependency-02", "items": ["authored-dependency-02"], "kind": "context", "mode": "triage", "seq": 16}
+{"heuristic_wire_tokens": 215, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 16, "wire_bytes": 860, "wire_sha256": "818b26e04715466e1d8512fd076e9cc0465e2d621548aebf1be1e6f4c618337c"}
+{"elapsed_ms": 165.17850000000013, "kind": "response", "list_usd_estimate": 2.117e-05, "model": "jev-1.13.0", "provider_input_tokens": 504, "seq": 16}
+{"case": "authored-syntax-00", "items": ["authored-syntax-00"], "kind": "context", "mode": "triage", "seq": 17}
+{"heuristic_wire_tokens": 207, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 17, "wire_bytes": 826, "wire_sha256": "5d6e4759f6040405d2120e1cf0c5049bc346caca1906b3055fa5cb40043e68db"}
+{"elapsed_ms": 149.62691699999996, "kind": "response", "list_usd_estimate": 2.058e-05, "model": "jev-1.13.0", "provider_input_tokens": 490, "seq": 17}
+{"case": "authored-syntax-02", "items": ["authored-syntax-02"], "kind": "context", "mode": "triage", "seq": 18}
+{"heuristic_wire_tokens": 205, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 18, "wire_bytes": 818, "wire_sha256": "c2641864a41aee6c4e508f84ffe8ac4edd426c76974480d76f00424185b58206"}
+{"elapsed_ms": 185.6461670000007, "kind": "response", "list_usd_estimate": 2.033e-05, "model": "jev-1.13.0", "provider_input_tokens": 484, "seq": 18}
+{"case": "authored-syntax-03", "items": ["authored-syntax-03"], "kind": "context", "mode": "triage", "seq": 19}
+{"heuristic_wire_tokens": 203, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 19, "wire_bytes": 812, "wire_sha256": "4548920276a8a8de36002abcd7a06502ebbadffd8edf66013e14ec213a3d8aea"}
+{"elapsed_ms": 133.8018339999998, "kind": "response", "list_usd_estimate": 2.062e-05, "model": "jev-1.13.0", "provider_input_tokens": 491, "seq": 19}
+{"case": "authored-timeout-01", "items": ["authored-timeout-01"], "kind": "context", "mode": "triage", "seq": 20}
+{"heuristic_wire_tokens": 208, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 20, "wire_bytes": 831, "wire_sha256": "d3b53616bcf18874509dbe521ade8f7bc7c917d425fa147f4b49a02176c0e1b2"}
+{"elapsed_ms": 169.17420900000036, "kind": "response", "list_usd_estimate": 2.083e-05, "model": "jev-1.13.0", "provider_input_tokens": 496, "seq": 20}
+{"case": "authored-permission-01", "items": ["authored-permission-01"], "kind": "context", "mode": "triage", "seq": 21}
+{"heuristic_wire_tokens": 207, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 21, "wire_bytes": 826, "wire_sha256": "9ceaa7976ce686c288cd034963e202b5b44f938685a001c075a536272b557ea0"}
+{"elapsed_ms": 197.71966700000033, "kind": "response", "list_usd_estimate": 2.087e-05, "model": "jev-1.13.0", "provider_input_tokens": 497, "seq": 21}
+{"case": "authored-permission-02", "items": ["authored-permission-02"], "kind": "context", "mode": "triage", "seq": 22}
+{"heuristic_wire_tokens": 207, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 22, "wire_bytes": 826, "wire_sha256": "43229132f0c433821fa8155f51653a054aa601694580bf80ce0d240bedbf607b"}
+{"elapsed_ms": 128.1042499999998, "kind": "response", "list_usd_estimate": 2.05e-05, "model": "jev-1.13.0", "provider_input_tokens": 488, "seq": 22}
+{"case": "authored-permission-03", "items": ["authored-permission-03"], "kind": "context", "mode": "triage", "seq": 23}
+{"heuristic_wire_tokens": 206, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 23, "wire_bytes": 821, "wire_sha256": "8bd5011e26f221dcb05c46a61d4236b64a30cb52c6ccdf05eee148293083ebba"}
+{"elapsed_ms": 160.98225, "kind": "response", "list_usd_estimate": 2.066e-05, "model": "jev-1.13.0", "provider_input_tokens": 492, "seq": 23}
+{"case": "authored-network-00", "items": ["authored-network-00"], "kind": "context", "mode": "triage", "seq": 24}
+{"heuristic_wire_tokens": 208, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 24, "wire_bytes": 832, "wire_sha256": "42389150e2d0fb75da92eb6736a3fe087c2c20f69fe7b500511a6240784761ba"}
+{"elapsed_ms": 138.4064160000005, "kind": "response", "list_usd_estimate": 2.054e-05, "model": "jev-1.13.0", "provider_input_tokens": 489, "seq": 24}
+{"case": "authored-network-01", "items": ["authored-network-01"], "kind": "context", "mode": "triage", "seq": 25}
+{"heuristic_wire_tokens": 207, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 25, "wire_bytes": 826, "wire_sha256": "525ed380010248a350d13789d38227abb52803fc1f712e81d7390f15592f5946"}
+{"elapsed_ms": 175.74841600000025, "kind": "response", "list_usd_estimate": 2.045e-05, "model": "jev-1.13.0", "provider_input_tokens": 487, "seq": 25}
+{"case": "authored-network-02", "items": ["authored-network-02"], "kind": "context", "mode": "triage", "seq": 26}
+{"heuristic_wire_tokens": 205, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 26, "wire_bytes": 818, "wire_sha256": "7c62c6222393e849fa4bf4cd96da5ad40b0dfe42311b0da4ab4fd3095b132e2f"}
+{"elapsed_ms": 183.15412499999974, "kind": "response", "list_usd_estimate": 2.05e-05, "model": "jev-1.13.0", "provider_input_tokens": 488, "seq": 26}
+{"case": "authored-network-03", "items": ["authored-network-03"], "kind": "context", "mode": "triage", "seq": 27}
+{"heuristic_wire_tokens": 209, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 27, "wire_bytes": 833, "wire_sha256": "1b814f59f61a5891d52207d3c4d149e3aa37a82c2f52808bf37736378e5e9475"}
+{"elapsed_ms": 137.58208399999995, "kind": "response", "list_usd_estimate": 2.041e-05, "model": "jev-1.13.0", "provider_input_tokens": 486, "seq": 27}
+{"case": "authored-resource-01", "items": ["authored-resource-01"], "kind": "context", "mode": "triage", "seq": 28}
+{"heuristic_wire_tokens": 205, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 28, "wire_bytes": 820, "wire_sha256": "d6196c984482e494c34ee7e50b2b9466f30a4b3fbe654d6b334ac359c8eaba3e"}
+{"elapsed_ms": 191.39695800000032, "kind": "response", "list_usd_estimate": 2.058e-05, "model": "jev-1.13.0", "provider_input_tokens": 490, "seq": 28}
+{"case": "authored-resource-02", "items": ["authored-resource-02"], "kind": "context", "mode": "triage", "seq": 29}
+{"heuristic_wire_tokens": 205, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 29, "wire_bytes": 817, "wire_sha256": "b2cbcf015df98733385394d3b710011c7c176d05ff82c1017972c71305c4d3d1"}
+{"elapsed_ms": 171.72429099999943, "kind": "response", "list_usd_estimate": 2.045e-05, "model": "jev-1.13.0", "provider_input_tokens": 487, "seq": 29}
+{"case": "authored-resource-03", "items": ["authored-resource-03"], "kind": "context", "mode": "triage", "seq": 30}
+{"heuristic_wire_tokens": 206, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 30, "wire_bytes": 824, "wire_sha256": "0b2ef67eaae8226a31bac112c4e03344858176da3f3f127d3377262dbda6e9bf"}
+{"elapsed_ms": 150.99241700000033, "kind": "response", "list_usd_estimate": 2.058e-05, "model": "jev-1.13.0", "provider_input_tokens": 490, "seq": 30}
+{"case": "authored-unknown-03", "items": ["authored-unknown-03"], "kind": "context", "mode": "triage", "seq": 31}
+{"heuristic_wire_tokens": 214, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 31, "wire_bytes": 853, "wire_sha256": "c4be14940c86880589307e7b1c9662871d61677a1f1364b5c477eb28a0ae5511"}
+{"elapsed_ms": 191.55233299999975, "kind": "response", "list_usd_estimate": 2.05e-05, "model": "jev-1.13.0", "provider_input_tokens": 488, "seq": 31}
+{"case": "authored-unknown-06", "items": ["authored-unknown-06"], "kind": "context", "mode": "triage", "seq": 32}
+{"heuristic_wire_tokens": 200, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 32, "wire_bytes": 798, "wire_sha256": "ef57a049ff23a26c6cb2a2a5a9b0a1be66744974e8174b5646da969777973117"}
+{"elapsed_ms": 143.78520799999973, "kind": "response", "list_usd_estimate": 2.024e-05, "model": "jev-1.13.0", "provider_input_tokens": 482, "seq": 32}
+{"case": "authored-unknown-07", "items": ["authored-unknown-07"], "kind": "context", "mode": "triage", "seq": 33}
+{"heuristic_wire_tokens": 203, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 33, "wire_bytes": 812, "wire_sha256": "750454db9473fda8593743dd92d2745ec4a4e3acb1ededc973f88cb56326d785"}
+{"elapsed_ms": 162.29970799999992, "kind": "response", "list_usd_estimate": 2.041e-05, "model": "jev-1.13.0", "provider_input_tokens": 486, "seq": 33}
+{"case": "authored-unknown-11", "items": ["authored-unknown-11"], "kind": "context", "mode": "triage", "seq": 34}
+{"heuristic_wire_tokens": 207, "kind": "reservation", "reserved_list_usd_estimate": 0.002, "seq": 34, "wire_bytes": 825, "wire_sha256": "9943f74333dece92d614e8e9f55f3f5c46652a40b202ac9cc1da2bb3758b5183"}
+{"elapsed_ms": 131.18704200000053, "kind": "response", "list_usd_estimate": 2.054e-05, "model": "jev-1.13.0", "provider_input_tokens": 489, "seq": 34}

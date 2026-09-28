@@ -1,5 +1,7 @@
 # Live scouting and failure-triage pilot, 2026-09-28
 
+Historical v1 results below are unchanged. Larger, stronger-comparator validation is now available in [independent-v2/SCORECARD.md](independent-v2/SCORECARD.md). It retains NOT_PROMOTED and finds stronger deterministic triage better than semantic advice. A/B are now observed development/regression data, never fresh validation for later changes.
+
 ## Decision
 
 **NOT_PROMOTED.** Keep both helpers opt-in/advisory. The failure classifier improved on this synthetic pilot, but scouting still misses relevant evidence and adds net context and latency. Do not replace ordinary search, delete non-shortlisted evidence, suppress test failures, or lower confidence thresholds to improve these scores. No automatic feature activation, compaction, gateway restart, main merge or release is authorized by this result.

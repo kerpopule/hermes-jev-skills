@@ -4,6 +4,8 @@ These are opt-in advisory helpers, not mandatory gates before reads or shell com
 
 ## Local search first
 
+Default caller policy is deterministic-first and **skip semantic scouting**. Larger independently frozen public/synthetic validation found no net benefit over stronger deterministic comparators: see [v2 scorecard](../evals/file-evidence/independent-v2/SCORECARD.md). BM25 and extended diagnostic signatures there are benchmark comparators, not the shipping implementations. No automatic hook or batch production API was added. Keep all references recoverable and expand local reads beyond eight-line excerpts when necessary.
+
 Use your usual deterministic repository search to prepare a small explicit relative-path manifest. The scout does not crawl the filesystem, interpret ignore files or run a shell. Apply repository ignore rules in your search; the scout additionally excludes dot paths, generated/vendor directories, private/customer folders, unsupported extensions, secrets, binary files, links and oversized files.
 
 Send JSON to `jev evidence scout`:

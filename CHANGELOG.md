@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Independent public/synthetic validation v2: 318 real requests; stronger deterministic triage scored 62/64 versus semantic 60/64. BM25 kept all critical references with less context than semantic unions. Retain deterministic-first/skip-semantic advisory defaults and NOT_PROMOTED status. All request bodies reconstructed and hash-verified offline; raw HTTP responses unavailable. See `evals/file-evidence/independent-v2/SCORECARD.md`. No source skill edits or shared rollout.
+
 - Freeze larger public/synthetic evidence validation before scoring: 32 public CPython functions, eight multi-evidence tasks, 64 failure records, stronger deterministic comparators and guarded batch/crossover measurement. Audit actual caller integration and canonical-versus-installed skew; defaults remain deterministic-first, semantic scouting skipped and advice opt-in. No production activation or skill changes.
 
 - Add opt-in local evidence scouting and failure-symptom triage, with pinned references and privacy screening. No activation or compaction changes.
