@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "provenance": "Newly authored synthetic excerpts only. Frozen before live scores; A becomes regression after inspection; B reserved for fresh validation.",
+  "panels": {
+    "A": {
+      "scouting": [
+        {"id":"a-cache","query":"remove stale cache entries","texts":["The cache dashboard lists entries and graphs stale observations.","Evict expired records whenever their lifetime elapses.","The icon theme uses indigo."],"relevant":[1]},
+        {"id":"a-retry","query":"retry failed network requests","texts":["The requests chart counts failed network events but does not retry them.","On transient connection loss repeat the operation with exponential backoff.","Typography uses a serif font."],"relevant":[1]},
+        {"id":"a-sort","query":"sort numbers ascending","texts":["Sort numbers ascending by comparing each integer numerically.","The report counts sort invocations.","Render a square button."],"relevant":[0]},
+        {"id":"a-atomic","query":"atomic replacement of a file","texts":["The file catalog explains atomic symbols in chemistry.","Write a temporary sibling then rename it over the destination in one operation.","Music plays on a loop."],"relevant":[1]},
+        {"id":"a-cap","query":"maximum worker concurrency","texts":["At most four tasks execute simultaneously; excess work waits in the queue.","Worker avatars use the maximum screen width.","The calendar starts on Monday."],"relevant":[0]},
+        {"id":"a-empty","query":"reject an empty name","texts":["An empty name is rejected before submission.","The empty state displays a name heading.","Animate the background."],"relevant":[0]},
+        {"id":"a-cycle","query":"detect circular dependencies","texts":["Dependencies appear in a circular layout.","Maintain a visiting set; reaching an ancestor signals a cycle.","Build a list of ingredient weights."],"relevant":[1]},
+        {"id":"a-clock","query":"deadline uses monotonic time","texts":["A deadline annotation mentions time in the guide.","Compute elapsed duration from a clock unaffected by wall time adjustments.","The label says monotonic time next to a decorative clock."],"relevant":[1]},
+        {"id":"a-compress","query":"recover original text from compressed bytes","texts":["Compressed bytes are counted in the chart.","Inflate the stream then decode its characters to restore the original message.","The text editor has a blue border."],"relevant":[1]},
+        {"id":"a-duplicates","query":"remove duplicate values preserving order","texts":["Track seen values and emit each value only on its first occurrence.","The table shows duplicate values preserving their duplicate rows.","Remove the outer border."],"relevant":[0]},
+        {"id":"a-multiple","query":"validate an integer range","texts":["Reject values below the lower bound.","Reject values above the upper bound.","The integer range chart has no validation."],"relevant":[0,1]},
+        {"id":"a-none","query":"rotate a matrix","texts":["A rotating logo decorates the page.","The matrix section contains only a title.","Nothing about the algorithm is provided."],"relevant":[]}
+      ],
+      "failures": [
+        {"id":"a-f01","text":"AssertionError: result differs","label":"assertion"},
+        {"id":"a-f02","text":"ModuleNotFoundError: widget","label":"dependency"},
+        {"id":"a-f03","text":"SyntaxError: missing colon","label":"syntax"},
+        {"id":"a-f04","text":"TimeoutError: operation expired","label":"timeout"},
+        {"id":"a-f05","text":"PermissionError: read denied","label":"permission"},
+        {"id":"a-f06","text":"ConnectionRefusedError: unavailable","label":"network"},
+        {"id":"a-f07","text":"MemoryError: allocation failed","label":"resource"},
+        {"id":"a-f08","text":"The test expected seven items but received three.","label":"assertion"},
+        {"id":"a-f09","text":"The required library could not be imported because it is not installed.","label":"dependency"},
+        {"id":"a-f10","text":"The parser rejected the source because a closing bracket is missing.","label":"syntax"},
+        {"id":"a-f11","text":"The operation exceeded the allowed duration and was terminated.","label":"timeout"},
+        {"id":"a-f12","text":"The operating system denied this process write access to the destination.","label":"permission"},
+        {"id":"a-f13","text":"The remote peer reset the socket before the response arrived.","label":"network"},
+        {"id":"a-f14","text":"The disk is completely full so the output cannot be written.","label":"resource"},
+        {"id":"a-f15","text":"Runner vanished without a diagnostic.","label":"unknown"},
+        {"id":"a-f16","text":"AssertionError and TimeoutError both appear in the failing trace.","label":"unknown"},
+        {"id":"a-f17","text":"The documentation gives an example of PermissionError.","label":"unknown","misleading":true},
+        {"id":"a-f18","text":"No AssertionError occurred; the runner vanished.","label":"unknown","misleading":true},
+        {"id":"a-f19","text":"TimeoutError was not raised. The runner vanished.","label":"unknown","misleading":true},
+        {"id":"a-f20","text":"Expected exception: ModuleNotFoundError. The actual failure is not recorded.","label":"unknown","misleading":true},
+        {"id":"a-f21","text":"A previous run had MemoryError. This run has no diagnostic.","label":"unknown","misleading":true},
+        {"id":"a-f22","text":"The assertion mentions the string SyntaxError but no parsing failure occurred.","label":"unknown","misleading":true},
+        {"id":"a-f23","text":"An allocation was refused because available memory was exhausted.","label":"resource"},
+        {"id":"a-f24","text":"The observed checksum differs from the expected checksum.","label":"assertion"}
+      ]
+    },
+    "B": {
+      "scouting": [
+        {"id":"b-lru","query":"discard least recently used items","texts":["Items are displayed in recently used order but never discarded.","When capacity is reached evict the entry whose last access is oldest.","The dashboard displays a purple badge."],"relevant":[1]},
+        {"id":"b-idempotent","query":"prevent duplicate transaction processing","texts":["Store each operation identifier and skip it when encountered again.","Duplicate transaction processing is counted for reporting only.","Set the screen brightness."],"relevant":[0]},
+        {"id":"b-clamp","query":"clamp a number between bounds","texts":["Replace any value below the minimum with the minimum and any value above the maximum with the maximum.","The number chart labels its bounds.","The clamp illustration is decorative."],"relevant":[0]},
+        {"id":"b-unicode","query":"normalize equivalent unicode strings","texts":["Unicode strings decorate the normalize button.","Convert both strings to canonical composed form before comparison.","Choose a monospace font."],"relevant":[1]},
+        {"id":"b-cancel","query":"cancel pending jobs on shutdown","texts":["Shutdown jobs are listed on the cancel screen.","On termination signal mark queued work cancelled and wake waiting workers.","The footer shows the current release."],"relevant":[1]},
+        {"id":"b-page","query":"fetch the next page of results","texts":["Pass the returned cursor into the following query until no cursor remains.","The next page button fetch animation has three dots.","Results are colored green."],"relevant":[0]},
+        {"id":"b-bfs","query":"shortest path in an unweighted graph","texts":["The graph legend describes path colors.","Visit vertices level by level using a queue and retain predecessor links.","A shortest path title is printed above the graph."],"relevant":[1]},
+        {"id":"b-check","query":"verify downloaded file integrity","texts":["Verify downloaded file integrity by comparing its digest against the published digest.","The file download button shows an integrity badge without verification.","The guide discusses file names."],"relevant":[0]},
+        {"id":"b-buffer","query":"flush a buffer before closing","texts":["Closing the buffer is described in a heading only.","Write all pending bytes to the underlying stream before releasing its handle.","The chart uses a thick stroke."],"relevant":[1]},
+        {"id":"b-bound","query":"reject out of range input","texts":["Reject negative values.","Reject values exceeding the configured maximum.","Out of range input is displayed but never rejected."],"relevant":[0,1]},
+        {"id":"b-zip","query":"pair elements from two sequences","texts":["Combine the first element of each sequence then the second and continue in lockstep.","The two sequences have colored elements.","Pair is the name of a font."],"relevant":[0]},
+        {"id":"b-none","query":"calculate a median","texts":["The calculate control is disabled.","The median section is blank.","The page contains no statistics implementation."],"relevant":[]}
+      ],
+      "failures": [
+        {"id":"b-f01","text":"assertion failed: lengths differ","label":"assertion"},
+        {"id":"b-f02","text":"cannot find module gadget","label":"dependency"},
+        {"id":"b-f03","text":"IndentationError: block misaligned","label":"syntax"},
+        {"id":"b-f04","text":"deadline exceeded during test","label":"timeout"},
+        {"id":"b-f05","text":"EACCES while creating output","label":"permission"},
+        {"id":"b-f06","text":"ECONNRESET from peer","label":"network"},
+        {"id":"b-f07","text":"ENOSPC when writing bytes","label":"resource"},
+        {"id":"b-f08","text":"The returned list has four entries instead of the required six.","label":"assertion"},
+        {"id":"b-f09","text":"Loading the extension failed because its required package is absent.","label":"dependency"},
+        {"id":"b-f10","text":"Parsing stopped at an unmatched parenthesis in the program.","label":"syntax"},
+        {"id":"b-f11","text":"The test was stopped after exceeding its time allowance.","label":"timeout"},
+        {"id":"b-f12","text":"Writing the destination was forbidden by the operating system access rules.","label":"permission"},
+        {"id":"b-f13","text":"The connection to the remote service was refused.","label":"network"},
+        {"id":"b-f14","text":"There is no remaining storage capacity to save the result.","label":"resource"},
+        {"id":"b-f15","text":"Process ended unexpectedly and emitted nothing.","label":"unknown"},
+        {"id":"b-f16","text":"SyntaxError followed by PermissionError in the same trace.","label":"unknown"},
+        {"id":"b-f17","text":"The guide presents a hypothetical ConnectionRefusedError.","label":"unknown","misleading":true},
+        {"id":"b-f18","text":"Without TimeoutError the runner still stopped for an unexplained reason.","label":"unknown","misleading":true},
+        {"id":"b-f19","text":"PermissionError did not occur. No further failure detail is available.","label":"unknown","misleading":true},
+        {"id":"b-f20","text":"Expected exception: SyntaxError. Actual failure details are unavailable.","label":"unknown","misleading":true},
+        {"id":"b-f21","text":"The last execution reported TimeoutError. The current execution only says stopped.","label":"unknown","misleading":true},
+        {"id":"b-f22","text":"The string ModuleNotFoundError is a test input, not an observed import failure.","label":"unknown","misleading":true},
+        {"id":"b-f23","text":"The allocator ran out of available memory while constructing the array.","label":"resource"},
+        {"id":"b-f24","text":"The calculated total is different from the required total.","label":"assertion"}
+      ]
+    }
+  }
+}

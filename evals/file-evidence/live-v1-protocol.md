@@ -1,0 +1,23 @@
+# Live synthetic pilot protocol v1
+
+Frozen before any provider scoring. This is a small diagnostic pilot, NOT the 100 scouting-task / 100 failure-record promotion study required by file-evidence-evaluation.md. No threshold relaxation or promotion from this pilot. All text is newly authored synthetic material, never a local source tree or real log. Labels express observed symptoms or direct relevance, never proven causes.
+
+## Frozen panels and comparison
+
+Panel A is initial heldout, becomes regression/tuning data immediately after its scores are inspected. Panel B is separately authored fresh validation, frozen at the same time and never used for tuning. Repeated A calls measure repeatability only. If B informs any changes, it too becomes regression, and a new panel is required. Small sample sizes and same-author labels are limitations, not independent human adjudication. Do not inflate sample size by counting paraphrases or repeated calls as independent tasks.
+
+For each scouting query, create a disposable manifest of three synthetic text files. Compare existing lexical top-1 to an additive advisory shortlist: retain lexical selections, add any additional file receiving `relevant` from the unchanged public_advice policy. Never remove a deterministic selection. Keep every eligible reference recoverable. Also report Jev-only shortlist diagnostics; an empty selection is abstention, not evidence absence. Measure micro recall, exact missed IDs, precision, average selected files, exhaustive eligible recall, and critical misses (every relevant record is critical for this pilot). Frontend context is all recovered excerpt text versus selected recovered text, in UTF-8 bytes, and explicitly labeled ceil(bytes/4) heuristic token estimates. Include Jev provider input tokens separately and in estimated net context accounting. No claim of actual frontier token savings.
+
+For failures compare classify(semantic=False) and classify(semantic=True, approved_public=True); only lexical unknowns reach the existing Jev client. Measure accuracy including unknown, known-category non-abstention coverage, correct known-category coverage, unknown false certainty, misleading-mention false certainty, exit-code and evidence preservation. Report all per-row labels and predictions.
+
+Latency: monotonic elapsed milliseconds for local and enhanced paths, nearest-rank p50/p95. Scouting enhanced time includes local scout + recovery + all advisory requests. Record request latency as an additional metric. No concurrency, no retries at policy level, no provider substitution, no override of the existing global limiter, no routing or hook activation.
+
+## Runaway guards and cost
+
+Each invocation processes at most one panel, at most 100 provider attempts, at most 600 seconds, and at most 5 consecutive failed provider decisions. Stop before the next request if bounds are exceeded. Maximum 600 attempts across this pilot's result files, including repeats and failures; retained append-only JSONL receipts allow resumption without silently duplicating completed rows. Failures are retained, not erased or silently rerun. Persist a receipt after each call. The transport uses the standard TypeSafe client and credential resolver without printing secrets. Reject non-TypeSafe provider/custom endpoint configurations rather than silently routing elsewhere.
+
+Use existing limiter plus a per-run conservative reservation of 0.002 USD per request (0.20 USD maximum list-price planning allowance). This is a safety estimate, not verified billing or a contractual price cap. Report provider input-token counts and separately list-price cost estimates using the repo ledger rate, with date/provenance, missing usage explicitly counted. No invented actual billing. Stop on missing key or authorization errors rather than attempting credential changes.
+
+## Promotion decision
+
+Existing promotion bars remain: >=100 scouting tasks and >=100 failure records, recall >=0.98, zero critical misses and no baseline regression, taxonomy accuracy >=0.90, known-category coverage >=0.80, unknown false certainty <=0.02, privacy/fallback checks passing, actual latency and billed cost verified, net benefit, reviewed integration. This pilot can reject promotion or motivate more evaluation, not establish promotion. Offline tests cover privacy/injection, timeout/malformed/low confidence/drift, binary/symlink/root escapes, truncation and bounded large inputs. Installation must preserve activation and concurrent credential work. Skill integration is prohibited by the current execution instruction; report this explicitly rather than bypass it.
