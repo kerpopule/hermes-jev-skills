@@ -40,7 +40,12 @@ def classify(state: Dict[str, Any], *, transport=None) -> Dict[str, Any]:
     # A log can quote documentation or say an error did NOT happen. Do not turn
     # those mentions into a positive symptom (conservative abstention, not NLP proof).
     if re.search(r'\b(?:documentation|example|hypothetical|caught|handled)\b|'
-                 r'\b(?:no|not|without)\s+\w*(?:Error|failure|timeout)\b', text, re.I):
+                 r'\b(?:no|not|without)\s+\w*(?:Error|failure|timeout)\b|'
+                 r'\b\w*Error\s+(?:(?:was|is|were)\s+not|did\s+not|never)\b|'
+                 r'\bexpected\s+(?:exception|error)\b|'
+                 r'\b(?:previous|prior|last|earlier)\s+(?:run|execution)\b|'
+                 r'\b(?:string|literal|test\s+input)\b.{0,80}\b\w*Error\b|'
+                 r'\b\w*Error\b.{0,80}\b(?:string|literal|test\s+input)\b', text, re.I):
         return {**out, 'reason': 'non_observation_or_negation'}
     matched = {name: [i for i, line in enumerate(text.splitlines(), 1)
                       if re.search(pattern, line, re.I)] for name, pattern in PATTERNS.items()}

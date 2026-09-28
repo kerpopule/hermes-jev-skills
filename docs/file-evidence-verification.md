@@ -1,5 +1,7 @@
 # File evidence candidate verification
 
+Historical offline verification at `ab70714` follows. Superseded for current live measurements and installation status by [the live scorecard](../evals/file-evidence/LIVE-SCORECARD.md): 138 real provider requests, fresh panel B validation, 1,379 passing tests and a verified root-plugin-only refresh with the canonical CLI left unchanged. Both helpers remain NOT_PROMOTED. Source skill edits remain forbidden by this execution environment.
+
 This is a review-branch candidate, not an activated fleet feature or a release.
 
 ## Executed checks

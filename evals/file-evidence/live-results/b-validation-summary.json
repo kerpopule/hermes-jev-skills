@@ -1,0 +1,164 @@
+{
+  "scouting_tasks": 12,
+  "failure_records": 24,
+  "scouting": {
+    "baseline": {
+      "recall": 0.08333333333333333,
+      "precision": 0.08333333333333333,
+      "relevant_hits": 1,
+      "relevant_total": 12,
+      "selected_files": 12,
+      "mean_shortlist_size": 1.0,
+      "missed_ids": [
+        "b-lru:1",
+        "b-idempotent:0",
+        "b-clamp:0",
+        "b-unicode:1",
+        "b-cancel:1",
+        "b-page:0",
+        "b-bfs:1",
+        "b-buffer:1",
+        "b-bound:0",
+        "b-bound:1",
+        "b-zip:0"
+      ],
+      "selected_context_bytes": 615,
+      "selected_context_heuristic_tokens": 158,
+      "p50_ms": 2.7206249999999765,
+      "p95_ms": 6.448208000000122
+    },
+    "semantic": {
+      "recall": 0.8333333333333334,
+      "precision": 0.9090909090909091,
+      "relevant_hits": 10,
+      "relevant_total": 12,
+      "selected_files": 11,
+      "mean_shortlist_size": 0.9166666666666666,
+      "missed_ids": [
+        "b-page:0",
+        "b-bound:0"
+      ],
+      "selected_context_bytes": 796,
+      "selected_context_heuristic_tokens": 204
+    },
+    "enhanced": {
+      "recall": 0.8333333333333334,
+      "precision": 0.47619047619047616,
+      "relevant_hits": 10,
+      "relevant_total": 12,
+      "selected_files": 21,
+      "mean_shortlist_size": 1.75,
+      "missed_ids": [
+        "b-page:0",
+        "b-bound:0"
+      ],
+      "selected_context_bytes": 1274,
+      "selected_context_heuristic_tokens": 327,
+      "p50_ms": 536.4684999999997,
+      "p95_ms": 658.3957089999998
+    },
+    "exhaustive_eligible_recall": 1.0,
+    "all_context_bytes": 1832,
+    "all_context_heuristic_tokens": 472,
+    "recoverable": true,
+    "context_accounting": {
+      "provider_reported_input_tokens": 14378,
+      "frontier_excerpt_tokens_heuristic": 327,
+      "enhanced_combined_tokens_mixed_measured_and_estimated": 14705,
+      "exhaustive_excerpt_tokens_heuristic": 472,
+      "net_tokens_saved_heuristic": -14233,
+      "caveat": "Excerpt text only; ceil UTF-8 bytes divided by four is not a tokenizer. Excludes reference and response overhead. Provider tokens are reported usage, not this heuristic."
+    }
+  },
+  "failure": {
+    "baseline": {
+      "accuracy": 0.625,
+      "known_coverage": 0.4375,
+      "known_correct_coverage": 0.4375,
+      "unknown_false_certainty": 0.0,
+      "misleading_false_certainty": 0.0,
+      "abstentions": 17,
+      "errors": [
+        {
+          "id": "b-f08",
+          "gold": "assertion",
+          "prediction": "unknown"
+        },
+        {
+          "id": "b-f09",
+          "gold": "dependency",
+          "prediction": "unknown"
+        },
+        {
+          "id": "b-f10",
+          "gold": "syntax",
+          "prediction": "unknown"
+        },
+        {
+          "id": "b-f11",
+          "gold": "timeout",
+          "prediction": "unknown"
+        },
+        {
+          "id": "b-f12",
+          "gold": "permission",
+          "prediction": "unknown"
+        },
+        {
+          "id": "b-f13",
+          "gold": "network",
+          "prediction": "unknown"
+        },
+        {
+          "id": "b-f14",
+          "gold": "resource",
+          "prediction": "unknown"
+        },
+        {
+          "id": "b-f23",
+          "gold": "resource",
+          "prediction": "unknown"
+        },
+        {
+          "id": "b-f24",
+          "gold": "assertion",
+          "prediction": "unknown"
+        }
+      ],
+      "failure_preserved": true,
+      "p50_ms": 0.3157499999995039,
+      "p95_ms": 1.0026659999997634
+    },
+    "enhanced": {
+      "accuracy": 1.0,
+      "known_coverage": 1.0,
+      "known_correct_coverage": 1.0,
+      "unknown_false_certainty": 0.0,
+      "misleading_false_certainty": 0.0,
+      "abstentions": 8,
+      "errors": [],
+      "failure_preserved": true,
+      "p50_ms": 0.2863330000000275,
+      "p95_ms": 278.31024999999966
+    }
+  },
+  "usage": {
+    "logical_provider_attempts": 46,
+    "responses": 46,
+    "provider_input_tokens": 19214,
+    "responses_missing_usage": 0,
+    "wire_bytes": 26811,
+    "wire_heuristic_tokens": 6719,
+    "list_usd_estimate": 0.0008069900000000002,
+    "actual_billing_verified": false,
+    "models": [
+      "jev-1.13.0"
+    ],
+    "p50_ms": 168.4654160000001,
+    "p95_ms": 270.47216699999944,
+    "decision_errors": [],
+    "scouting_provider_input_tokens": 14378,
+    "failure_provider_input_tokens": 4836
+  },
+  "promotion": "NOT_PROMOTED: synthetic pilot below frozen sample minimum; actual billing unavailable; inspect recall, robustness, latency and net cost"
+}

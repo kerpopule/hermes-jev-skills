@@ -134,7 +134,7 @@ def scout(root: str, paths: Sequence[str], query: str, *, top_k: int = 8) -> Dic
                 digest = _hash(text)
                 evidence_id = 'E' + _hash(raw + '\x00' + digest)[:24]
                 rows.append({'id': evidence_id, 'path': raw, 'sha256': digest,
-                             'start_line': start, 'end_line': min(len(lines), start + 7),
+                             'start_line': start, 'end_line': max(1, min(len(lines), start + 7)),
                              'relevance': max((score for _, score in hits), default=0),
                              'assessment': 'lexical_match' if hits else 'unknown'})
             except (OSError, UnicodeError, ValueError) as error:

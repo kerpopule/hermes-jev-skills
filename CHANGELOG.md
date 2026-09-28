@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Add opt-in `jev evidence scout/read/advise` and `jev triage --preset test-failure`: bounded local evidence, content-pinned references, local privacy screening, advisory existing-policy integration, preserved failing exit codes and explicit unknowns. No hooks, activation or compaction change. Synthetic baseline/regression receipts and a frozen promotion protocol are included; live model performance is unmeasured. See `docs/file-evidence.md`.
+- Add opt-in local evidence scouting and failure-symptom triage, with pinned references and privacy screening. No activation or compaction changes.
+- Live pilot: 138 real Jev requests with frozen synthetic panels. Added conservative error-mention abstention and empty-file recovery. Fresh failure accuracy was 24/24; scouting still missed evidence and increased net context. Both helpers remain NOT_PROMOTED. See `evals/file-evidence/LIVE-SCORECARD.md`.
 
 - **`jev models suggest --provider X` builds pools from that provider only** (PR #30, thanks @brandonpollack23). The accepted flag previously filtered only `list`.
 
