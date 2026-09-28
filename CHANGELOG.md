@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Freeze larger public/synthetic evidence validation before scoring: 32 public CPython functions, eight multi-evidence tasks, 64 failure records, stronger deterministic comparators and guarded batch/crossover measurement. Audit actual caller integration and canonical-versus-installed skew; defaults remain deterministic-first, semantic scouting skipped and advice opt-in. No production activation or skill changes.
+
 - Add opt-in local evidence scouting and failure-symptom triage, with pinned references and privacy screening. No activation or compaction changes.
 - Live pilot: 138 real Jev requests with frozen synthetic panels. Added conservative error-mention abstention and empty-file recovery. Fresh failure accuracy was 24/24; scouting still missed evidence and increased net context. Both helpers remain NOT_PROMOTED. See `evals/file-evidence/LIVE-SCORECARD.md`.
 

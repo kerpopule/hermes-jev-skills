@@ -1,0 +1,918 @@
+{
+  "version": 2,
+  "split": "validation-only; A/B are tuning, no v2 model scoring before freeze",
+  "independence_limit": "Task author chose labels; not blind human annotation or real-project CI sampling.",
+  "sources": [
+    {
+      "module": "functools",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.11.9/Lib/functools.py",
+      "sha256": "6d80018a3fa9fed44c5b78f881987ee3ab3fb1238b077b4e6dcb4b76da7db73b",
+      "license": "PSF-2.0"
+    },
+    {
+      "module": "queue",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.11.9/Lib/queue.py",
+      "sha256": "f6c37fc37cd7440979f7d22d40ee818fa3b714c573610c08fa52911d541193f0",
+      "license": "PSF-2.0"
+    },
+    {
+      "module": "concurrent/futures/_base",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.11.9/Lib/concurrent/futures/_base.py",
+      "sha256": "8c6d5f09f7c535d40fa1c30ebfcb35e0601c2abf32286a82cf151af7ddf72473",
+      "license": "PSF-2.0"
+    },
+    {
+      "module": "gzip",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.11.9/Lib/gzip.py",
+      "sha256": "8e0a7f850ef481fea41e0de9b52b4a014573b58e500ae83b92e5888d7a061008",
+      "license": "PSF-2.0"
+    },
+    {
+      "module": "tempfile",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.11.9/Lib/tempfile.py",
+      "sha256": "ea4b01b1dfd4ab1f3974a98c216879770a4f7db060bf233a48e3a4223487c836",
+      "license": "PSF-2.0"
+    },
+    {
+      "module": "shutil",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.11.9/Lib/shutil.py",
+      "sha256": "aa2c11b95294111edddfeb02f9082ec7c4c21060d87f6857364b5bb95fb94e09",
+      "license": "PSF-2.0"
+    },
+    {
+      "module": "pathlib",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.11.9/Lib/pathlib.py",
+      "sha256": "3b21ac188fd9ac20bacc8ccd976fabd5d8ccf5000f8e157d3dfff005b228fb3d",
+      "license": "PSF-2.0"
+    },
+    {
+      "module": "contextlib",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.11.9/Lib/contextlib.py",
+      "sha256": "d732c045bc7450997f97b2f79cfdb1546b68d2655e89ab3170f3b19b3930d83c",
+      "license": "PSF-2.0"
+    }
+  ],
+  "files": [
+    {
+      "id": "functools:update_wrapper",
+      "path": "functools_update_wrapper.py",
+      "source_start_line": 35,
+      "source_end_line": 63,
+      "text": "def update_wrapper(wrapper,\n                   wrapped,\n                   assigned = WRAPPER_ASSIGNMENTS,\n                   updated = WRAPPER_UPDATES):\n    \"\"\"Update a wrapper function to look like the wrapped function\n\n       wrapper is the function to be updated\n       wrapped is the original function\n       assigned is a tuple naming the attributes assigned directly\n       from the wrapped function to the wrapper function (defaults to\n       functools.WRAPPER_ASSIGNMENTS)\n       updated is a tuple naming the attributes of the wrapper that\n       are updated with the corresponding attribute from the wrapped\n       function (defaults to functools.WRAPPER_UPDATES)\n    \"\"\"\n    for attr in assigned:\n        try:\n            value = getattr(wrapped, attr)\n        except AttributeError:\n            pass\n        else:\n            setattr(wrapper, attr, value)\n    for attr in updated:\n        getattr(wrapper, attr).update(getattr(wrapped, attr, {}))\n    # Issue #17482: set __wrapped__ last so we don't inadvertently copy it\n    # from the wrapped function when updating __dict__\n    wrapper.__wrapped__ = wrapped\n    # Return the wrapper so this can be used as a decorator via partial()\n    return wrapper\n",
+      "sha256": "c9058e8e17617b85d8405a76e5ee55e8e0ba7419b1cc76d2234866e51f397f24",
+      "module": "functools"
+    },
+    {
+      "id": "functools:wraps",
+      "path": "functools_wraps.py",
+      "source_start_line": 65,
+      "source_end_line": 77,
+      "text": "def wraps(wrapped,\n          assigned = WRAPPER_ASSIGNMENTS,\n          updated = WRAPPER_UPDATES):\n    \"\"\"Decorator factory to apply update_wrapper() to a wrapper function\n\n       Returns a decorator that invokes update_wrapper() with the decorated\n       function as the wrapper argument and the arguments to wraps() as the\n       remaining arguments. Default arguments are as for update_wrapper().\n       This is a convenience function to simplify applying partial() to\n       update_wrapper().\n    \"\"\"\n    return partial(update_wrapper, wrapped=wrapped,\n                   assigned=assigned, updated=updated)\n",
+      "sha256": "c6cb5abd50065505ad05b4f825bfd15cf4d9ecd32cc74d7948aa954b0c553a9a",
+      "module": "functools"
+    },
+    {
+      "id": "functools:lru_cache",
+      "path": "functools_lru_cache.py",
+      "source_start_line": 479,
+      "source_end_line": 523,
+      "text": "def lru_cache(maxsize=128, typed=False):\n    \"\"\"Least-recently-used cache decorator.\n\n    If *maxsize* is set to None, the LRU features are disabled and the cache\n    can grow without bound.\n\n    If *typed* is True, arguments of different types will be cached separately.\n    For example, f(3.0) and f(3) will be treated as distinct calls with\n    distinct results.\n\n    Arguments to the cached function must be hashable.\n\n    View the cache statistics named tuple (hits, misses, maxsize, currsize)\n    with f.cache_info().  Clear the cache and statistics with f.cache_clear().\n    Access the underlying function with f.__wrapped__.\n\n    See:  https://en.wikipedia.org/wiki/Cache_replacement_policies#Least_recently_used_(LRU)\n\n    \"\"\"\n\n    # Users should only access the lru_cache through its public API:\n    #       cache_info, cache_clear, and f.__wrapped__\n    # The internals of the lru_cache are encapsulated for thread safety and\n    # to allow the implementation to change (including a possible C version).\n\n    if isinstance(maxsize, int):\n        # Negative maxsize is treated as 0\n        if maxsize < 0:\n            maxsize = 0\n    elif callable(maxsize) and isinstance(typed, bool):\n        # The user_function was passed in directly via the maxsize argument\n        user_function, maxsize = maxsize, 128\n        wrapper = _lru_cache_wrapper(user_function, maxsize, typed, _CacheInfo)\n        wrapper.cache_parameters = lambda : {'maxsize': maxsize, 'typed': typed}\n        return update_wrapper(wrapper, user_function)\n    elif maxsize is not None:\n        raise TypeError(\n            'Expected first argument to be an integer, a callable, or None')\n\n    def decorating_function(user_function):\n        wrapper = _lru_cache_wrapper(user_function, maxsize, typed, _CacheInfo)\n        wrapper.cache_parameters = lambda : {'maxsize': maxsize, 'typed': typed}\n        return update_wrapper(wrapper, user_function)\n\n    return decorating_function\n",
+      "sha256": "fbd9e1f62903c90d21aa737185e2fff9b76d552f87c6c3a0e6780ab701e4ec9d",
+      "module": "functools"
+    },
+    {
+      "id": "functools:cached_property.__get__",
+      "path": "functools_cached_property___get__.py",
+      "source_start_line": 981,
+      "source_end_line": 1010,
+      "text": "    def __get__(self, instance, owner=None):\n        if instance is None:\n            return self\n        if self.attrname is None:\n            raise TypeError(\n                \"Cannot use cached_property instance without calling __set_name__ on it.\")\n        try:\n            cache = instance.__dict__\n        except AttributeError:  # not all objects have __dict__ (e.g. class defines slots)\n            msg = (\n                f\"No '__dict__' attribute on {type(instance).__name__!r} \"\n                f\"instance to cache {self.attrname!r} property.\"\n            )\n            raise TypeError(msg) from None\n        val = cache.get(self.attrname, _NOT_FOUND)\n        if val is _NOT_FOUND:\n            with self.lock:\n                # check if another thread filled cache while we awaited lock\n                val = cache.get(self.attrname, _NOT_FOUND)\n                if val is _NOT_FOUND:\n                    val = self.func(instance)\n                    try:\n                        cache[self.attrname] = val\n                    except TypeError:\n                        msg = (\n                            f\"The '__dict__' attribute on {type(instance).__name__!r} instance \"\n                            f\"does not support item assignment for caching {self.attrname!r} property.\"\n                        )\n                        raise TypeError(msg) from None\n        return val\n",
+      "sha256": "71a5508a60464fe6e3a7a805a8452150f43fef575984582af22a599f88922397",
+      "module": "functools"
+    },
+    {
+      "id": "queue:Queue.put",
+      "path": "queue_Queue_put.py",
+      "source_start_line": 122,
+      "source_end_line": 152,
+      "text": "    def put(self, item, block=True, timeout=None):\n        '''Put an item into the queue.\n\n        If optional args 'block' is true and 'timeout' is None (the default),\n        block if necessary until a free slot is available. If 'timeout' is\n        a non-negative number, it blocks at most 'timeout' seconds and raises\n        the Full exception if no free slot was available within that time.\n        Otherwise ('block' is false), put an item on the queue if a free slot\n        is immediately available, else raise the Full exception ('timeout'\n        is ignored in that case).\n        '''\n        with self.not_full:\n            if self.maxsize > 0:\n                if not block:\n                    if self._qsize() >= self.maxsize:\n                        raise Full\n                elif timeout is None:\n                    while self._qsize() >= self.maxsize:\n                        self.not_full.wait()\n                elif timeout < 0:\n                    raise ValueError(\"'timeout' must be a non-negative number\")\n                else:\n                    endtime = time() + timeout\n                    while self._qsize() >= self.maxsize:\n                        remaining = endtime - time()\n                        if remaining <= 0.0:\n                            raise Full\n                        self.not_full.wait(remaining)\n            self._put(item)\n            self.unfinished_tasks += 1\n            self.not_empty.notify()\n",
+      "sha256": "997c8f0853f4146eb663552ef0b02ca630cbfb887d5a9ffee3ea6b1dd380518d",
+      "module": "queue"
+    },
+    {
+      "id": "queue:Queue.get",
+      "path": "queue_Queue_get.py",
+      "source_start_line": 154,
+      "source_end_line": 183,
+      "text": "    def get(self, block=True, timeout=None):\n        '''Remove and return an item from the queue.\n\n        If optional args 'block' is true and 'timeout' is None (the default),\n        block if necessary until an item is available. If 'timeout' is\n        a non-negative number, it blocks at most 'timeout' seconds and raises\n        the Empty exception if no item was available within that time.\n        Otherwise ('block' is false), return an item if one is immediately\n        available, else raise the Empty exception ('timeout' is ignored\n        in that case).\n        '''\n        with self.not_empty:\n            if not block:\n                if not self._qsize():\n                    raise Empty\n            elif timeout is None:\n                while not self._qsize():\n                    self.not_empty.wait()\n            elif timeout < 0:\n                raise ValueError(\"'timeout' must be a non-negative number\")\n            else:\n                endtime = time() + timeout\n                while not self._qsize():\n                    remaining = endtime - time()\n                    if remaining <= 0.0:\n                        raise Empty\n                    self.not_empty.wait(remaining)\n            item = self._get()\n            self.not_full.notify()\n            return item\n",
+      "sha256": "3d9788ccb7a0381fcc7979e26b3ed47e98a52265bf0b1f8342d2a6a1fb0694bb",
+      "module": "queue"
+    },
+    {
+      "id": "queue:Queue.task_done",
+      "path": "queue_Queue_task_done.py",
+      "source_start_line": 57,
+      "source_end_line": 77,
+      "text": "    def task_done(self):\n        '''Indicate that a formerly enqueued task is complete.\n\n        Used by Queue consumer threads.  For each get() used to fetch a task,\n        a subsequent call to task_done() tells the queue that the processing\n        on the task is complete.\n\n        If a join() is currently blocking, it will resume when all items\n        have been processed (meaning that a task_done() call was received\n        for every item that had been put() into the queue).\n\n        Raises a ValueError if called more times than there were items\n        placed in the queue.\n        '''\n        with self.all_tasks_done:\n            unfinished = self.unfinished_tasks - 1\n            if unfinished <= 0:\n                if unfinished < 0:\n                    raise ValueError('task_done() called too many times')\n                self.all_tasks_done.notify_all()\n            self.unfinished_tasks = unfinished\n",
+      "sha256": "1a26e8fff6103c367bcba2112d7a49bc4efc4b6b9ab4ae3c1402e6a5a16ca98e",
+      "module": "queue"
+    },
+    {
+      "id": "queue:Queue.join",
+      "path": "queue_Queue_join.py",
+      "source_start_line": 79,
+      "source_end_line": 90,
+      "text": "    def join(self):\n        '''Blocks until all items in the Queue have been gotten and processed.\n\n        The count of unfinished tasks goes up whenever an item is added to the\n        queue. The count goes down whenever a consumer thread calls task_done()\n        to indicate the item was retrieved and all work on it is complete.\n\n        When the count of unfinished tasks drops to zero, join() unblocks.\n        '''\n        with self.all_tasks_done:\n            while self.unfinished_tasks:\n                self.all_tasks_done.wait()\n",
+      "sha256": "59136574eb6333a0b1956c8aa70bcb14a0182a414f5c0350110fc89f0f87840d",
+      "module": "queue"
+    },
+    {
+      "id": "concurrent/futures/_base:Future.cancel",
+      "path": "concurrent_futures__base_Future_cancel.py",
+      "source_start_line": 364,
+      "source_end_line": 381,
+      "text": "    def cancel(self):\n        \"\"\"Cancel the future if possible.\n\n        Returns True if the future was cancelled, False otherwise. A future\n        cannot be cancelled if it is running or has already completed.\n        \"\"\"\n        with self._condition:\n            if self._state in [RUNNING, FINISHED]:\n                return False\n\n            if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:\n                return True\n\n            self._state = CANCELLED\n            self._condition.notify_all()\n\n        self._invoke_callbacks()\n        return True\n",
+      "sha256": "27fb4b486b9a9fba48d81c694003786723f288cc583c8ea925c1be003a8f9b3f",
+      "module": "concurrent/futures/_base"
+    },
+    {
+      "id": "concurrent/futures/_base:Future.result",
+      "path": "concurrent_futures__base_Future_result.py",
+      "source_start_line": 428,
+      "source_end_line": 461,
+      "text": "    def result(self, timeout=None):\n        \"\"\"Return the result of the call that the future represents.\n\n        Args:\n            timeout: The number of seconds to wait for the result if the future\n                isn't done. If None, then there is no limit on the wait time.\n\n        Returns:\n            The result of the call that the future represents.\n\n        Raises:\n            CancelledError: If the future was cancelled.\n            TimeoutError: If the future didn't finish executing before the given\n                timeout.\n            Exception: If the call raised then that exception will be raised.\n        \"\"\"\n        try:\n            with self._condition:\n                if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:\n                    raise CancelledError()\n                elif self._state == FINISHED:\n                    return self.__get_result()\n\n                self._condition.wait(timeout)\n\n                if self._state in [CANCELLED, CANCELLED_AND_NOTIFIED]:\n                    raise CancelledError()\n                elif self._state == FINISHED:\n                    return self.__get_result()\n                else:\n                    raise TimeoutError()\n        finally:\n            # Break a reference cycle with the exception in self._exception\n            self = None\n",
+      "sha256": "641e65c0ddeea883c327668a7b6f12e9ae7024ce7b6b40a609be107c0338c969",
+      "module": "concurrent/futures/_base"
+    },
+    {
+      "id": "concurrent/futures/_base:Future.set_result",
+      "path": "concurrent_futures__base_Future_set_result.py",
+      "source_start_line": 537,
+      "source_end_line": 550,
+      "text": "    def set_result(self, result):\n        \"\"\"Sets the return value of work associated with the future.\n\n        Should only be used by Executor implementations and unit tests.\n        \"\"\"\n        with self._condition:\n            if self._state in {CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED}:\n                raise InvalidStateError('{}: {!r}'.format(self._state, self))\n            self._result = result\n            self._state = FINISHED\n            for waiter in self._waiters:\n                waiter.add_result(self)\n            self._condition.notify_all()\n        self._invoke_callbacks()\n",
+      "sha256": "0a988e6da984248ca30dcf54d49fdaf6a223bb5db2566a1ed3d719a4692ec8bc",
+      "module": "concurrent/futures/_base"
+    },
+    {
+      "id": "concurrent/futures/_base:Future.add_done_callback",
+      "path": "concurrent_futures__base_Future_add_done_callback.py",
+      "source_start_line": 408,
+      "source_end_line": 426,
+      "text": "    def add_done_callback(self, fn):\n        \"\"\"Attaches a callable that will be called when the future finishes.\n\n        Args:\n            fn: A callable that will be called with this future as its only\n                argument when the future completes or is cancelled. The callable\n                will always be called by a thread in the same process in which\n                it was added. If the future has already completed or been\n                cancelled then the callable will be called immediately. These\n                callables are called in the order that they were added.\n        \"\"\"\n        with self._condition:\n            if self._state not in [CANCELLED, CANCELLED_AND_NOTIFIED, FINISHED]:\n                self._done_callbacks.append(fn)\n                return\n        try:\n            fn(self)\n        except Exception:\n            LOGGER.exception('exception calling callback for %r', self)\n",
+      "sha256": "a53a7f3297a2a1a372b1971d17742f85e990dde0bdfa6eccaead0cc238435abc",
+      "module": "concurrent/futures/_base"
+    },
+    {
+      "id": "gzip:GzipFile.write",
+      "path": "gzip_GzipFile_write.py",
+      "source_start_line": 272,
+      "source_end_line": 294,
+      "text": "    def write(self,data):\n        self._check_not_closed()\n        if self.mode != WRITE:\n            import errno\n            raise OSError(errno.EBADF, \"write() on read-only GzipFile object\")\n\n        if self.fileobj is None:\n            raise ValueError(\"write() on closed GzipFile object\")\n\n        if isinstance(data, (bytes, bytearray)):\n            length = len(data)\n        else:\n            # accept any data that supports the buffer protocol\n            data = memoryview(data)\n            length = data.nbytes\n\n        if length > 0:\n            self.fileobj.write(self.compress.compress(data))\n            self.size += length\n            self.crc = zlib.crc32(data, self.crc)\n            self.offset += length\n\n        return length\n",
+      "sha256": "c64f6bc1d9fafeb8a77072b94958ee585b2741df25f495067e8618fb89c43f0c",
+      "module": "gzip"
+    },
+    {
+      "id": "gzip:GzipFile.read",
+      "path": "gzip_GzipFile_read.py",
+      "source_start_line": 296,
+      "source_end_line": 301,
+      "text": "    def read(self, size=-1):\n        self._check_not_closed()\n        if self.mode != READ:\n            import errno\n            raise OSError(errno.EBADF, \"read() on write-only GzipFile object\")\n        return self._buffer.read(size)\n",
+      "sha256": "1bd109ca0ac7ac88b59c84cfdb04baa084d7df783cbd902b2fa201fe94aa2921",
+      "module": "gzip"
+    },
+    {
+      "id": "gzip:_GzipReader._read_eof",
+      "path": "gzip__GzipReader__read_eof.py",
+      "source_start_line": 529,
+      "source_end_line": 548,
+      "text": "    def _read_eof(self):\n        # We've read to the end of the file\n        # We check that the computed CRC and size of the\n        # uncompressed data matches the stored values.  Note that the size\n        # stored is the true file size mod 2**32.\n        crc32, isize = struct.unpack(\"<II\", _read_exact(self._fp, 8))\n        if crc32 != self._crc:\n            raise BadGzipFile(\"CRC check failed %s != %s\" % (hex(crc32),\n                                                             hex(self._crc)))\n        elif isize != (self._stream_size & 0xffffffff):\n            raise BadGzipFile(\"Incorrect length of data produced\")\n\n        # Gzip files can be padded with zeroes and still have archives.\n        # Consume all zero bytes and set the file position to the first\n        # non-zero byte. See http://www.gzip.org/#faq8\n        c = b\"\\x00\"\n        while c == b\"\\x00\":\n            c = self._fp.read(1)\n        if c:\n            self._fp.prepend(c)\n",
+      "sha256": "692aa7bbdd38bc9f3e9ead14d62d6b78c3bac84b68fb5dbb4df4f7af03e361ee",
+      "module": "gzip"
+    },
+    {
+      "id": "gzip:GzipFile.close",
+      "path": "gzip_GzipFile_close.py",
+      "source_start_line": 327,
+      "source_end_line": 344,
+      "text": "    def close(self):\n        fileobj = self.fileobj\n        if fileobj is None:\n            return\n        self.fileobj = None\n        try:\n            if self.mode == WRITE:\n                fileobj.write(self.compress.flush())\n                write32u(fileobj, self.crc)\n                # self.size may exceed 2 GiB, or even 4 GiB\n                write32u(fileobj, self.size & 0xffffffff)\n            elif self.mode == READ:\n                self._buffer.close()\n        finally:\n            myfileobj = self.myfileobj\n            if myfileobj:\n                self.myfileobj = None\n                myfileobj.close()\n",
+      "sha256": "b06bfbfcd78b1f981de4fe2f80e01e7b8ca94fd6cb008ba00d7b8d8c660baef2",
+      "module": "gzip"
+    },
+    {
+      "id": "tempfile:_mkstemp_inner",
+      "path": "tempfile__mkstemp_inner.py",
+      "source_start_line": 244,
+      "source_end_line": 271,
+      "text": "def _mkstemp_inner(dir, pre, suf, flags, output_type):\n    \"\"\"Code common to mkstemp, TemporaryFile, and NamedTemporaryFile.\"\"\"\n\n    dir = _os.path.abspath(dir)\n    names = _get_candidate_names()\n    if output_type is bytes:\n        names = map(_os.fsencode, names)\n\n    for seq in range(TMP_MAX):\n        name = next(names)\n        file = _os.path.join(dir, pre + name + suf)\n        _sys.audit(\"tempfile.mkstemp\", file)\n        try:\n            fd = _os.open(file, flags, 0o600)\n        except FileExistsError:\n            continue    # try again\n        except PermissionError:\n            # This exception is thrown when a directory with the chosen name\n            # already exists on windows.\n            if (_os.name == 'nt' and _os.path.isdir(dir) and\n                _os.access(dir, _os.W_OK)):\n                continue\n            else:\n                raise\n        return fd, file\n\n    raise FileExistsError(_errno.EEXIST,\n                          \"No usable temporary file name found\")\n",
+      "sha256": "b574e19df85015156662a45526ef3c88eb7681709c9dd31b704e8bbdeab45787",
+      "module": "tempfile"
+    },
+    {
+      "id": "tempfile:mkstemp",
+      "path": "tempfile_mkstemp.py",
+      "source_start_line": 322,
+      "source_end_line": 358,
+      "text": "def mkstemp(suffix=None, prefix=None, dir=None, text=False):\n    \"\"\"User-callable function to create and return a unique temporary\n    file.  The return value is a pair (fd, name) where fd is the\n    file descriptor returned by os.open, and name is the filename.\n\n    If 'suffix' is not None, the file name will end with that suffix,\n    otherwise there will be no suffix.\n\n    If 'prefix' is not None, the file name will begin with that prefix,\n    otherwise a default prefix is used.\n\n    If 'dir' is not None, the file will be created in that directory,\n    otherwise a default directory is used.\n\n    If 'text' is specified and true, the file is opened in text\n    mode.  Else (the default) the file is opened in binary mode.\n\n    If any of 'suffix', 'prefix' and 'dir' are not None, they must be the\n    same type.  If they are bytes, the returned name will be bytes; str\n    otherwise.\n\n    The file is readable and writable only by the creating user ID.\n    If the operating system uses permission bits to indicate whether a\n    file is executable, the file is executable by no one. The file\n    descriptor is not inherited by children of this process.\n\n    Caller is responsible for deleting the file when done with it.\n    \"\"\"\n\n    prefix, suffix, dir, output_type = _sanitize_params(prefix, suffix, dir)\n\n    if text:\n        flags = _text_openflags\n    else:\n        flags = _bin_openflags\n\n    return _mkstemp_inner(dir, prefix, suffix, flags, output_type)\n",
+      "sha256": "4490ba75fefe40399c3a336c537a872a3f96d073c80a943af39aef1ab51730a5",
+      "module": "tempfile"
+    },
+    {
+      "id": "tempfile:TemporaryDirectory.cleanup",
+      "path": "tempfile_TemporaryDirectory_cleanup.py",
+      "source_start_line": 945,
+      "source_end_line": 947,
+      "text": "    def cleanup(self):\n        if self._finalizer.detach() or _os.path.exists(self.name):\n            self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)\n",
+      "sha256": "ef104fc36ef68f87aff2f86649b014038dfa7718ebabb780dac4bd76cf94bcf3",
+      "module": "tempfile"
+    },
+    {
+      "id": "tempfile:TemporaryDirectory.__exit__",
+      "path": "tempfile_TemporaryDirectory___exit__.py",
+      "source_start_line": 942,
+      "source_end_line": 943,
+      "text": "    def __exit__(self, exc, value, tb):\n        self.cleanup()\n",
+      "sha256": "c28af9e8aa19922ce425873d331629a342c77281275d06ebbf6a1ccca5dc85fa",
+      "module": "tempfile"
+    },
+    {
+      "id": "shutil:copyfile",
+      "path": "shutil_copyfile.py",
+      "source_start_line": 226,
+      "source_end_line": 288,
+      "text": "def copyfile(src, dst, *, follow_symlinks=True):\n    \"\"\"Copy data from src to dst in the most efficient way possible.\n\n    If follow_symlinks is not set and src is a symbolic link, a new\n    symlink will be created instead of copying the file it points to.\n\n    \"\"\"\n    sys.audit(\"shutil.copyfile\", src, dst)\n\n    if _samefile(src, dst):\n        raise SameFileError(\"{!r} and {!r} are the same file\".format(src, dst))\n\n    file_size = 0\n    for i, fn in enumerate([src, dst]):\n        try:\n            st = _stat(fn)\n        except OSError:\n            # File most likely does not exist\n            pass\n        else:\n            # XXX What about other special files? (sockets, devices...)\n            if stat.S_ISFIFO(st.st_mode):\n                fn = fn.path if isinstance(fn, os.DirEntry) else fn\n                raise SpecialFileError(\"`%s` is a named pipe\" % fn)\n            if _WINDOWS and i == 0:\n                file_size = st.st_size\n\n    if not follow_symlinks and _islink(src):\n        os.symlink(os.readlink(src), dst)\n    else:\n        with open(src, 'rb') as fsrc:\n            try:\n                with open(dst, 'wb') as fdst:\n                    # macOS\n                    if _HAS_FCOPYFILE:\n                        try:\n                            _fastcopy_fcopyfile(fsrc, fdst, posix._COPYFILE_DATA)\n                            return dst\n                        except _GiveupOnFastCopy:\n                            pass\n                    # Linux\n                    elif _USE_CP_SENDFILE:\n                        try:\n                            _fastcopy_sendfile(fsrc, fdst)\n                            return dst\n                        except _GiveupOnFastCopy:\n                            pass\n                    # Windows, see:\n                    # https://github.com/python/cpython/pull/7160#discussion_r195405230\n                    elif _WINDOWS and file_size > 0:\n                        _copyfileobj_readinto(fsrc, fdst, min(file_size, COPY_BUFSIZE))\n                        return dst\n\n                    copyfileobj(fsrc, fdst)\n\n            # Issue 43219, raise a less confusing exception\n            except IsADirectoryError as e:\n                if not os.path.exists(dst):\n                    raise FileNotFoundError(f'Directory does not exist: {dst}') from e\n                else:\n                    raise\n\n    return dst\n",
+      "sha256": "f0510a67b289836d0a3a8d1dab6a1ca8092b23ee00845b7c20cc4e5742f6675e",
+      "module": "shutil"
+    },
+    {
+      "id": "shutil:copytree",
+      "path": "shutil_copytree.py",
+      "source_start_line": 530,
+      "source_end_line": 576,
+      "text": "def copytree(src, dst, symlinks=False, ignore=None, copy_function=copy2,\n             ignore_dangling_symlinks=False, dirs_exist_ok=False):\n    \"\"\"Recursively copy a directory tree and return the destination directory.\n\n    If exception(s) occur, an Error is raised with a list of reasons.\n\n    If the optional symlinks flag is true, symbolic links in the\n    source tree result in symbolic links in the destination tree; if\n    it is false, the contents of the files pointed to by symbolic\n    links are copied. If the file pointed by the symlink doesn't\n    exist, an exception will be added in the list of errors raised in\n    an Error exception at the end of the copy process.\n\n    You can set the optional ignore_dangling_symlinks flag to true if you\n    want to silence this exception. Notice that this has no effect on\n    platforms that don't support os.symlink.\n\n    The optional ignore argument is a callable. If given, it\n    is called with the `src` parameter, which is the directory\n    being visited by copytree(), and `names` which is the list of\n    `src` contents, as returned by os.listdir():\n\n        callable(src, names) -> ignored_names\n\n    Since copytree() is called recursively, the callable will be\n    called once for each directory that is copied. It returns a\n    list of names relative to the `src` directory that should\n    not be copied.\n\n    The optional copy_function argument is a callable that will be used\n    to copy each file. It will be called with the source path and the\n    destination path as arguments. By default, copy2() is used, but any\n    function that supports the same signature (like copy()) can be used.\n\n    If dirs_exist_ok is false (the default) and `dst` already exists, a\n    `FileExistsError` is raised. If `dirs_exist_ok` is true, the copying\n    operation will continue if it encounters existing directories, and files\n    within the `dst` tree will be overwritten by corresponding files from the\n    `src` tree.\n    \"\"\"\n    sys.audit(\"shutil.copytree\", src, dst)\n    with os.scandir(src) as itr:\n        entries = list(itr)\n    return _copytree(entries=entries, src=src, dst=dst, symlinks=symlinks,\n                     ignore=ignore, copy_function=copy_function,\n                     ignore_dangling_symlinks=ignore_dangling_symlinks,\n                     dirs_exist_ok=dirs_exist_ok)\n",
+      "sha256": "a4bc844f98b9013be4e30425832e381bec043c4b40f007cbe77a9b15c2fbc984",
+      "module": "shutil"
+    },
+    {
+      "id": "shutil:rmtree",
+      "path": "shutil_rmtree.py",
+      "source_start_line": 710,
+      "source_end_line": 787,
+      "text": "def rmtree(path, ignore_errors=False, onerror=None, *, dir_fd=None):\n    \"\"\"Recursively delete a directory tree.\n\n    If dir_fd is not None, it should be a file descriptor open to a directory;\n    path will then be relative to that directory.\n    dir_fd may not be implemented on your platform.\n    If it is unavailable, using it will raise a NotImplementedError.\n\n    If ignore_errors is set, errors are ignored; otherwise, if onerror\n    is set, it is called to handle the error with arguments (func,\n    path, exc_info) where func is platform and implementation dependent;\n    path is the argument to that function that caused it to fail; and\n    exc_info is a tuple returned by sys.exc_info().  If ignore_errors\n    is false and onerror is None, an exception is raised.\n\n    \"\"\"\n    sys.audit(\"shutil.rmtree\", path, dir_fd)\n    if ignore_errors:\n        def onerror(*args):\n            pass\n    elif onerror is None:\n        def onerror(*args):\n            raise\n    if _use_fd_functions:\n        # While the unsafe rmtree works fine on bytes, the fd based does not.\n        if isinstance(path, bytes):\n            path = os.fsdecode(path)\n        # Note: To guard against symlink races, we use the standard\n        # lstat()/open()/fstat() trick.\n        try:\n            orig_st = os.lstat(path, dir_fd=dir_fd)\n        except Exception:\n            onerror(os.lstat, path, sys.exc_info())\n            return\n        try:\n            fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK, dir_fd=dir_fd)\n            fd_closed = False\n        except Exception:\n            onerror(os.open, path, sys.exc_info())\n            return\n        try:\n            if os.path.samestat(orig_st, os.fstat(fd)):\n                _rmtree_safe_fd(fd, path, onerror)\n                try:\n                    os.close(fd)\n                except OSError:\n                    # close() should not be retried after an error.\n                    fd_closed = True\n                    onerror(os.close, path, sys.exc_info())\n                fd_closed = True\n                try:\n                    os.rmdir(path, dir_fd=dir_fd)\n                except OSError:\n                    onerror(os.rmdir, path, sys.exc_info())\n            else:\n                try:\n                    # symlinks to directories are forbidden, see bug #1669\n                    raise OSError(\"Cannot call rmtree on a symbolic link\")\n                except OSError:\n                    onerror(os.path.islink, path, sys.exc_info())\n        finally:\n            if not fd_closed:\n                try:\n                    os.close(fd)\n                except OSError:\n                    onerror(os.close, path, sys.exc_info())\n    else:\n        if dir_fd is not None:\n            raise NotImplementedError(\"dir_fd unavailable on this platform\")\n        try:\n            if _rmtree_islink(path):\n                # symlinks to directories are forbidden, see bug #1669\n                raise OSError(\"Cannot call rmtree on a symbolic link\")\n        except OSError:\n            onerror(os.path.islink, path, sys.exc_info())\n            # can't continue even if onerror hook returns\n            return\n        return _rmtree_unsafe(path, onerror)\n",
+      "sha256": "65f4ad72291d16c5757fab67809f142dcadc50a9cebeb60631888cd6a97524c5",
+      "module": "shutil"
+    },
+    {
+      "id": "shutil:move",
+      "path": "shutil_move.py",
+      "source_start_line": 811,
+      "source_end_line": 875,
+      "text": "def move(src, dst, copy_function=copy2):\n    \"\"\"Recursively move a file or directory to another location. This is\n    similar to the Unix \"mv\" command. Return the file or directory's\n    destination.\n\n    If dst is an existing directory or a symlink to a directory, then src is\n    moved inside that directory. The destination path in that directory must\n    not already exist.\n\n    If dst already exists but is not a directory, it may be overwritten\n    depending on os.rename() semantics.\n\n    If the destination is on our current filesystem, then rename() is used.\n    Otherwise, src is copied to the destination and then removed. Symlinks are\n    recreated under the new name if os.rename() fails because of cross\n    filesystem renames.\n\n    The optional `copy_function` argument is a callable that will be used\n    to copy the source or it will be delegated to `copytree`.\n    By default, copy2() is used, but any function that supports the same\n    signature (like copy()) can be used.\n\n    A lot more could be done here...  A look at a mv.c shows a lot of\n    the issues this implementation glosses over.\n\n    \"\"\"\n    sys.audit(\"shutil.move\", src, dst)\n    real_dst = dst\n    if os.path.isdir(dst):\n        if _samefile(src, dst) and not os.path.islink(src):\n            # We might be on a case insensitive filesystem,\n            # perform the rename anyway.\n            os.rename(src, dst)\n            return\n\n        # Using _basename instead of os.path.basename is important, as we must\n        # ignore any trailing slash to avoid the basename returning ''\n        real_dst = os.path.join(dst, _basename(src))\n\n        if os.path.exists(real_dst):\n            raise Error(\"Destination path '%s' already exists\" % real_dst)\n    try:\n        os.rename(src, real_dst)\n    except OSError:\n        if os.path.islink(src):\n            linkto = os.readlink(src)\n            os.symlink(linkto, real_dst)\n            os.unlink(src)\n        elif os.path.isdir(src):\n            if _destinsrc(src, dst):\n                raise Error(\"Cannot move a directory '%s' into itself\"\n                            \" '%s'.\" % (src, dst))\n            if (_is_immutable(src)\n                    or (not os.access(src, os.W_OK) and os.listdir(src)\n                        and sys.platform == 'darwin')):\n                raise PermissionError(\"Cannot move the non-empty directory \"\n                                      \"'%s': Lacking write permission to '%s'.\"\n                                      % (src, src))\n            copytree(src, real_dst, copy_function=copy_function,\n                     symlinks=True)\n            rmtree(src)\n        else:\n            copy_function(src, real_dst)\n            os.unlink(src)\n    return real_dst\n",
+      "sha256": "7f18cd2dec8ab7974275df5ce3c16a8ea9f36a4b98bbaf2e79afe1d6ead7b6fc",
+      "module": "shutil"
+    },
+    {
+      "id": "pathlib:Path.rename",
+      "path": "pathlib_Path_rename.py",
+      "source_start_line": 1165,
+      "source_end_line": 1176,
+      "text": "    def rename(self, target):\n        \"\"\"\n        Rename this path to the target path.\n\n        The target path may be absolute or relative. Relative paths are\n        interpreted relative to the current working directory, *not* the\n        directory of the Path object.\n\n        Returns the new Path instance pointing to the target path.\n        \"\"\"\n        os.rename(self, target)\n        return self.__class__(target)\n",
+      "sha256": "9a494f9e1117bc374ce27c6895122a5329d2f71245fb3d2ae107e5a970fad333",
+      "module": "pathlib"
+    },
+    {
+      "id": "pathlib:Path.replace",
+      "path": "pathlib_Path_replace.py",
+      "source_start_line": 1178,
+      "source_end_line": 1189,
+      "text": "    def replace(self, target):\n        \"\"\"\n        Rename this path to the target path, overwriting if that path exists.\n\n        The target path may be absolute or relative. Relative paths are\n        interpreted relative to the current working directory, *not* the\n        directory of the Path object.\n\n        Returns the new Path instance pointing to the target path.\n        \"\"\"\n        os.replace(self, target)\n        return self.__class__(target)\n",
+      "sha256": "3b2a5eee41ba780ecb893a64448a8eb28ec2c61566dda58561ad3e3895d97a41",
+      "module": "pathlib"
+    },
+    {
+      "id": "pathlib:Path.unlink",
+      "path": "pathlib_Path_unlink.py",
+      "source_start_line": 1141,
+      "source_end_line": 1150,
+      "text": "    def unlink(self, missing_ok=False):\n        \"\"\"\n        Remove this file or link.\n        If the path is a directory, use rmdir() instead.\n        \"\"\"\n        try:\n            os.unlink(self)\n        except FileNotFoundError:\n            if not missing_ok:\n                raise\n",
+      "sha256": "f9b501d438691e60193d4854234cd78ed4e7a47153a66f4477b00222211a7a1e",
+      "module": "pathlib"
+    },
+    {
+      "id": "pathlib:Path.mkdir",
+      "path": "pathlib_Path_mkdir.py",
+      "source_start_line": 1111,
+      "source_end_line": 1126,
+      "text": "    def mkdir(self, mode=0o777, parents=False, exist_ok=False):\n        \"\"\"\n        Create a new directory at this given path.\n        \"\"\"\n        try:\n            os.mkdir(self, mode)\n        except FileNotFoundError:\n            if not parents or self.parent == self:\n                raise\n            self.parent.mkdir(parents=True, exist_ok=True)\n            self.mkdir(mode, parents=False, exist_ok=exist_ok)\n        except OSError:\n            # Cannot rely on checking for EEXIST, since the operating system\n            # could give priority to other errors like EACCES or EROFS\n            if not exist_ok or not self.is_dir():\n                raise\n",
+      "sha256": "62d2319de1637c9942d3c8d9961e790ef01ce96b07308e920f73e16246164a5d",
+      "module": "pathlib"
+    },
+    {
+      "id": "contextlib:ExitStack.__exit__",
+      "path": "contextlib_ExitStack___exit__.py",
+      "source_start_line": 558,
+      "source_end_line": 605,
+      "text": "    def __exit__(self, *exc_details):\n        received_exc = exc_details[0] is not None\n\n        # We manipulate the exception state so it behaves as though\n        # we were actually nesting multiple with statements\n        frame_exc = sys.exc_info()[1]\n        def _fix_exception_context(new_exc, old_exc):\n            # Context may not be correct, so find the end of the chain\n            while 1:\n                exc_context = new_exc.__context__\n                if exc_context is None or exc_context is old_exc:\n                    # Context is already set correctly (see issue 20317)\n                    return\n                if exc_context is frame_exc:\n                    break\n                new_exc = exc_context\n            # Change the end of the chain to point to the exception\n            # we expect it to reference\n            new_exc.__context__ = old_exc\n\n        # Callbacks are invoked in LIFO order to match the behaviour of\n        # nested context managers\n        suppressed_exc = False\n        pending_raise = False\n        while self._exit_callbacks:\n            is_sync, cb = self._exit_callbacks.pop()\n            assert is_sync\n            try:\n                if cb(*exc_details):\n                    suppressed_exc = True\n                    pending_raise = False\n                    exc_details = (None, None, None)\n            except:\n                new_exc_details = sys.exc_info()\n                # simulate the stack of exceptions by setting the context\n                _fix_exception_context(new_exc_details[1], exc_details[1])\n                pending_raise = True\n                exc_details = new_exc_details\n        if pending_raise:\n            try:\n                # bare \"raise exc_details[1]\" replaces our carefully\n                # set-up context\n                fixed_ctx = exc_details[1].__context__\n                raise exc_details[1]\n            except BaseException:\n                exc_details[1].__context__ = fixed_ctx\n                raise\n        return received_exc and suppressed_exc\n",
+      "sha256": "4345683f2dd5c9d38785973f24978d00a5b09b6c22154fb2d988efa8fe72d8fd",
+      "module": "contextlib"
+    },
+    {
+      "id": "contextlib:_BaseExitStack.enter_context",
+      "path": "contextlib__BaseExitStack_enter_context.py",
+      "source_start_line": 502,
+      "source_end_line": 519,
+      "text": "    def enter_context(self, cm):\n        \"\"\"Enters the supplied context manager.\n\n        If successful, also pushes its __exit__ method as a callback and\n        returns the result of the __enter__ method.\n        \"\"\"\n        # We look up the special methods on the type to match the with\n        # statement.\n        cls = type(cm)\n        try:\n            _enter = cls.__enter__\n            _exit = cls.__exit__\n        except AttributeError:\n            raise TypeError(f\"'{cls.__module__}.{cls.__qualname__}' object does \"\n                            f\"not support the context manager protocol\") from None\n        result = _enter(cm)\n        self._push_cm_exit(cm, _exit)\n        return result\n",
+      "sha256": "216ad93cd4e5dd39bf2bb3569722646742a6f4ee1f5ac082ca247f71abdf4a0e",
+      "module": "contextlib"
+    },
+    {
+      "id": "contextlib:_BaseExitStack.callback",
+      "path": "contextlib__BaseExitStack_callback.py",
+      "source_start_line": 521,
+      "source_end_line": 532,
+      "text": "    def callback(self, callback, /, *args, **kwds):\n        \"\"\"Registers an arbitrary callback and arguments.\n\n        Cannot suppress exceptions.\n        \"\"\"\n        _exit_wrapper = self._create_cb_wrapper(callback, *args, **kwds)\n\n        # We changed the signature, so using @wraps is not appropriate, but\n        # setting __wrapped__ may still help with introspection.\n        _exit_wrapper.__wrapped__ = callback\n        self._push_exit_callback(_exit_wrapper)\n        return callback  # Allow use as a decorator\n",
+      "sha256": "a16f9b00956f86940ab007402bd55c4ae6bc61af2162c8ad4680157768cf989f",
+      "module": "contextlib"
+    },
+    {
+      "id": "contextlib:_BaseExitStack.pop_all",
+      "path": "contextlib__BaseExitStack_pop_all.py",
+      "source_start_line": 475,
+      "source_end_line": 480,
+      "text": "    def pop_all(self):\n        \"\"\"Preserve the context stack by transferring it to a new instance.\"\"\"\n        new_stack = type(self)()\n        new_stack._exit_callbacks = self._exit_callbacks\n        self._exit_callbacks = deque()\n        return new_stack\n",
+      "sha256": "d6bc8fd0e207572af3e770c07ca27c7930ae5a723c4a83732e320a348c180158",
+      "module": "contextlib"
+    }
+  ],
+  "scouting": [
+    {
+      "id": "wrapper",
+      "query": "How are wrapped function metadata and the original callable preserved?",
+      "relevant": [
+        "functools:update_wrapper",
+        "functools:wraps"
+      ],
+      "critical": [
+        "functools:update_wrapper",
+        "functools:wraps"
+      ]
+    },
+    {
+      "id": "queue",
+      "query": "How does queue task completion wake a caller waiting for all queued work?",
+      "relevant": [
+        "queue:Queue.task_done",
+        "queue:Queue.join"
+      ],
+      "critical": [
+        "queue:Queue.task_done",
+        "queue:Queue.join"
+      ]
+    },
+    {
+      "id": "future",
+      "query": "How does a future return its result to a waiting caller when a producer completes it?",
+      "relevant": [
+        "concurrent/futures/_base:Future.result",
+        "concurrent/futures/_base:Future.set_result"
+      ],
+      "critical": [
+        "concurrent/futures/_base:Future.result",
+        "concurrent/futures/_base:Future.set_result"
+      ]
+    },
+    {
+      "id": "gzip",
+      "query": "Where is the gzip checksum and uncompressed length written and verified?",
+      "relevant": [
+        "gzip:GzipFile.close",
+        "gzip:_GzipReader._read_eof"
+      ],
+      "critical": [
+        "gzip:GzipFile.close",
+        "gzip:_GzipReader._read_eof"
+      ]
+    },
+    {
+      "id": "tempfile",
+      "query": "How is a temporary directory removed both explicitly and on leaving a context manager?",
+      "relevant": [
+        "tempfile:TemporaryDirectory.cleanup",
+        "tempfile:TemporaryDirectory.__exit__"
+      ],
+      "critical": [
+        "tempfile:TemporaryDirectory.cleanup",
+        "tempfile:TemporaryDirectory.__exit__"
+      ]
+    },
+    {
+      "id": "copy",
+      "query": "How does recursive directory copying delegate to single file copying?",
+      "relevant": [
+        "shutil:copytree",
+        "shutil:copyfile"
+      ],
+      "critical": [
+        "shutil:copytree",
+        "shutil:copyfile"
+      ]
+    },
+    {
+      "id": "rename",
+      "query": "Which path methods rename a file with or without replacing an existing destination?",
+      "relevant": [
+        "pathlib:Path.rename",
+        "pathlib:Path.replace"
+      ],
+      "critical": [
+        "pathlib:Path.rename",
+        "pathlib:Path.replace"
+      ]
+    },
+    {
+      "id": "exitstack",
+      "query": "How does ExitStack acquire a context and unwind exit callbacks in reverse order?",
+      "relevant": [
+        "contextlib:_BaseExitStack.enter_context",
+        "contextlib:ExitStack.__exit__"
+      ],
+      "critical": [
+        "contextlib:_BaseExitStack.enter_context",
+        "contextlib:ExitStack.__exit__"
+      ]
+    }
+  ],
+  "failures": [
+    {
+      "id": "executed-00",
+      "label": "assertion",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nAssertionError: arithmetic invariant\n",
+      "exit_code": 1,
+      "fixture_code": "assert 2 + 2 == 5, 'arithmetic invariant'",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-01",
+      "label": "assertion",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"case.py\", line 831, in assertEqual\n    assertion_func(first, second, msg=msg)\n  File \"case.py\", line 1130, in assertDictEqual\n    self.fail(self._formatMessage(msg, standardMsg))\n  File \"case.py\", line 670, in fail\n    raise self.failureException(msg)\nAssertionError: {'ready': True} != {'ready': False}\n- {'ready': True}\n?           ^^^\n\n+ {'ready': False}\n?           ^^^^\n\n",
+      "exit_code": 1,
+      "fixture_code": "import unittest; unittest.TestCase().assertEqual({'ready': True}, {'ready': False})",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-02",
+      "label": "assertion",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"case.py\", line 1098, in assertIn\n    self.fail(self._formatMessage(msg, standardMsg))\n  File \"case.py\", line 670, in fail\n    raise self.failureException(msg)\nAssertionError: 'green' not found in ['red', 'blue']\n",
+      "exit_code": 1,
+      "fixture_code": "import unittest; unittest.TestCase().assertIn('green', ['red', 'blue'])",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-03",
+      "label": "assertion",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"case.py\", line 885, in assertAlmostEqual\n    raise self.failureException(msg)\nAssertionError: 0.1 != 0.3 within 7 places (0.19999999999999998 difference)\n",
+      "exit_code": 1,
+      "fixture_code": "import unittest; unittest.TestCase().assertAlmostEqual(0.1, 0.3)",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-04",
+      "label": "dependency",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'jev_fixture_absent_module_493'\n",
+      "exit_code": 1,
+      "fixture_code": "import jev_fixture_absent_module_493",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-05",
+      "label": "dependency",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nImportError: cannot import name 'jev_fixture_absent_symbol' from 'collections' (/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/collections/__init__.py)\n",
+      "exit_code": 1,
+      "fixture_code": "from collections import jev_fixture_absent_symbol",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-06",
+      "label": "dependency",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"__init__.py\", line 127, in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n  File \"<frozen importlib._bootstrap>\", line 1030, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1007, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 972, in _find_and_load_unlocked\n  File \"<frozen importlib._bootstrap>\", line 228, in _call_with_frames_removed\n  File \"<frozen importlib._bootstrap>\", line 1030, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1007, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 984, in _find_and_load_unlocked\nModuleNotFoundError: No module named 'jev_fixture_absent_package_842'\n",
+      "exit_code": 1,
+      "fixture_code": "import importlib; importlib.import_module('jev_fixture_absent_package_842.child')",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-07",
+      "label": "dependency",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nImportError: cannot import name 'jev_fixture_absent_decoder' from 'json' (/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py)\n",
+      "exit_code": 1,
+      "fixture_code": "from json import jev_fixture_absent_decoder",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-08",
+      "label": "syntax",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"<fixture>\", line 1\n    def broken(\n               ^\nSyntaxError: unexpected EOF while parsing\n",
+      "exit_code": 1,
+      "fixture_code": "compile('def broken(\\n', '<fixture>', 'exec')",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-09",
+      "label": "syntax",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"<fixture>\", line 1\n    if True\n           ^\nSyntaxError: invalid syntax\n",
+      "exit_code": 1,
+      "fixture_code": "compile('if True\\n    pass', '<fixture>', 'exec')",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-10",
+      "label": "syntax",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"<fixture>\", line 1\n    x = 1\nIndentationError: unexpected indent\n",
+      "exit_code": 1,
+      "fixture_code": "compile('    x = 1', '<fixture>', 'exec')",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-11",
+      "label": "syntax",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"<fixture>\", line 1\nSyntaxError: 'return' outside function\n",
+      "exit_code": 1,
+      "fixture_code": "compile('return 1', '<fixture>', 'exec')",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-12",
+      "label": "timeout",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"_base.py\", line 447, in result\n    raise TimeoutError()\nconcurrent.futures._base.TimeoutError\n",
+      "exit_code": 1,
+      "fixture_code": "from concurrent.futures import Future; Future().result(timeout=0)",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-13",
+      "label": "timeout",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"_base.py\", line 483, in exception\n    raise TimeoutError()\nconcurrent.futures._base.TimeoutError\n",
+      "exit_code": 1,
+      "fixture_code": "from concurrent.futures import Future; Future().exception(timeout=0)",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-14",
+      "label": "unknown",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nValueError: invalid literal for int() with base 10: 'not-a-number'\n",
+      "exit_code": 1,
+      "fixture_code": "int(\"not-a-number\")",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-15",
+      "label": "unknown",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nKeyError: 'missing'\n",
+      "exit_code": 1,
+      "fixture_code": "{}[\"missing\"]",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-16",
+      "label": "unknown",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nStopIteration\n",
+      "exit_code": 1,
+      "fixture_code": "next(iter([]))",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-17",
+      "label": "unknown",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nTypeError: unsupported operand type(s) for +: 'int' and 'NoneType'\n",
+      "exit_code": 1,
+      "fixture_code": "1 + None",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-18",
+      "label": "unknown",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nZeroDivisionError: division by zero\n",
+      "exit_code": 1,
+      "fixture_code": "1 / 0",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-19",
+      "label": "unknown",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"__init__.py\", line 346, in loads\n    return _default_decoder.decode(s)\n  File \"decoder.py\", line 337, in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n  File \"decoder.py\", line 353, in raw_decode\n    obj, end = self.scan_once(s, idx)\njson.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)\n",
+      "exit_code": 1,
+      "fixture_code": "import json; json.loads(\"{\")",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-20",
+      "label": "unknown",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nstruct.error: unpack requires a buffer of 4 bytes\n",
+      "exit_code": 1,
+      "fixture_code": "import struct; struct.unpack(\"i\", b\"\")",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-21",
+      "label": "unknown",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"re.py\", line 252, in compile\n    return _compile(pattern, flags)\n  File \"re.py\", line 304, in _compile\n    p = sre_compile.compile(pattern, flags)\n  File \"sre_compile.py\", line 764, in compile\n    p = sre_parse.parse(p, flags)\n  File \"sre_parse.py\", line 948, in parse\n    p = _parse_sub(source, state, flags & SRE_FLAG_VERBOSE, 0)\n  File \"sre_parse.py\", line 443, in _parse_sub\n    itemsappend(_parse(source, state, verbose, nested + 1,\n  File \"sre_parse.py\", line 549, in _parse\n    raise source.error(\"unterminated character set\",\nre.error: unterminated character set at position 0\n",
+      "exit_code": 1,
+      "fixture_code": "import re; re.compile(\"[\")",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-22",
+      "label": "unknown",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  File \"queue.py\", line 199, in get_nowait\n    return self.get(block=False)\n  File \"queue.py\", line 168, in get\n    raise Empty\n_queue.Empty\n",
+      "exit_code": 1,
+      "fixture_code": "import queue; queue.Queue().get_nowait()",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "executed-23",
+      "label": "unknown",
+      "text": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nValueError: math domain error\n",
+      "exit_code": 1,
+      "fixture_code": "import math; math.sqrt(-1)",
+      "provenance": "actual isolated CPython stderr; traceback file paths normalized to basename"
+    },
+    {
+      "id": "authored-assertion-00",
+      "label": "assertion",
+      "text": "FAIL test_cart_total\nExpected: 19\nReceived: 21\nTests: 1 failed, 8 passed",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-assertion-01",
+      "label": "assertion",
+      "text": "org.opentest4j.AssertionFailedError: expected: <ready> but was: <pending>\nTests run: 12, Failures: 1",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-assertion-02",
+      "label": "assertion",
+      "text": "thread 'sum_is_stable' panicked at fixture.rs:8\nassertion `left == right` failed\n  left: 14\n right: 12",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-assertion-03",
+      "label": "assertion",
+      "text": "FAIL: test_result\nArrays are not equal\nMismatched elements: 2 of 3\nACTUAL: [1, 5, 9]\nDESIRED: [1, 4, 8]",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-dependency-00",
+      "label": "dependency",
+      "text": "Error: Cannot find package 'fixture-lib' imported from test.mjs\ncode: ERR_MODULE_NOT_FOUND",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-dependency-01",
+      "label": "dependency",
+      "text": "error[E0432]: unresolved import `fixture_crate`\nuse of unresolved module or unlinked crate",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-dependency-02",
+      "label": "dependency",
+      "text": "java.lang.NoClassDefFoundError: fixture.Widget\nCaused by: java.lang.ClassNotFoundException: fixture.Widget",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-dependency-03",
+      "label": "dependency",
+      "text": "error TS2307: Cannot find module fixture-lib or its corresponding type declarations.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-syntax-00",
+      "label": "syntax",
+      "text": "error: expected `;`, found `}`\ncompilation aborted due to previous error",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-syntax-01",
+      "label": "syntax",
+      "text": "test.mjs:4\nconst value = ;\n              ^\nSyntaxError: Unexpected token ;",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-syntax-02",
+      "label": "syntax",
+      "text": "compiler: error: illegal start of expression\nCompilation failure",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-syntax-03",
+      "label": "syntax",
+      "text": "error TS1005: closing parenthesis expected.\nFound 1 error.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-timeout-00",
+      "label": "timeout",
+      "text": "Test timed out in 30000ms.\nWaiting for locator to become visible.\n1 failed",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-timeout-01",
+      "label": "timeout",
+      "text": "FAIL test_worker\nExceeded timeout of 5000 ms for a test.\n1 test suite failed",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-timeout-02",
+      "label": "timeout",
+      "text": "org.junit.runners.model.TestTimedOutException: test timed out after 1000 milliseconds",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-timeout-03",
+      "label": "timeout",
+      "text": "context deadline exceeded\noperation did not finish before the test deadline",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-permission-00",
+      "label": "permission",
+      "text": "EACCES: permission denied, open fixture.lock\nprocess exited with code 1",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-permission-01",
+      "label": "permission",
+      "text": "java.nio.file.AccessDeniedException: fixture.dat\nTests run: 1, Errors: 1",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-permission-02",
+      "label": "permission",
+      "text": "Operation not permitted (os error 1)\nUnable to replace read-only fixture",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-permission-03",
+      "label": "permission",
+      "text": "System.UnauthorizedAccessException: Access to fixture.dat is denied.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-network-00",
+      "label": "network",
+      "text": "Error: connect ECONNREFUSED\nThe fixture listener is not accepting connections.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-network-01",
+      "label": "network",
+      "text": "getaddrinfo EAI_AGAIN fixture.invalid\nName resolution temporarily failed",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-network-02",
+      "label": "network",
+      "text": "java.net.SocketException: Connection reset\nTest transport failed",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-network-03",
+      "label": "network",
+      "text": "TLS handshake failed: remote peer closed the connection\nIntegration test failed",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-resource-00",
+      "label": "resource",
+      "text": "ENOSPC: no space left on device, write fixture.dat\nBuild failed",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-resource-01",
+      "label": "resource",
+      "text": "java.lang.OutOfMemoryError: Java heap space\nTest runner terminated",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-resource-02",
+      "label": "resource",
+      "text": "allocation failed: memory limit exceeded\nworker exit status 137",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-resource-03",
+      "label": "resource",
+      "text": "Disk quota exceeded (os error 122)\nFixture output could not be written",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-00",
+      "label": "unknown",
+      "text": "AssertionError was expected and caught.\nThe runner later stopped with no diagnostic.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-01",
+      "label": "unknown",
+      "text": "Previous run: TimeoutError.\nCurrent run: exit status 1, no stderr captured.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-02",
+      "label": "unknown",
+      "text": "Documentation example: PermissionError\nActual result unavailable.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-03",
+      "label": "unknown",
+      "text": "Dependency loaded successfully. No network error occurred.\nRunner reported failure without details.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-04",
+      "label": "unknown",
+      "text": "AssertionError: values differ\nMemoryError: allocator exhausted\nTwo failures from separate workers",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-05",
+      "label": "unknown",
+      "text": "SyntaxError: invalid token\nConnectionRefusedError: listener unavailable\nTwo independent test processes failed",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-06",
+      "label": "unknown",
+      "text": "Test command exited 2 with empty diagnostics.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-07",
+      "label": "unknown",
+      "text": "SIGSEGV received. Core dump disabled. No exception message.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-08",
+      "label": "unknown",
+      "text": "Expected exception: TimeoutError\nTest passed",
+      "exit_code": 0,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-09",
+      "label": "unknown",
+      "text": "All 120 tests passed.\n0 failures",
+      "exit_code": 0,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-10",
+      "label": "unknown",
+      "text": "String under test is AssertionError.\nHarness result missing.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    },
+    {
+      "id": "authored-unknown-11",
+      "label": "unknown",
+      "text": "Worker exited 137. No resource usage or error diagnostics were captured.",
+      "exit_code": 7,
+      "provenance": "public synthetic, author-created conventional multi-language diagnostic, NOT captured project CI"
+    }
+  ],
+  "python": "3.9.6"
+}

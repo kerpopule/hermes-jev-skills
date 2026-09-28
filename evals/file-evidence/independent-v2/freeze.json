@@ -1,0 +1,14 @@
+{
+  "sha256": {
+    "evals/file-evidence/independent-v2/corpus.json": "6ffdf5c7cb5794653cb89c476875b4c2e0f77045a1d17a6cb2cf598c87d68653",
+    "evals/file-evidence/independent-v2/PROTOCOL.md": "518497c7df86cfbe5cc1a92d0e9b341b2e18dbcc03e3b2360b9092568f7913a6",
+    "scripts/bench_file_evidence_independent.py": "3236e8306f965c2360e5a5677f66ceecf05fc1871c1add35af1f1745d20911c1",
+    "evals/file-evidence/independent-v2/CPYTHON-LICENSE.txt": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf",
+    "scripts/file_evidence_comparators.py": "a89c556b8d13d5cbfb027995635d0d824b08c87456a6d44719f1bb545b303ba2",
+    "scripts/build_file_evidence_independent.py": "d81cc8c05d43b70a0d47d40d02ec0b42bce2e188a741316c5b176c55c12ca2ad",
+    "jevkit/file_evidence.py": "50917d4d3890bcc7d8d649f07b417f5435d5281756e9c8da94a02cf15693c48d",
+    "jevkit/test_triage.py": "b6765fbdccb649c8a3d82534c5b1d36438e9fb21387f84e16f9101ad022bb861",
+    "jevkit/policies/file-relevance.json": "95c06662d3a8a0fe1ad480b60a8617ec92ad96fc1946dacb70efa22f73afd442",
+    "jevkit/policies/failure-symptom.json": "663f611b93ae195cd1ff42c88a119b101bf26bb75ee9e75c2a4a55c46766850b"
+  }
+}
