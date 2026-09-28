@@ -215,6 +215,7 @@ def summarize(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
 # the normal queue.
 
 PRESETS = {
+    "test-failure": None,          # bounded, local-first advisory symptoms
     "support-mail": None,          # `classify`, unchanged
     "urgency": "triage-urgency",
     "cron-wake": "cron-wake",
@@ -234,6 +235,9 @@ def classify_state(state: Any, preset: str, *, timeout: float = 4.0, mode: str =
 
     if preset not in PRESETS:
         raise ValueError(f"unknown preset {preset!r}; one of {', '.join(PRESETS)}")
+    if preset == "test-failure":
+        from .test_triage import classify as classify_test
+        return classify_test(state, transport=transport)
     policy_name = PRESETS[preset]
     if policy_name is None:
         message = state if isinstance(state, Mapping) else {"body": str(state)}

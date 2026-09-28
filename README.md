@@ -34,6 +34,10 @@ jev mail --file inbox.json             # sort a mailbox into lanes
 jev mail --file inbox.json --summary   # counts per lane, what was unsure, what it cost
 ```
 
+## Local evidence helpers (opt-in, not promoted)
+
+`jev evidence scout` ranks an explicit local file manifest and returns content-pinned references; `jev evidence read` recovers a bounded excerpt. `jev triage --preset test-failure` labels observed symptoms without hiding a failing exit status or claiming root cause. Both default to no network. Optional public-excerpt advice uses the existing policy/client only with exact public-data and spend approval. No mandatory pre-read checks or automatic compaction. [Usage, privacy boundary and offline benchmark limitations](docs/file-evidence.md); [predeclared promotion criteria](docs/file-evidence-evaluation.md). No live accuracy, latency or savings claim.
+
 ## Try it in two commands
 
 ```bash

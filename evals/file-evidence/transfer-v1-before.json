@@ -1,0 +1,235 @@
+{
+  "measurement": "offline_synthetic_deterministic_only",
+  "fixture_sha256": "8a0884ccecdc40af556552598de0f46892433c68978c96f8467dcdb0c7e0add6",
+  "protocol": "v1-synthetic-transfer-frozen-before-first-run",
+  "scouting_rows": [
+    {
+      "id": "lexical-cache",
+      "relevant": [
+        "engine.py"
+      ],
+      "baseline_exhaustive_eligible": [
+        "engine.py",
+        "notes.md"
+      ],
+      "shortlist": [
+        "engine.py"
+      ],
+      "missed_by_shortlist": [],
+      "unknown_or_excluded": [],
+      "baseline_hits": 1,
+      "shortlist_hits": 1,
+      "truth_count": 1,
+      "absence_proven": false
+    },
+    {
+      "id": "synonym-gap",
+      "relevant": [
+        "backoff.py",
+        "guide.md"
+      ],
+      "baseline_exhaustive_eligible": [
+        "backoff.py",
+        "guide.md"
+      ],
+      "shortlist": [
+        "guide.md"
+      ],
+      "missed_by_shortlist": [
+        "backoff.py"
+      ],
+      "unknown_or_excluded": [],
+      "baseline_hits": 2,
+      "shortlist_hits": 1,
+      "truth_count": 2,
+      "absence_proven": false
+    },
+    {
+      "id": "late-evidence",
+      "relevant": [
+        "worker.py"
+      ],
+      "baseline_exhaustive_eligible": [
+        "ui.ts",
+        "worker.py"
+      ],
+      "shortlist": [
+        "worker.py"
+      ],
+      "missed_by_shortlist": [],
+      "unknown_or_excluded": [],
+      "baseline_hits": 1,
+      "shortlist_hits": 1,
+      "truth_count": 1,
+      "absence_proven": false
+    },
+    {
+      "id": "empty-shortlist",
+      "relevant": [
+        "stop.py"
+      ],
+      "baseline_exhaustive_eligible": [
+        "stop.py"
+      ],
+      "shortlist": [],
+      "missed_by_shortlist": [
+        "stop.py"
+      ],
+      "unknown_or_excluded": [],
+      "baseline_hits": 1,
+      "shortlist_hits": 0,
+      "truth_count": 1,
+      "absence_proven": false
+    },
+    {
+      "id": "unknown-scope",
+      "relevant": [
+        "private/notes.md",
+        "settings.md"
+      ],
+      "baseline_exhaustive_eligible": [
+        "settings.md"
+      ],
+      "shortlist": [
+        "settings.md"
+      ],
+      "missed_by_shortlist": [
+        "private/notes.md"
+      ],
+      "unknown_or_excluded": [
+        "private/notes.md"
+      ],
+      "baseline_hits": 1,
+      "shortlist_hits": 1,
+      "truth_count": 2,
+      "absence_proven": false
+    }
+  ],
+  "failure_rows": [
+    {
+      "id": "value-mismatch",
+      "truth": "assertion",
+      "prediction": "assertion",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": true
+    },
+    {
+      "id": "missing-package",
+      "truth": "dependency",
+      "prediction": "dependency",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": true
+    },
+    {
+      "id": "parse-error",
+      "truth": "syntax",
+      "prediction": "syntax",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": true
+    },
+    {
+      "id": "wait-exhausted",
+      "truth": "timeout",
+      "prediction": "timeout",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": true
+    },
+    {
+      "id": "access-error",
+      "truth": "permission",
+      "prediction": "permission",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": true
+    },
+    {
+      "id": "socket-reset",
+      "truth": "network",
+      "prediction": "network",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": true
+    },
+    {
+      "id": "storage-full",
+      "truth": "resource",
+      "prediction": "resource",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": true
+    },
+    {
+      "id": "unexplained-exit",
+      "truth": "unknown",
+      "prediction": "unknown",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": true
+    },
+    {
+      "id": "competing-signals",
+      "truth": "unknown",
+      "prediction": "unknown",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": true
+    },
+    {
+      "id": "instruction-in-log",
+      "truth": "unknown",
+      "prediction": "unknown",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": true
+    },
+    {
+      "id": "negated-symptom",
+      "truth": "unknown",
+      "prediction": "assertion",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": false
+    },
+    {
+      "id": "quoted-documentation",
+      "truth": "unknown",
+      "prediction": "timeout",
+      "baseline": "unknown",
+      "failure_preserved": true,
+      "correct": false
+    }
+  ],
+  "scouting": {
+    "tasks": 5,
+    "relevant_files": 7,
+    "exhaustive_eligible_recall": 0.8571428571428571,
+    "shortlist_recall": 0.5714285714285714,
+    "all_missed_recoverable_or_unknown": true
+  },
+  "failure_triage": {
+    "rows": 12,
+    "accuracy": 0.8333333333333334,
+    "abstain_baseline_accuracy": 0.4166666666666667,
+    "known_coverage": 1.0,
+    "false_certainty_on_unknown": 0.4,
+    "all_failures_preserved": true
+  },
+  "cli_smoke": {
+    "exit_code": 1,
+    "original_failure_exit": 7
+  },
+  "live": {
+    "measured": false,
+    "accuracy": null,
+    "latency_ms": null,
+    "cost_usd": null,
+    "savings": null,
+    "gate": "exact public dataset and spend approval required"
+  },
+  "mocked_model_accuracy": null,
+  "promotion": "NOT_PROMOTED"
+}

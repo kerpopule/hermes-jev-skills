@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add opt-in `jev evidence scout/read/advise` and `jev triage --preset test-failure`: bounded local evidence, content-pinned references, local privacy screening, advisory existing-policy integration, preserved failing exit codes and explicit unknowns. No hooks, activation or compaction change. Synthetic baseline/regression receipts and a frozen promotion protocol are included; live model performance is unmeasured. See `docs/file-evidence.md`.
+
 - **`jev models suggest --provider X` builds pools from that provider only** (PR #30, thanks @brandonpollack23). The accepted flag previously filtered only `list`.
 
 ## 0.21.0 (2026-09-28)

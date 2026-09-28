@@ -439,6 +439,17 @@ def cmd_triage(args: argparse.Namespace) -> int:
         # agent reading stdout, and a traceback on stderr never told it what to fix.
         _out({"error": "invalid_request", "detail": str(error)})
         return 2
+    if args.preset == "test-failure":
+        try:
+            if not 1 <= len(entries) <= 128 or not all(isinstance(m, dict) for m in entries):
+                raise ValueError("test-failure needs 1..128 objects")
+            # CLI stays local. Paid public-data advice is a separate explicit operation.
+            rows = [triage.classify_state({**m, "semantic": False}, "test-failure") for m in entries]
+        except ValueError as error:
+            _out({"error": "invalid_request", "detail": str(error)})
+            return 2
+        _out({"results": rows, "advisory_only": True})
+        return 1 if any(row["test_failed"] for row in rows) else 0
     if args.preset and args.preset != "support-mail":
         # A preset is a named decision policy (cron-wake, blockcheck, kanban-event, urgency):
         # each entry is a state object, and the answer is the policy's action.
@@ -727,6 +738,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jev", description="Hermes Jev Skills")
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)
+    from . import cli_evidence
+    cli_evidence.register(sub)
 
     p = sub.add_parser("setup-key", help="open a private page for the person to paste their Jev key")
     p.add_argument("--provider", choices=list(keystore.PROVIDERS), default="typesafe",

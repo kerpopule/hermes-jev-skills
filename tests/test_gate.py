@@ -62,7 +62,10 @@ class WorkdirKind(unittest.TestCase):
             self.assertEqual(gate.workdir_kind(str(home / "notes"), home=str(home)), "home")
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / ".git").mkdir()
-            self.assertEqual(gate.workdir_kind(tmp, home="/nonexistent-home"), "scratch")  # disposable wins
+            # TMPDIR may be an owner-selected scratch directory outside /tmp.
+            # Test precedence against a declared scratch root, not the host's layout.
+            with mock.patch.object(gate, "_SCRATCH", (str(Path(tmp).resolve()),)):
+                self.assertEqual(gate.workdir_kind(tmp, home="/nonexistent-home"), "scratch")
         self.assertEqual(gate.workdir_kind("/tmp", home="/nonexistent-home"), "scratch")
         self.assertEqual(gate.workdir_kind("/etc", home="/nonexistent-home"), "system")
         self.assertEqual(gate.workdir_kind(None), "unknown")
