@@ -227,5 +227,37 @@
         "median_verified_ms": 1250.1
       }
     ]
+  },
+  "installed_qualification": {
+    "package_version": "0.22.1",
+    "attempts": 12,
+    "completed": 12,
+    "scope": "root installed selector exercised in the owned synthetic headless loop; no config/default/gateway changes",
+    "measurements": [
+      {
+        "scenario": "delayed",
+        "attempts": 3,
+        "completed": 3,
+        "median_verified_ms": 1769.2
+      },
+      {
+        "scenario": "form",
+        "attempts": 3,
+        "completed": 3,
+        "median_verified_ms": 1235.2
+      },
+      {
+        "scenario": "injection",
+        "attempts": 3,
+        "completed": 3,
+        "median_verified_ms": 936.1
+      },
+      {
+        "scenario": "navigation",
+        "attempts": 3,
+        "completed": 3,
+        "median_verified_ms": 986.0
+      }
+    ]
   }
 }
