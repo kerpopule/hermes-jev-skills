@@ -294,6 +294,16 @@ class PrivacyTests(unittest.TestCase):
         self.assertNotIn("555-1234", out)
         self.assertNotIn("ghp_", out)
 
+    def test_a_cap_below_two_still_caps(self):
+        # limit // 2 is 0 there, and text[-0:] is the whole text: a field_limits entry of
+        # 0 or 1 sent the field in full instead of almost none of it.
+        text = "the whole private note, every word of it"
+        for limit in (0, 1):
+            out = privacy.redact(text, limit)
+            self.assertNotIn("private", out, limit)
+            self.assertLessEqual(len(out), limit + len("\n[…]\n"), limit)
+        self.assertEqual(privacy.redact(text, 2), "t\n[…]\nt")
+
 
 class KeystoreTests(unittest.TestCase):
     def test_upsert_keeps_other_lines_and_is_private(self):

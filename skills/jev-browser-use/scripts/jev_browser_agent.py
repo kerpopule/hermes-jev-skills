@@ -76,8 +76,32 @@ def keychain_get(service: str, account: str) -> str | None:
     return value or None
 
 
+TEXT_SETTINGS = ("TEXT_MODEL_PROVIDER", "TEXT_MODEL", "TEXT_MODEL_BASE_URL", "TEXT_MODEL_RESPONSE_FORMAT",
+                 "TEXT_MODEL_REASONING")
+
+
+def text_model_config(env: dict) -> dict:
+    """The machine's text helper, from ``JEV_BROWSER_CONFIG`` or ``~/.config/jev/browser.json``.
+
+    One file every agent on the machine reads (Claude Code, Codex, each Hermes profile), so
+    the helper is chosen once. Keys are the TEXT_* names; it never holds a credential.
+    """
+    path = Path(env.get("JEV_BROWSER_CONFIG")
+                or Path(env.get("XDG_CONFIG_HOME") or os.environ.get("XDG_CONFIG_HOME")
+                        or Path.home() / ".config") / "jev" / "browser.json")
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    return {k: str(v) for k, v in data.items() if k in TEXT_SETTINGS and v} if isinstance(data, dict) else {}
+
+
+def _is_local(base: str) -> bool:
+    return (urlparse(base).hostname or "") in ("127.0.0.1", "localhost", "::1")
+
+
 def resolve_credentials(env: dict, lookup=None) -> dict:
-    """Environment first, then Keychain. Missing values are simply absent.
+    """Environment first, then the machine's browser config, then Keychain.
 
     ``lookup`` is resolved at call time, so tests (and any caller) can
     substitute a deterministic lookup without patching the default binding.
@@ -85,20 +109,34 @@ def resolve_credentials(env: dict, lookup=None) -> dict:
     if lookup is None:
         lookup = keychain_get
     typesafe = env.get("TYPESAFE_API_KEY") or lookup(*KEYCHAIN_TYPESAFE)
+    settings = {**text_model_config(env), **{k: env[k] for k in TEXT_SETTINGS if env.get(k)}}
+    base = settings.get("TEXT_MODEL_BASE_URL", DEFAULT_TEXT_BASE)
     # The TypeSafe key already fell back to the secret store; the text key did not. An
     # agent's environment carries neither, so the loop started fine and then died the
     # first time Jev chose to TYPE - which on most sites is the very first action. It
     # only ever worked from a shell where someone had exported the key by hand.
-    text_key = (env.get("TEXT_MODEL_API_KEY") or env.get("OPENROUTER_API_KEY")
-                or lookup("OPENROUTER_API_KEY", env.get("USER") or os.environ.get("USER", "")))
+    cli = settings.get("TEXT_MODEL_PROVIDER") == "claude-cli"   # Claude Code's own sign-in; no key
+    text_key = None if cli else (
+        env.get("TEXT_MODEL_API_KEY") or env.get("OPENROUTER_API_KEY")
+        or ("local" if _is_local(base) else None)   # a local server needs none
+        or lookup("OPENROUTER_API_KEY", env.get("USER") or os.environ.get("USER", "")))
     resolved = {}
+    if cli:
+        # Agents often run without ~/.local/bin on PATH, where the Claude Code installer puts it.
+        found = env.get("CLAUDE_CLI") or shutil.which("claude", path=env.get("PATH")) or next(
+            (str(p) for p in (Path.home() / ".local/bin/claude", Path("/opt/homebrew/bin/claude")) if p.exists()), None)
+        if found:
+            resolved["CLAUDE_CLI"] = found
     if typesafe:
         resolved["TYPESAFE_API_KEY"] = typesafe
     if text_key:
         resolved["TEXT_MODEL_API_KEY"] = text_key
     resolved["TYPESAFE_MODEL"] = env.get("TYPESAFE_MODEL", "jev-latest")
-    resolved["TEXT_MODEL"] = env.get("TEXT_MODEL", DEFAULT_TEXT_MODEL)
-    resolved["TEXT_MODEL_BASE_URL"] = env.get("TEXT_MODEL_BASE_URL", DEFAULT_TEXT_BASE)
+    resolved["TEXT_MODEL"] = settings.get("TEXT_MODEL", DEFAULT_TEXT_MODEL)
+    resolved["TEXT_MODEL_BASE_URL"] = base
+    for k in ("TEXT_MODEL_PROVIDER", "TEXT_MODEL_RESPONSE_FORMAT", "TEXT_MODEL_REASONING"):
+        if k in settings:
+            resolved[k] = settings[k]
     return resolved
 
 
@@ -336,8 +374,11 @@ def main(argv: list[str] | None = None) -> int:
 
     creds = resolve_credentials(dict(os.environ))
     print(f"typesafe: {redact(creds.get('TYPESAFE_API_KEY'))} model={creds['TYPESAFE_MODEL']}")
-    print(f"text helper: {redact(creds.get('TEXT_MODEL_API_KEY'))} model={creds['TEXT_MODEL']} "
-          f"base={creds['TEXT_MODEL_BASE_URL']}")
+    if creds.get("TEXT_MODEL_PROVIDER") == "claude-cli":
+        print(f"text helper: claude-cli model={creds['TEXT_MODEL']} cli={creds.get('CLAUDE_CLI', '(not found)')}")
+    else:
+        print(f"text helper: {redact(creds.get('TEXT_MODEL_API_KEY'))} model={creds['TEXT_MODEL']} "
+              f"base={creds['TEXT_MODEL_BASE_URL']}")
     if "TYPESAFE_API_KEY" not in creds:
         print("FAIL: no TypeSafe credential. Run `jev setup-key`.")
         return 2

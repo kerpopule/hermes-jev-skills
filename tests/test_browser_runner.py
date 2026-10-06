@@ -133,3 +133,57 @@ class CredentialFallbackTests(unittest.TestCase):
     def test_no_key_anywhere_is_simply_absent_not_an_error(self):
         creds = runner.resolve_credentials({"USER": "someone"}, lookup=lambda s, a: None)
         self.assertNotIn("TEXT_MODEL_API_KEY", creds)
+
+
+class TextHelperConfigTests(unittest.TestCase):
+    """One machine-wide file picks the text helper; env still wins; no key for a local server."""
+
+    def _cfg(self, tmp, data):
+        p = Path(tmp) / "browser.json"
+        p.write_text(json.dumps(data))
+        return p
+
+    def test_local_server_from_config_needs_no_key(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = self._cfg(tmp, {"TEXT_MODEL": "qwen-local", "TEXT_MODEL_BASE_URL": "http://127.0.0.1:1234/v1",
+                                  "TEXT_MODEL_RESPONSE_FORMAT": "json_schema", "api_key": "ignored"})
+            got = runner.resolve_credentials({"JEV_BROWSER_CONFIG": str(cfg), "TYPESAFE_API_KEY": "t"},
+                                             lookup=lambda *a: None)
+            self.assertEqual(got["TEXT_MODEL"], "qwen-local")
+            self.assertEqual(got["TEXT_MODEL_BASE_URL"], "http://127.0.0.1:1234/v1")
+            self.assertEqual(got["TEXT_MODEL_RESPONSE_FORMAT"], "json_schema")
+            self.assertEqual(got["TEXT_MODEL_API_KEY"], "local")
+            self.assertNotIn("api_key", got)
+
+    def test_environment_overrides_config(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = self._cfg(tmp, {"TEXT_MODEL": "qwen-local", "TEXT_MODEL_BASE_URL": "http://127.0.0.1:1234/v1"})
+            got = runner.resolve_credentials({"JEV_BROWSER_CONFIG": str(cfg), "TEXT_MODEL": "other",
+                                              "TEXT_MODEL_BASE_URL": "https://example.com/v1"},
+                                             lookup=lambda *a: None)
+            self.assertEqual(got["TEXT_MODEL"], "other")
+            self.assertNotIn("TEXT_MODEL_API_KEY", got)   # remote server, no key anywhere
+
+    def test_missing_or_bad_config_keeps_defaults(self):
+        got = runner.resolve_credentials({"JEV_BROWSER_CONFIG": "/nonexistent/browser.json"}, lookup=lambda *a: None)
+        self.assertEqual(got["TEXT_MODEL"], runner.DEFAULT_TEXT_MODEL)
+        self.assertNotIn("TEXT_MODEL_RESPONSE_FORMAT", got)
+
+
+class ClaudeCliTextHelperTests(unittest.TestCase):
+    def test_claude_cli_needs_no_key_and_never_reads_the_keychain(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Path(tmp) / "browser.json"
+            cfg.write_text(json.dumps({"TEXT_MODEL_PROVIDER": "claude-cli", "TEXT_MODEL": "claude-haiku-4-5"}))
+            calls = []
+            got = runner.resolve_credentials({"JEV_BROWSER_CONFIG": str(cfg), "TYPESAFE_API_KEY": "t",
+                                              "CLAUDE_CLI": "/x/claude"},
+                                             lookup=lambda *a: calls.append(a))
+            self.assertEqual(got["TEXT_MODEL_PROVIDER"], "claude-cli")
+            self.assertEqual(got["TEXT_MODEL"], "claude-haiku-4-5")
+            self.assertEqual(got["CLAUDE_CLI"], "/x/claude")
+            self.assertNotIn("TEXT_MODEL_API_KEY", got)
+            self.assertEqual(calls, [])

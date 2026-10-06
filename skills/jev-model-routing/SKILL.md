@@ -64,6 +64,9 @@ jev lane step --task "..." --lane <lane> --attempt <n> \
 - **Complete is earned.** `complete` is refused (becomes `verify`, with `complete_refused`) unless the checks ran and passed and the diff stayed in scope. Say when a check failed; never hide it.
 - Only the tail of each long check output goes to Jev. Never compact or filter the agent's own reasoning.
 - Jev down: `classify` keeps the current model, `step` says `verify`.
+- **Make `--run` a script, not a one-liner.** It runs under a shell, so pipes and `&&` work, but the evidence prints the command cut short and a reader cannot tell what passed. A small script that checks the exact commit and each exit code, and prints `ok:`/`FAIL:` per gate, keeps the evidence legible. Make sure it reads only this cycle's results: an earlier failed attempt left in the same log will fail (or pass) the wrong run.
+- **Read-only work: `--no-changes-expected`.** For a review or report, say so; otherwise an empty diff reads as nothing done.
+- **`escalate` with a decision still open means `person`.** After a review whose facts are verified but which leaves the owner a choice (a risk to accept, an approach to pick), a stronger model cannot settle it. Put the decision to the person rather than re-running the work a lane up.
 
 On Hermes, `jev lane shadow` (from cron) classifies new Kanban cards and logs what it would choose; `/jev lanes shadow|on|off` is the switch and `<hermes root>/jev/LANES_OFF` wins. `on` sets the card's model and effort before dispatch; turn it on only after `jev lane shadow-report` shows fewer tokens at the same first-try success, and with the owner's yes.
 

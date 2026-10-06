@@ -118,6 +118,7 @@ def redact(text: str, limit: int = 4000) -> str:
     for index, value in enumerate(held):
         out = out.replace(f"\x00TRK{index}\x00", value)
     if len(out) > limit:
-        half = limit // 2
-        out = out[:half] + "\n[…]\n" + out[-half:]
+        half = max(limit, 0) // 2
+        # out[-0:] is all of out, so a cap of 0 or 1 keeps no tail rather than the whole text.
+        out = out[:half] + "\n[…]\n" + (out[-half:] if half else "")
     return out

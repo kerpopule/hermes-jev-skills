@@ -3,6 +3,15 @@
 ## Unreleased
 
 - Add opt-in `jevkit.local_goal` closed whole-action tables for bounded caller-owned execution loops, with exact non-sensitive field bindings and caller-verified plaintext input types, unchanged confidence gates, stale-result rejection and offline privacy/refusal tests. No driver or routing defaults change. Document synthetic headless Arc/Ultrafast comparisons and the separate native/end-to-end qualification gate in `docs/local-goal.md`.
+- Installer: preserve the canonical shared skill directory and aliases instead of replacing its source with self-referencing symlinks; regression tests cover both destructive edge cases.
+
+- **One copy of each skill on a machine**: once Hermes is installed, Claude Code, Codex and `~/.agents` skill folders get symlinks to `<hermes root>/skills/jev/<skill>` instead of their own copies, so all three read the same files; copies remain the fallback without Hermes or symlinks. Tests cover link, re-run and no-Hermes cases.
+- **Field notes from a product review run on Jev** (`jev-browser-use`, `jev-frontier-work`, `jev-model-routing`): verify a "goal reached" pick with a Noul over page text (labels-only observation over-claimed: 0.73 vs 0.07); persona browsing as a UX review; machine-wide text helper for typing in `~/.config/jev/browser.json` (`claude-cli` provider uses the signed-in Claude Code CLI with no key; local servers need no key); citation-check a delegated report's `file:line` claims with `not_enough` first; script-file `--run` checks; `--no-changes-expected` for reviews; an `escalate` after a verified review that leaves a decision open goes to the person.
+- **A field cap of 0 or 1 now caps**: `privacy.redact` cut to `text[:limit // 2] + … + text[-(limit // 2):]`, and with `limit // 2 == 0` the tail slice is the whole text, so a `field_limits` entry of 0 or 1 sent the field in full. It now keeps no tail there.
+
+## 0.22.1 (2026-10-02)
+
+Released by the daily Jev steward: 5 commit(s) on main since v0.22.0.
 
 - **Routing effort and sticky-context fixes** (PR #32, thanks @mxuanvan02): floor opt-in effort at the resolved tier, protect uncertain kept turns, guard catalog-unknown models at large context, and separate decision-cache entries across the sticky threshold. Integration regression also preserves the risk floor when the guard keeps the current model; caller effort and exact-model capability checks still win.
 - **Windows without Developer Mode** (#31, reported by @zeroappam2day): denied command symlinks fall back to a checkout-pinned, quoted Git Bash launcher rather than a broken relocated copy. Profile plugin/skill links fall back to copies. Exact owned launchers are idempotent and removable; foreign or modified files are preserved. Added offline denial/ownership/failure-path tests and a dedicated Windows Python 3.10/3.13 CI workflow.
@@ -11,11 +20,13 @@
 
 - **Nous Portal in the model catalog** (`jev models list`, pool suggestions). models.dev has no Nous entry, so Nous-served models never reached the pools. `jev models … --refresh` now reads the Nous inference API's OpenRouter-shaped `/models` and saves it; every other read, including routing on each turn, uses the saved copy and never the network. Without a saved copy it falls back to Hermes's `provider_models_cache.json` Nous list priced from models.dev's OpenRouter entry; with neither, no Nous provider is added. `:batch` ids and variable-priced (-1) routers are dropped, and a models.dev Nous entry, if one appears, wins. **What leaves the machine:** on refresh only, the Hermes Nous login from `auth.json` (`agent_key`, then `access_token`) goes as a bearer to `inference_base_url` + `/models`, and only when that URL is plain https on `inference-api.nousresearch.com` — no userinfo, other host, port, query or fragment — and redirects are refused so the bearer cannot follow one. An unreachable or unusable endpoint leaves the saved copy untouched. Rows are validated before they are saved: only rows that parse into a usable model (numeric non-negative prices, integer context, a sane `created` timestamp) replace the saved copy, a reply with none leaves it as it was, and a malformed row already on disk is dropped on read instead of breaking the catalog. **Pricing provenance:** prices from the Nous `/models` reply (fresh or saved) are Nous's own. In the Hermes fallback they are OpenRouter's list prices for the same model ids as models.dev records them — an estimate of Nous's price, not a Nous quote — and ids OpenRouter does not price are left out rather than guessed.
 
-## 0.22.1
+**Changes and fixes**
 
-Candidate feature-branch notes, not a tagged release. The local-goal experiment is opt-in; driver, routing and gateway defaults remain unchanged.
-
-- Add `jevkit.local_goal` closed whole-action tables for bounded caller-owned execution loops, with exact non-sensitive field bindings and caller-verified plaintext input types, unchanged confidence gates, stale-result rejection and offline privacy/refusal tests. Document synthetic headless Arc/Ultrafast comparisons and the separate native/end-to-end qualification gate in `docs/local-goal.md`.
+- catalog: add Nous Portal from its own /models (9dddc22)
+- catalog: validate Nous rows before saving; a bad row never breaks reads (4643830)
+- fix: floor the effort pick by tier and guard catalog-unknown refs at large context (685dec3)
+- Fix Windows launchers, retain kept effort floors, and document operational evidence (c889d4a)
+- Normalize scratch fixture prefixes on macOS CI (349719f)
 
 ## 0.22.0 (2026-09-29)
 

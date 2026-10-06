@@ -403,12 +403,26 @@ def uninstall_hermes(root: Path) -> Dict[str, object]:
 
 # ── skill folders (Claude Code, Codex, generic) ──────────────────────────────
 
-def install_skills(folder: Path, check: bool) -> Dict[str, object]:
+def install_skills(folder: Path, check: bool, shared: "Path | None" = None) -> Dict[str, object]:
+    """Install the skills into one agent's folder.
+
+    With ``shared`` (the Hermes fleet copy, ``<hermes root>/skills/jev``), each skill is a
+    symlink to it instead of a second copy, so Claude Code, Codex and every Hermes profile read
+    the same files and a skill edited in one place is edited everywhere. Without Hermes, or
+    where symlinks are refused, it is a copy as before.
+    """
     if not check:
         folder.mkdir(parents=True, exist_ok=True)
         for name in SKILLS:
-            _copytree(REPO / "skills" / name, folder / name)
-    return {"folder": str(folder), "skills": SKILLS}
+            if shared is not None and (shared / name / "SKILL.md").is_file():
+                target, destination = shared / name, folder / name
+                # A canonical folder or alias must never delete its own source.
+                if target.resolve() != destination.resolve():
+                    _link(target, destination)
+            else:
+                _copytree(REPO / "skills" / name, folder / name)
+    return {"folder": str(folder), "skills": SKILLS,
+            **({"linked_to": str(shared)} if shared is not None else {})}
 
 
 # ── Claude Code: lane subagents and a delimited CLAUDE.md block ──────────────
@@ -696,7 +710,8 @@ def main() -> int:
         if (hermes / "config.yaml").is_file():
             report["hermes"] = install_hermes(hermes, args.enable, args.check)
             warnings += [w for w in (lane_warning(report["hermes"]),) if w]  # type: ignore[arg-type]
-        report["skill_folders"] = [install_skills(f, args.check) for f in folders]
+        shared = hermes / "skills" / "jev" if "hermes" in report else None
+        report["skill_folders"] = [install_skills(f, args.check, shared) for f in folders]
         if (home / ".claude").is_dir():
             report["claude_code"] = install_claude(home / ".claude", args.check, not args.no_claude_md)
         steps = ["jev doctor", "jev setup-key   (only if the key is missing; the person pastes it in a private page)",
