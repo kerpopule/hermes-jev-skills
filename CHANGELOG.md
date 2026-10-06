@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add opt-in `jevkit.local_goal` closed whole-action tables for bounded caller-owned execution loops, with exact non-sensitive field bindings, unchanged confidence gates, stale-result rejection and offline privacy/refusal tests. No driver or routing defaults change. Document synthetic headless Arc/Ultrafast comparisons and the separate native/end-to-end qualification gate in `docs/local-goal.md`.
+- Add opt-in `jevkit.local_goal` closed whole-action tables for bounded caller-owned execution loops, with exact non-sensitive field bindings and caller-verified plaintext input types, unchanged confidence gates, stale-result rejection and offline privacy/refusal tests. No driver or routing defaults change. Document synthetic headless Arc/Ultrafast comparisons and the separate native/end-to-end qualification gate in `docs/local-goal.md`.
 
 - **Routing effort and sticky-context fixes** (PR #32, thanks @mxuanvan02): floor opt-in effort at the resolved tier, protect uncertain kept turns, guard catalog-unknown models at large context, and separate decision-cache entries across the sticky threshold. Integration regression also preserves the risk floor when the guard keeps the current model; caller effort and exact-model capability checks still win.
 - **Windows without Developer Mode** (#31, reported by @zeroappam2day): denied command symlinks fall back to a checkout-pinned, quoted Git Bash launcher rather than a broken relocated copy. Profile plugin/skill links fall back to copies. Exact owned launchers are idempotent and removable; foreign or modified files are preserved. Added offline denial/ownership/failure-path tests and a dedicated Windows Python 3.10/3.13 CI workflow.
@@ -15,7 +15,7 @@
 
 Candidate feature-branch notes, not a tagged release. The local-goal experiment is opt-in; driver, routing and gateway defaults remain unchanged.
 
-- Add `jevkit.local_goal` closed whole-action tables for bounded caller-owned execution loops, with exact non-sensitive field bindings, unchanged confidence gates, stale-result rejection and offline privacy/refusal tests. Document synthetic headless Arc/Ultrafast comparisons and the separate native/end-to-end qualification gate in `docs/local-goal.md`.
+- Add `jevkit.local_goal` closed whole-action tables for bounded caller-owned execution loops, with exact non-sensitive field bindings and caller-verified plaintext input types, unchanged confidence gates, stale-result rejection and offline privacy/refusal tests. Document synthetic headless Arc/Ultrafast comparisons and the separate native/end-to-end qualification gate in `docs/local-goal.md`.
 
 ## 0.22.0 (2026-09-29)
 
