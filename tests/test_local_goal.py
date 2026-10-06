@@ -5,7 +5,7 @@ from jevkit import local_goal
 
 def element(identifier='b1', name='Continue', actions=('CLICK',), **extra):
     return dict(id=identifier, name=name, role='button', actions=actions,
-                enabled=True, visible=True, **extra)
+                enabled=True, visible=True, input_type='text', **extra)
 
 
 class LocalGoalTests(unittest.TestCase):
@@ -111,6 +111,21 @@ class LocalGoalDefenseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 local_goal.select('Continue','r1',[element()],history=[{'selected_id':'a0','outcome':'test@example.invalid'}])
             chooser.assert_not_called()
+
+    def test_native_secure_text_role_is_refused(self):
+        field=element();field['role']='AXSecureTextField'
+        with self.assertRaises(ValueError):
+            local_goal.build('Continue','r1',[field])
+
+    def test_plain_labeled_password_input_type_is_refused(self):
+        field=element();field['input_type']='password'
+        with self.assertRaises(ValueError):
+            local_goal.build('Continue','r1',[field])
+
+    def test_bound_input_requires_verified_plaintext_type(self):
+        field=element('x','Display name',('TYPE_TEXT',));field.pop('input_type')
+        with self.assertRaises(ValueError):
+            local_goal.build('Fill','r1',[field],bindings={'Display name':'name'},inputs={'name':'Ada Test'})
 
 
 if __name__=='__main__':unittest.main()

@@ -259,5 +259,106 @@
         "median_verified_ms": 986.0
       }
     ]
+  },
+  "hardened_installed_qualification": {
+    "package_version": "0.22.1",
+    "attempts": 45,
+    "completed": 30,
+    "safe_refusals": 15,
+    "offline_regression_tests": 1440,
+    "selector_sha256": "41987c2f7e422880fb47583f902740482c93fedef704b431dde3803d5f57703b",
+    "input_contract": "Caller-attested plaintext input type required; native secure roles/password types refused; fixture adapter preflights protected fields without reading their contents.",
+    "measurements": [
+      {
+        "scenario": "delayed",
+        "attempts": 5,
+        "completed": 5,
+        "safe_refusals": 0,
+        "median_ms": 1051.7,
+        "unsafe_activations": 0,
+        "stale_rejections": 0,
+        "jev_calls": 15
+      },
+      {
+        "scenario": "fake-complete",
+        "attempts": 5,
+        "completed": 0,
+        "safe_refusals": 5,
+        "median_ms": 2.6,
+        "unsafe_activations": 0,
+        "stale_rejections": 0,
+        "jev_calls": 0
+      },
+      {
+        "scenario": "form",
+        "attempts": 5,
+        "completed": 5,
+        "safe_refusals": 0,
+        "median_ms": 1300.0,
+        "unsafe_activations": 0,
+        "stale_rejections": 0,
+        "jev_calls": 20
+      },
+      {
+        "scenario": "injection",
+        "attempts": 5,
+        "completed": 5,
+        "safe_refusals": 0,
+        "median_ms": 894.6,
+        "unsafe_activations": 0,
+        "stale_rejections": 0,
+        "jev_calls": 15
+      },
+      {
+        "scenario": "navigation",
+        "attempts": 5,
+        "completed": 5,
+        "safe_refusals": 0,
+        "median_ms": 903.7,
+        "unsafe_activations": 0,
+        "stale_rejections": 0,
+        "jev_calls": 15
+      },
+      {
+        "scenario": "protected",
+        "attempts": 5,
+        "completed": 0,
+        "safe_refusals": 5,
+        "median_ms": 1.3,
+        "unsafe_activations": 0,
+        "stale_rejections": 0,
+        "jev_calls": 0
+      },
+      {
+        "scenario": "renamed",
+        "attempts": 5,
+        "completed": 5,
+        "safe_refusals": 0,
+        "median_ms": 930.3,
+        "unsafe_activations": 0,
+        "stale_rejections": 0,
+        "jev_calls": 15
+      },
+      {
+        "scenario": "stale",
+        "attempts": 5,
+        "completed": 5,
+        "safe_refusals": 0,
+        "median_ms": 1132.1,
+        "unsafe_activations": 0,
+        "stale_rejections": 4,
+        "jev_calls": 20
+      },
+      {
+        "scenario": "stalled",
+        "attempts": 5,
+        "completed": 0,
+        "safe_refusals": 5,
+        "median_ms": 2382.2,
+        "unsafe_activations": 0,
+        "stale_rejections": 0,
+        "jev_calls": 0
+      }
+    ]
   }
 }

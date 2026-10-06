@@ -53,10 +53,13 @@ def build(goal: str, observation_id: str, elements: Sequence[Mapping[str, Any]],
         if not item.get('visible',True) or not name:continue
         if not isinstance(name,str) or len(name)>280 or _private(name):
             raise ValueError('sensitive or oversized observed label')
-        if privacy.is_sensitive(str(item.get('role', ''))) or item.get('secret'):
+        role=privacy.normalize(str(item.get('role',''))).lower()
+        if privacy.is_sensitive(role) or 'securetext' in role or item.get('secret') or item.get('input_type')=='password':
             raise ValueError('secure fields are excluded from this pilot')
         actions=item.get('actions',())
         if name in bindings and 'TYPE_TEXT' in actions:
+            if item.get('input_type') not in ('text','search','textarea'):
+                raise ValueError('bound fields require a verified plaintext input type')
             bound.append(item)
     pending = [item for item in bound if item.get('value') != inputs[bindings[item['name']]]]
     if len({item['name'] for item in bound}) != len(bound):

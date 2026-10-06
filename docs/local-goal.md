@@ -31,7 +31,14 @@ action = result["action"]  # None means do not execute a mutation.
 ```
 
 Elements are dictionaries with `id`, `name`, `role`, `actions` (`CLICK` or
-`TYPE_TEXT`), `visible`, `enabled`, and optional `value`. The element id comes
+`TYPE_TEXT`), `visible`, `enabled`, and optional `value`. Bound text fields must
+also carry a caller-verified `input_type` of `text`, `search` or `textarea`;
+missing or protected types are refused. Secure native text roles and explicit
+password types are refused even when the displayed label is innocuous. Adapters
+must preflight the authorized target for protected fields: a masked value or a
+generic textbox role does not prove that a field is safe. The synthetic browser
+adapter checks protected-field presence without reading field contents.
+The element id comes
 from the real observation. `bindings` maps an exact observed field label to a
 planner-supplied input key. The model cannot supply typed text, coordinates,
 selectors, commands or arguments. Ambiguous bindings and oversized action
