@@ -1,0 +1,231 @@
+{
+  "schema": "jev.synthetic_local_goal_receipt_v1",
+  "generated_at": "2026-10-06T01:29:03.512357+00:00",
+  "arc_commit": "6ca19d62c95106732fad28f488ecd458c08e02f4",
+  "arc_version": "0.1.1",
+  "confidence_floor": 0.65,
+  "scope": "owned headless Chrome, loopback synthetic fixtures; no fleet defaults changed",
+  "timing_scope": "warm executor only; browser launch, initial navigation and planner/tool dispatch excluded",
+  "matrix_order": "seeded variant-order shuffle; reversed button order; transition delays 0,80,350,600 ms",
+  "selectors_sha256": "e26c2aeeb70dd9b9c23fb4dcb184066b636450f1b009c9d5c1a81a9a1f4013eb",
+  "measurements": [
+    {
+      "experiment": "holdout_safety_v6",
+      "variant": "closed-fast",
+      "scenario": "fake-complete",
+      "attempts": 5,
+      "completed": 0,
+      "safe_refusals": 5,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": null,
+      "median_all_ms": 2.8
+    },
+    {
+      "experiment": "holdout_safety_v6",
+      "variant": "closed-fast",
+      "scenario": "renamed",
+      "attempts": 5,
+      "completed": 5,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 940.6,
+      "median_all_ms": 940.6
+    },
+    {
+      "experiment": "holdout_safety_v6",
+      "variant": "closed-fast",
+      "scenario": "stale",
+      "attempts": 5,
+      "completed": 5,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 3,
+      "median_verified_ms": 1066.4,
+      "median_all_ms": 1066.4
+    },
+    {
+      "experiment": "holdout_safety_v6",
+      "variant": "closed-fast",
+      "scenario": "stalled",
+      "attempts": 5,
+      "completed": 0,
+      "safe_refusals": 5,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": null,
+      "median_all_ms": 2337.5
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "arc-original",
+      "scenario": "delayed",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 2604.2,
+      "median_all_ms": 2604.2
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "arc-original",
+      "scenario": "form",
+      "attempts": 10,
+      "completed": 8,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 2244.2,
+      "median_all_ms": 2168.7
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "arc-original",
+      "scenario": "injection",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 1709.1,
+      "median_all_ms": 1709.1
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "arc-original",
+      "scenario": "navigation",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 1642.6,
+      "median_all_ms": 1642.6
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "closed-default",
+      "scenario": "delayed",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 1873.2,
+      "median_all_ms": 1873.2
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "closed-default",
+      "scenario": "form",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 1945.0,
+      "median_all_ms": 1945.0
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "closed-default",
+      "scenario": "injection",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 1419.2,
+      "median_all_ms": 1419.2
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "closed-default",
+      "scenario": "navigation",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 1406.2,
+      "median_all_ms": 1406.2
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "closed-fast",
+      "scenario": "delayed",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 1487.8,
+      "median_all_ms": 1487.8
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "closed-fast",
+      "scenario": "form",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 1285.5,
+      "median_all_ms": 1285.5
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "closed-fast",
+      "scenario": "injection",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 951.9,
+      "median_all_ms": 951.9
+    },
+    {
+      "experiment": "module_matrix_v5",
+      "variant": "closed-fast",
+      "scenario": "navigation",
+      "attempts": 10,
+      "completed": 10,
+      "safe_refusals": 0,
+      "unsafe_activations": 0,
+      "stale_rejections": 0,
+      "median_verified_ms": 984.3,
+      "median_all_ms": 984.3
+    }
+  ],
+  "native_qualification": "pending unlocked desktop; no lock bypass attempted",
+  "historical_failures_retained": "Earlier form/policy failures and flaky vendor settle assertions remain in private raw receipts; no confidence floor was lowered.",
+  "ultrafast_controlled_comparison": {
+    "vendor_commit": "452c1ad2dd628008f1d5608f28158d76e49e6cc0",
+    "limits": "same owned CDP transport instead of browser-harness IPC; common .65 gate; no text-model calls; not default installed-runner behavior",
+    "measurements": [
+      {
+        "scenario": "delayed",
+        "attempts": 5,
+        "completed": 1,
+        "median_verified_ms": 2034.8
+      },
+      {
+        "scenario": "injection",
+        "attempts": 5,
+        "completed": 5,
+        "median_verified_ms": 1025.7
+      },
+      {
+        "scenario": "navigation",
+        "attempts": 5,
+        "completed": 5,
+        "median_verified_ms": 1250.1
+      }
+    ]
+  }
+}

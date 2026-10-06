@@ -1,5 +1,5 @@
 name: hermes-jev
-version: 0.22.0
+version: 0.22.1
 description: TypeSafe Jev takes the cheap decisions - model routing, skill selection, memory filtering, compaction selection, GUI and browser action choice, and (opt-in) policy decisions and a shadow command-risk gate.
 author: Steve Darlow
 license: MIT

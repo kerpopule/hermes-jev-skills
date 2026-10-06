@@ -231,6 +231,10 @@ Three rules that are yours to keep:
 The two-model split (a fast text model plans, Jev grounds every on-screen target) follows
 [savka777/jev-use](https://github.com/savka777/jev-use), MIT.
 
+## Opt-in bounded local action-table experiment
+
+`jevkit.local_goal` builds whole prevalidated action ids for a caller-owned local loop; it does not launch apps or replace the normal Co-Agent path. See the [local goal contract](https://github.com/kerpopule/hermes-jev-skills/blob/donna/arc-loop-pilot/docs/local-goal.md) for the API, measured synthetic-browser results and remaining gates. Use only on explicitly authorized non-sensitive screens with exact target scope, freshness checks, action/deadline budgets and independent actual-effect verification. Its candidate descriptions include supplied non-sensitive bound text values, unlike this skill's label-only desktop path; sensitive/contact-shaped inputs are refused. No confidence floor is lowered, and neither a model DONE choice nor visible done text alone proves the requested outcome. Native and end-to-end qualification are separate from warm headless-engine timing.
+
 ## Managed fleets
 
 This skill is the *loop*. Machine-specific runtime — which driver binary to start, how it is
