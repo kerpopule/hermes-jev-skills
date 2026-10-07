@@ -2,11 +2,23 @@
 
 ## Unreleased
 
+## 0.22.2 (2026-10-07)
+
+Released by the daily Jev steward: 5 commit(s) on main since v0.22.1.
+
 - Installer: preserve the canonical shared skill directory and aliases instead of replacing its source with self-referencing symlinks; regression tests cover both destructive edge cases.
 
 - **One copy of each skill on a machine**: once Hermes is installed, Claude Code, Codex and `~/.agents` skill folders get symlinks to `<hermes root>/skills/jev/<skill>` instead of their own copies, so all three read the same files; copies remain the fallback without Hermes or symlinks. Tests cover link, re-run and no-Hermes cases.
 - **Field notes from a product review run on Jev** (`jev-browser-use`, `jev-frontier-work`, `jev-model-routing`): verify a "goal reached" pick with a Noul over page text (labels-only observation over-claimed: 0.73 vs 0.07); persona browsing as a UX review; machine-wide text helper for typing in `~/.config/jev/browser.json` (`claude-cli` provider uses the signed-in Claude Code CLI with no key; local servers need no key); citation-check a delegated report's `file:line` claims with `not_enough` first; script-file `--run` checks; `--no-changes-expected` for reviews; an `escalate` after a verified review that leaves a decision open goes to the person.
 - **A field cap of 0 or 1 now caps**: `privacy.redact` cut to `text[:limit // 2] + … + text[-(limit // 2):]`, and with `limit // 2 == 0` the tail slice is the whole text, so a `field_limits` entry of 0 or 1 sent the field in full. It now keeps no tail there.
+
+**Changes and fixes**
+
+- fix(privacy): a redact cap of 0 or 1 no longer keeps the whole text (13573e9)
+- Share one copy of each skill across agents; field notes from a Jev product review (9340309)
+- jev-browser-use: machine-wide text helper config; local servers need no key (384a7b9)
+- jev-browser-use: claude-cli text helper (no key); config path honors XDG_CONFIG_HOME (3183e2e)
+- Preserve shared skill sources when installer targets their canonical path (0cd0a60)
 
 ## 0.22.1 (2026-10-02)
 
