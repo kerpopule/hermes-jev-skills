@@ -8,6 +8,10 @@
 
 - Reconcile the previously installed opt-in `jevkit.local_goal` pilot with the public source: whole prevalidated action tables, exact non-sensitive plaintext bindings, protected-field/stale-result refusal and offline regressions. Preserve historical synthetic-engine qualification receipts without asserting new native/end-to-end performance. No default driver, confidence, routing or gateway changes.
 
+- Complete the authorized frozen #25 public regression replay with pinned TypeSafe `jev-1.13.0`, capped single-POST collection and verified never-sent-row continuation. Actual aggregate withholding: 322/1,051 attack-labeled rows and 1/1,050 clean-labeled rows, retaining 11 fail-opens and two local-only rows. Publish sanitized provenance/accounting and an honest scorecard; no reserve scoring, threshold tuning or detector/default changes. Conservative list-price spend upper bound $0.061657764 under a $5 approval. #25 remains open.
+
+- Add an offline, hash-only screening preflight for #25 that verifies frozen source/selection identities and captures the real screening payload construction without inference or credential lookup. Reverify pinned public receipts and publish a sanitized preflight summary. Reserve rows are not screened, no detection scores are fabricated, and a live collector/budget remains separately gated.
+
 ## 0.22.2 (2026-10-07)
 
 Released by the daily Jev steward: 5 commit(s) on main since v0.22.1.

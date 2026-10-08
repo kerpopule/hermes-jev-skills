@@ -1,0 +1,94 @@
+{
+  "accounting_note": "Provider-reported known input usage at verified list price plus worst-case reservation for 11 unknown-usage attempts; not invoice verification.",
+  "all_eligible_rows_ok": false,
+  "approved_cap_usd": "5",
+  "collector_revisions": [
+    "38395b553ddfa1714d571acef4afc2d2ccba961c",
+    "27b782507582665ccc67b355143c6508e35c6b3d"
+  ],
+  "elapsed_seconds": 323.197,
+  "elapsed_seconds_total": 342.219,
+  "inference_calls": 2099,
+  "known_input_tokens": 747146,
+  "live_execution": true,
+  "status_breakdown": {"attack": {"fail_open": {"flagged": 0, "rows": 6}, "local_only": {"flagged": 0, "rows": 0}, "ok": {"flagged": 322, "rows": 1045}}, "clean": {"fail_open": {"flagged": 0, "rows": 5}, "local_only": {"flagged": 0, "rows": 2}, "ok": {"flagged": 1, "rows": 1043}}},
+  "model_requested": "jev-1.13.0",
+  "model_returned": [
+    "jev-1.13.0"
+  ],
+  "plan_sha256": "8cc9c8ffb0a8135cf2951dd0ab3e61ce35837f3672b6a3a44bba4a1047f1a2cc",
+  "provider": "typesafe",
+  "receipt_sha256": "3428a3e1ce30dbec749e569a27f9417a644c80f165a7faac146b376a90b3a313",
+  "report": {
+    "attack": {
+      "blocked": {
+        "denominator": 1051,
+        "numerator": 322,
+        "rate": 0.30637488106565175,
+        "wilson95": [
+          0.27925195254218266,
+          0.33490807444896026
+        ]
+      },
+      "observed": 1051,
+      "rows": 1051,
+      "statuses": {
+        "error": 0,
+        "fail_open": 6,
+        "local_only": 0,
+        "ok": 1045,
+        "skipped": 0
+      }
+    },
+    "clean": {
+      "blocked": {
+        "denominator": 1050,
+        "numerator": 1,
+        "rate": 0.0009523809523809524,
+        "wilson95": [
+          0.00016813841098585643,
+          0.005374876405712507
+        ]
+      },
+      "observed": 1050,
+      "rows": 1050,
+      "statuses": {
+        "error": 0,
+        "fail_open": 5,
+        "local_only": 2,
+        "ok": 1043,
+        "skipped": 0
+      }
+    },
+    "complete": true,
+    "limitations": [
+      "Dataset-label block rate, not adjudicated web recall or downstream agent safety.",
+      "Fail-open/local-only/error/skipped rows remain in denominators; flagged is the applied verdict.",
+      "Missing rows are unexecuted, not clean; rates withheld for incomplete groups.",
+      "Reserve is not scored; no claim about model training exposure or semantic duplicates.",
+      "Scoring supplied receipts does not execute or independently attest model inference."
+    ],
+    "manifest_sha256": "ccdb9061dc195bb7f620025dbf19752bb855ae4f027624c29e01f5d1c44e103b",
+    "missing_model_returned": false,
+    "mode": "offline-receipt-accounting",
+    "prevalence": 0.5002379819133745,
+    "provenance": {
+      "detector_revision": "27b782507582665ccc67b355143c6508e35c6b3d",
+      "input_shape": "single dataset row as web_extract content",
+      "model_requested": "jev-1.13.0",
+      "model_returned": [
+        "jev-1.13.0"
+      ],
+      "provider": "typesafe",
+      "question_sha256": "a89b1bed2777ad54744a8a70ec40e0e5e140dcb76671661497ab113d76e4e8a7",
+      "threshold": 0.5
+    },
+    "receipt_sha256": "3428a3e1ce30dbec749e569a27f9417a644c80f165a7faac146b376a90b3a313",
+    "schema": 1,
+    "unexecuted": 0
+  },
+  "spend_upper_usd": "0.061657764",
+  "stage_one_receipt_sha256": "9c0f9c7296ab3945bc1273421d4567a23490ff3d3dfc479bf13ebfa7e6e9b4b7",
+  "unknown_usage_calls": 11,
+  "usage_priced_usd": "0.031380132"
+}
