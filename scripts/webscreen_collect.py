@@ -111,6 +111,34 @@ def prior_verified(directory, manifest, plan):
         spend += expected; sent.add(identifier)
     if spend != Decimal(report['spend_upper_usd']) or len(sent) != report['inference_calls']:
         raise ValueError('prior spend/count mismatch')
+    # A completed report is not proof that its write-ahead attempt log agrees.
+    # Continuations have inherited all-calls plus a journal of their own new calls.
+    journal_path = directory/'attempts.jsonl'
+    local_path = directory/'calls.jsonl'
+    local_calls = [json.loads(line) for line in local_path.read_text().splitlines()] if local_path.exists() else []
+    local_sent = {row['id']: row for row in local_calls if 'full_request_sha256' in row}
+    if len(local_sent) != sum('full_request_sha256' in row for row in local_calls):
+        raise ValueError('duplicate local prior attempt')
+    if local_sent and not journal_path.exists():
+        raise ValueError('missing prior attempt journal')
+    journal = [json.loads(line) for line in journal_path.read_text().splitlines()] if journal_path.exists() else []
+    journal_ids = set()
+    all_sent = {row['id']: row for row in calls if 'full_request_sha256' in row}
+    for attempt in journal:
+        identifier = attempt['id']
+        if identifier in journal_ids or identifier not in local_sent or identifier not in all_sent:
+            raise ValueError('unaccounted or duplicate prior journal attempt')
+        for field in ('full_request_sha256', 'payload_sha256', 'model_requested', 'provider'):
+            if attempt.get(field) != local_sent[identifier].get(field) or attempt.get(field) != all_sent[identifier].get(field):
+                raise ValueError('prior journal/call mismatch')
+        journal_ids.add(identifier)
+    if journal_ids != set(local_sent):
+        raise ValueError('prior attempt journal incomplete')
+    outcomes = {row['id']: row for row in receipt['outcomes']}
+    for identifier in sent:
+        outcome = outcomes.get(identifier)
+        if outcome is None or outcome['status'] not in ('ok', 'fail_open', 'error'):
+            raise ValueError('sent prior attempt lacks a terminal outcome')
     carried = [row for row in receipt['outcomes'] if row['id'] in sent
                or (row['status']=='local_only' and not planned[row['id']]['requests'])]
     return calls, carried, spend, held.digest(receipt)

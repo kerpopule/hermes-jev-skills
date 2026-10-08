@@ -31,7 +31,12 @@ Files are 0600 in a 0700 directory. A new output directory is required. An expli
 `--prior` verifies the prior plan, outcomes, counts and reconstructed spend, then
 continues only rows with no previous wire attempt. Every sent outcome, including
 errors, stays unchanged; uncertain requests are never repeated. The total cap
-carries prior spending and is not reset by continuation.
+carries prior spending and is not reset by continuation. Recovery also compares
+the local write-ahead attempt journal against completed calls and requires a
+terminal outcome for every sent row. Missing, extra, duplicate or inconsistent
+attempt evidence refuses before an output directory or provider call. This is
+local consistency checking, not signed attestation or recovery from a crash
+that prevented the final receipt/report from being written.
 
 ## Invocation
 
