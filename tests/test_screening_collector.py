@@ -115,5 +115,40 @@ class CollectorTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 c.collect(test,reserve,manifest,plan,root/'denied','0.001',prior=root/'second')
 
+    def test_continuation_refuses_inconsistent_attempt_and_outcome_evidence(self):
+        c=load(); from jevkit import client
+        test=b'text,label\nPublic one,0\nPublic two,0\n'; reserve=b'text,label\nReserved text,0\n'
+        manifest=held.freeze(test,reserve); plan=preflight.prepare(test,reserve,manifest)
+        for fault in ('missing_outcome', 'skipped_sent_outcome', 'extra_attempt', 'missing_attempts', 'missing_calls', 'mismatched_journal'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as folder, patch.dict('os.environ', {'TYPESAFE_BASE_URL':''}), patch('jevkit.keystore.resolve',return_value='offline-fixture'):
+                root=Path(folder)
+                def failed(*args): raise client.JevError('network')
+                c.collect(test,reserve,manifest,plan,root/'first','0.003',workers=1,transport=failed,rate=1000)
+                receipt_path=root/'first'/'receipt.json'; report_path=root/'first'/'report.json'
+                receipt=json.loads(receipt_path.read_text()); report=json.loads(report_path.read_text())
+                attempts_path=root/'first'/'attempts.jsonl'
+                attempt=json.loads(attempts_path.read_text().splitlines()[0])
+                if fault=='missing_outcome':
+                    receipt['outcomes']=[row for row in receipt['outcomes'] if row['id']!=attempt['id']]
+                elif fault=='skipped_sent_outcome':
+                    next(row for row in receipt['outcomes'] if row['id']==attempt['id'])['status']='skipped'
+                elif fault=='extra_attempt':
+                    extra=dict(attempt); extra['id']=next(row['id'] for row in plan['rows'] if row['id']!=attempt['id'])
+                    attempts_path.write_text(attempts_path.read_text()+json.dumps(extra)+'\n')
+                elif fault=='missing_calls':
+                    (root/'first'/'calls.jsonl').unlink()
+                elif fault=='mismatched_journal':
+                    attempt['full_request_sha256']='0'*64
+                    attempts_path.write_text(json.dumps(attempt)+'\n')
+                else:
+                    attempts_path.unlink()
+                report['receipt_sha256']=held.digest(receipt)
+                receipt_path.write_text(json.dumps(receipt)); report_path.write_text(json.dumps(report))
+                with self.assertRaises(ValueError):
+                    c.collect(test,reserve,manifest,plan,root/'denied','5',workers=1,
+                              transport=lambda *_:self.fail('must refuse before any transport'),
+                              rate=1000,prior=root/'first')
+                self.assertFalse((root/'denied').exists())
+
 
 if __name__=='__main__': unittest.main()
