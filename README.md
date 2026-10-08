@@ -34,6 +34,10 @@ jev mail --file inbox.json             # sort a mailbox into lanes
 jev mail --file inbox.json --summary   # counts per lane, what was unsure, what it cost
 ```
 
+## Runnable design-choice example
+
+[Closed preset selection with deterministic rendering](docs/design-choice.md): two compatible layout/type/palette presets, local contrast and copy checks, offline fallbacks, and an optional real-browser QA script. Offline by default; no new skill or routing hook. This demonstrates the contract, not measured design-quality gains.
+
 ## Try it in two commands
 
 ```bash
