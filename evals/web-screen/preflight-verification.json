@@ -1,0 +1,33 @@
+{
+  "detector_files_sha256": {
+    "client.py": "251b97e003a331b29d96d32f154411990c6b6734e474930edd10cafbe3e9a3bd",
+    "privacy.py": "6bab2fd480ab369be731310b3106a2a19ec34545ecb37b0cbba878605db3f153",
+    "rerank.py": "4e94b96dddf6db62f5f96cbf6c1cd8583d566b4c7743e1b2c4af8e2a40d3def1",
+    "webscreen.py": "12841caf6352a492a33338908b797cc2c1ec5691adab9cdb515ef9de980c8e40"
+  },
+  "external_receipt_recount_matches_committed": true,
+  "full_plan_sha256": "724ffeaa5a54ac0ff3b10b4bb4039d979e392f13af5b26bb2faabee5f3c549f7",
+  "inference_calls_executed": 0,
+  "input_shape": "single dataset row as web_extract content",
+  "limitations": [
+    "No inference, credential lookup, detection score or paid cost estimate.",
+    "Reserve source identities verified; reserve content never screened.",
+    "Payload hashes omit provider/model fields; full wire hashes require an authorized collector.",
+    "Client retries, pricing and charges require an explicit separately approved run budget.",
+    "Sensitive/local-only rows remain in denominators; no fabricated model outputs.",
+    "Dataset labels are not adjudicated web-injection ground truth."
+  ],
+  "manifest_sha256": "ccdb9061dc195bb7f620025dbf19752bb855ae4f027624c29e01f5d1c44e103b",
+  "mode": "offline-unexecuted-screening-preflight",
+  "planned_requests": 2099,
+  "question_template_sha256": "a89b1bed2777ad54744a8a70ec40e0e5e140dcb76671661497ab113d76e4e8a7",
+  "reserve_rows": 1985,
+  "rows_without_requests": 2,
+  "schema": 1,
+  "source_sha256": {
+    "reserve": "c7d14d24a14dd30a37ebe0de928b8ccdcdf6639c3c2e830b59561e2dd5fb7b55",
+    "test": "4c7a9f0fff2bf7d3f6d3e7b84863a8f5d6c48c70c3ac7fe874917074c8f27853"
+  },
+  "test_rows": 2101,
+  "threshold": 0.5
+}

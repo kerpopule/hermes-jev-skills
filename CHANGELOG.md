@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add an offline, hash-only screening preflight for #25 that verifies frozen source/selection identities and captures the real screening payload construction without inference or credential lookup. Reverify pinned public receipts and publish a sanitized preflight summary. Reserve rows are not screened, no detection scores are fabricated, and a live collector/budget remains separately gated.
+
 ## 0.22.2 (2026-10-07)
 
 Released by the daily Jev steward: 5 commit(s) on main since v0.22.1.
