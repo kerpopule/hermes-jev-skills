@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "kind": "offline-combined-pr-qualification",
+  "base_revision": "dddaa39ead316a8ac63e5d54352068d33c00c2b0",
+  "candidate_revision": "687259169e194157997b0370898cc8c3035cc35a",
+  "prs": {
+    "39": "23a54097e634eecebc76d64b671ae0e008ab502e",
+    "40": "bf348bea9fe4f4ba7023afaea1b1e0f7bbd4fbab",
+    "41": "7b7da6c94917c282e3b42d657a497384ce1dff66",
+    "42": "88dba156a940099455616039dfdf035f39a393c6"
+  },
+  "python39": {
+    "tests": 1473,
+    "seconds": 36.112,
+    "exit": 0
+  },
+  "python311": {
+    "tests": 1473,
+    "seconds": 30.78,
+    "exit": 0,
+    "evidence": "Foreground combined-suite execution at candidate 6872591"
+  },
+  "installation": {
+    "disposable_home": true,
+    "preview_exit": 0,
+    "install_exit": 0,
+    "installed_api_exit": 0,
+    "config_unchanged": true
+  },
+  "new_paid_calls": 0,
+  "live_install": false,
+  "independent_review": false,
+  "limitations": [
+    "Existing ResourceWarnings emitted; tests still pass.",
+    "No new native driver or browser qualification claimed.",
+    "Not a classifier recall improvement or security guarantee."
+  ]
+}

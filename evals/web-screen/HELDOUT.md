@@ -142,7 +142,47 @@ Attack block rates and clean false positives are separate, alongside prevalence
 and per-class status counts. No threshold sweep is offered. The reserve cannot
 be scored through this manifest's test selector.
 
-## Remaining live gate
+## Offline preflight before asking for a paid run
+
+`webscreen_preflight.py` verifies both frozen CSV sources and the exact manifest,
+then exercises the actual web-extract splitting/redaction/question construction
+with `client.ask` replaced by a capture-and-refuse function. It never resolves
+credentials or performs inference, never fabricates a model answer, and never
+screens reserve rows. Run it standalone, not inside a serving process.
+
+```sh
+python3 scripts/webscreen_preflight.py \
+  --test "$DATA/s-labs-test.csv" --reserve "$DATA/s-labs-validation.csv" \
+  --output "$DATA/unexecuted-preflight.json"
+python3 -m unittest discover -s tests -p test_screening_preflight.py
+```
+
+The verified pinned inputs produce 2,101 test rows, 1,985 identity-verified but
+unscreened reserve rows, 2,099 planned client requests, and two rows with no
+request because of the existing sensitive-content boundary. Those rows remain
+in the evaluation denominator. See `preflight-verification.json` for hashes and
+the sanitized actual preflight summary. No raw attacks or clean text are added
+to this repository. The public external receipt recount also matched the
+committed recount exactly on re-verification.
+
+Payload hashes deliberately omit model/provider fields; they are not full wire
+request hashes or live receipts. Before paid evaluation, an authorized collector
+still needs exact per-call request hashes, requested/returned IDs, usage,
+timings and stable error codes. Freeze the provider/model and a maximum approved
+budget; permit no reserve scoring, threshold tuning, new defaults or publication
+of raw inputs. No paid rate estimate is supplied by this offline script.
+
+## Authorized frozen replay result
+
+The owner-authorized replay is documented in [the actual scorecard](SCORECARD-2026-10-08.md)
+and `LIVE-2026-10-08.json`. All 2,101 test outcomes are accounted for: 2,099
+unique attempts, 2,088 valid replies, 11 fail-opens and two local-only rows.
+Attack-labeled withholding was 322/1,051; clean-labeled withholding was 1/1,050.
+The reserve was not scored. These results do not fix #25 or establish portable
+web-injection recall. Known usage priced to $0.031380132 and the conservative
+upper bound including unknown-usage reservations was $0.061657764 under $5.
+
+## Gate for any future run
 
 The offline measurement/reporting improvements are complete. A new Typesafe run
 requires separate approval for paid calls and its budget, plus a reviewed

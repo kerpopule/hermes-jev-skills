@@ -1,0 +1,31 @@
+{
+  "scope": "offline tests, no real API or secret stores",
+  "results": [
+    {
+      "python": "3.9",
+      "exit": 0,
+      "counts": [
+        [
+          "1437",
+          "33.992"
+        ]
+      ],
+      "status": [
+        "OK"
+      ]
+    },
+    {
+      "python": "3.11",
+      "exit": 0,
+      "counts": [
+        [
+          "1437",
+          "33.167"
+        ]
+      ],
+      "status": [
+        "OK"
+      ]
+    }
+  ]
+}
