@@ -1,0 +1,26 @@
+{
+  "suite": "python -m unittest discover -s tests",
+  "runs": [
+    {
+      "python": "3.9",
+      "tests": 1429,
+      "seconds": 35.491,
+      "exit": 0,
+      "status": [
+        "OK"
+      ]
+    },
+    {
+      "python": "3.11",
+      "tests": 1429,
+      "seconds": 33.078,
+      "exit": 0,
+      "status": [
+        "OK"
+      ]
+    }
+  ],
+  "critical_review": "self-review, not independent",
+  "live_defaults_changed": false,
+  "paid_inference_calls": 0
+}

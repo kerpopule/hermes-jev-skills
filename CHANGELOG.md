@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix #36: make the Hermes manifest provider-neutral instead of prompting every installation for a TypeSafe-only key. Document runtime provider/key resolution and preserve no-key fail-open behavior. Add OpenRouter-only disposable-install and offline no-key regressions; no key flow, endpoint or provider default changes.
+
 ## 0.22.2 (2026-10-07)
 
 Released by the daily Jev steward: 5 commit(s) on main since v0.22.1.
