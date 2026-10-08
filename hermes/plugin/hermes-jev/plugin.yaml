@@ -1,12 +1,12 @@
 name: hermes-jev
 version: 0.22.2
-description: TypeSafe Jev takes the cheap decisions - model routing, skill selection, memory filtering, compaction selection, GUI and browser action choice, and (opt-in) policy decisions and a shadow command-risk gate.
+description: TypeSafe Jev takes the cheap decisions - model routing, skill selection, memory filtering, compaction selection, GUI and browser action choice, and (opt-in) policy decisions and a shadow command-risk gate. Choose typesafe, openrouter, venice or zen at runtime via jev setup-key; no single provider key is mandatory at install.
 author: Steve Darlow
 license: MIT
 homepage: https://github.com/kerpopule/hermes-jev-skills
 manifest_version: 2
-requires_env:
-  - TYPESAFE_API_KEY
+# Provider selection and private key setup happen at runtime via `jev setup-key`.
+# Providers: typesafe, openrouter, venice, zen. No single provider is required.
 provides_tools:
   - jev_supervise
   - jev_escalate

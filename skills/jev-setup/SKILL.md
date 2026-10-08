@@ -12,7 +12,7 @@ metadata:
 
 Jev is TypeSafe's decision model. It needs one API key. **You must never see, ask for, or handle that key.**
 
-The key can come from any of three places, and the same Jev answers either way:
+The key can come from any of four providers, and the same Jev answers either way:
 
 - **TypeSafe** (`jev setup-key`, the default): a key from [console.typesafe.ai](https://console.typesafe.ai/settings/keys).
 - **OpenRouter** (`jev setup-key --provider openrouter`): reaches Jev through OpenRouter's Decisions API. Worth offering when the person already has an OpenRouter key, because it is then one key instead of two and one bill instead of two.
@@ -24,6 +24,8 @@ The key can come from any of three places, and the same Jev answers either way:
 If more than one key exists, TypeSafe is used: an existing install never starts routing its decisions somewhere else because an OpenRouter or Zen key happened to be in the environment for a text model. To pick a different one on purpose, set `JEV_PROVIDER=openrouter` or `JEV_PROVIDER=zen` in the environment the commands run in; it is honoured only when that provider actually has a key here, and an unset or unknown value changes nothing. `jev doctor` reports which one is in use under `key.provider`.
 
 ## Rules
+
+- The Hermes manifest intentionally does not require a single provider's environment variable. Provider/key resolution happens at runtime. An absent `TYPESAFE_API_KEY` does not mean an OpenRouter, Venice or Zen installation is broken. Use `jev doctor`'s provider/presence/reachability results, never secret-file inspection. With no key, decision calls keep their existing fail-open behavior; omission from the manifest is not a promise of keyless inference.
 
 - Never ask the person to paste the key into the chat. If they paste one anyway, do not store it, do not repeat it, tell them that key should be replaced, and start the flow below.
 - Never read the secret store, `.env` files or `~/.config/jev/credentials` to "check" the key. Use `jev doctor`, which reports only presence and length.
