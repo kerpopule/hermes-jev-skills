@@ -11,8 +11,10 @@ The live list price was checked at https://docs.typesafe.ai/models on 2026-10-08
 $0.042 per million input tokens; output is free. The published model context is
 64k tokens. Before each HTTP POST, the collector reserves the list-price cost of
 65,536 input tokens under a lock. It refunds only the difference confirmed by
-valid provider-reported usage. Missing usage retains the worst-case reservation
-and stops new calls. In-flight requests remain reserved. This is conservative
+valid provider-reported usage. Missing usage on a successful HTTP response retains
+the worst-case reservation and stops new calls. A transport/HTTP failure retains
+the full worst-case cost but allows other never-sent rows under the same cap.
+In-flight requests remain reserved. This is conservative
 list-price accounting, not an independently verified invoice.
 
 The CLI accepts a positive USD cap no greater than $5. Actual invocation requires
@@ -25,8 +27,11 @@ by the existing client/key resolver; keys are never printed or recorded.
 Only the existing redacted public-test projections go outbound. Receipts contain
 hashes, row identities, usage, model IDs, timings, stable codes and actual applied
 withholding verdicts, never input text, response bodies or authorization headers.
-Files are 0600 in a 0700 directory. A new output directory is required; there is
-no implicit resume or repeated scoring of the same dataset.
+Files are 0600 in a 0700 directory. A new output directory is required. An explicit
+`--prior` verifies the prior plan, outcomes, counts and reconstructed spend, then
+continues only rows with no previous wire attempt. Every sent outcome, including
+errors, stays unchanged; uncertain requests are never repeated. The total cap
+carries prior spending and is not reset by continuation.
 
 ## Invocation
 
@@ -47,10 +52,12 @@ sendable rows. Do not call a run with skipped/error rows a complete live replay.
 
 ## Self-review and offline verification
 
-Six targeted tests cover reservation/settlement, missing usage, the real client
+Seven targeted tests cover reservation/settlement, missing usage, the real client
 validator, unavailable-result paths, pinned model, privacy exclusions,
-proxy/plan refusal, and one-POST no-retry/no-redirect behavior. All 1,436 tests
-pass on Python 3.9 and 3.11. The entire frozen corpus was exercised once with an
+proxy/plan refusal, one-POST no-retry/no-redirect behavior and safe continuation
+that preserves sent failures and cumulative spend. All 1,437 tests pass on
+Python 3.9 and 3.11 after that recovery change. The entire frozen corpus was
+exercised once with an
 explicit synthetic transport: 2,101 outcomes, 2,099 fixture requests and two
 local-only rows. Those fixture values are not live detections and are never used
 as evidence of model quality. Self-review is not independent review.

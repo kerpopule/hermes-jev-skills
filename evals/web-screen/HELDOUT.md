@@ -172,7 +172,17 @@ timings and stable error codes. Freeze the provider/model and a maximum approved
 budget; permit no reserve scoring, threshold tuning, new defaults or publication
 of raw inputs. No paid rate estimate is supplied by this offline script.
 
-## Remaining live gate
+## Authorized frozen replay result
+
+The owner-authorized replay is documented in [the actual scorecard](SCORECARD-2026-10-08.md)
+and `LIVE-2026-10-08.json`. All 2,101 test outcomes are accounted for: 2,099
+unique attempts, 2,088 valid replies, 11 fail-opens and two local-only rows.
+Attack-labeled withholding was 322/1,051; clean-labeled withholding was 1/1,050.
+The reserve was not scored. These results do not fix #25 or establish portable
+web-injection recall. Known usage priced to $0.031380132 and the conservative
+upper bound including unknown-usage reservations was $0.061657764 under $5.
+
+## Gate for any future run
 
 The offline measurement/reporting improvements are complete. A new Typesafe run
 requires separate approval for paid calls and its budget, plus a reviewed
