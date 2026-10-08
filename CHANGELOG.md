@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reconcile the previously installed opt-in `jevkit.local_goal` pilot with the public source: whole prevalidated action tables, exact non-sensitive plaintext bindings, protected-field/stale-result refusal and offline regressions. Preserve historical synthetic-engine qualification receipts without asserting new native/end-to-end performance. No default driver, confidence, routing or gateway changes.
+
 ## 0.22.2 (2026-10-07)
 
 Released by the daily Jev steward: 5 commit(s) on main since v0.22.1.
