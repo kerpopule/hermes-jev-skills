@@ -49,12 +49,12 @@ class Budget:
             self.pending += 1
             return True
 
-    def settle(self, tokens):
+    def settle(self, tokens, *, stop_unknown=True):
         with self.lock:
             self.pending -= 1
             if type(tokens) is not int or not 0 <= tokens <= MAX_TOKENS:
                 self.spent += MAX_CALL_USD
-                self.stopped = True
+                self.stopped = self.stopped or stop_unknown
             else:
                 self.spent += Decimal(tokens) * PRICE
 
@@ -69,7 +69,7 @@ def one_post(body, headers, timeout):
         if len(raw) > client.MAX_RESPONSE_BYTES:
             raise client.JevError('response_too_large')
         if response.status != 200:
-            code = {401:'auth_failed',403:'auth_failed',429:'rate_limited'}.get(response.status,'http_error')
+            code = {401:'auth_failed',403:'auth_failed',429:'rate_limited'}.get(response.status, f'http_{response.status}')
             raise client.JevError(code)
         return raw
     except (OSError, http.client.HTTPException):
@@ -78,8 +78,46 @@ def one_post(body, headers, timeout):
         connection.close()
 
 
+def prior_verified(directory, manifest, plan):
+    """Only resume proven never-sent rows; preserve every sent outcome and cost."""
+    directory = Path(directory)
+    report = json.loads((directory/'report.json').read_text())
+    receipt = json.loads((directory/'receipt.json').read_text())
+    if report['receipt_sha256'] != held.digest(receipt) or report['plan_sha256'] != held.digest(plan):
+        raise ValueError('prior receipt or plan mismatch')
+    held.score(manifest, receipt)
+    provenance = receipt['provenance']
+    if (provenance['provider'] != 'typesafe' or provenance['model_requested'] != MODEL
+            or provenance['threshold'] != plan['threshold']
+            or provenance['question_sha256'] != plan['question_template_sha256']):
+        raise ValueError('prior provider/model/question/threshold mismatch')
+    source = directory/'all-calls.jsonl'
+    if not source.exists(): source = directory/'calls.jsonl'
+    calls = [json.loads(line) for line in source.read_text().splitlines()]
+    planned = {row['id']:row for row in plan['rows']}
+    sent = set(); spend = Decimal(0)
+    for call in calls:
+        if 'full_request_sha256' not in call: continue
+        identifier = call['id']
+        if identifier in sent or identifier not in planned or call['model_requested'] != MODEL:
+            raise ValueError('duplicate or unknown prior attempt')
+        requests = planned[identifier]['requests']
+        if len(requests) != 1 or call['payload_sha256'] != requests[0]['screening_payload_sha256']:
+            raise ValueError('prior payload mismatch')
+        tokens = call.get('input_tokens')
+        expected = Decimal(tokens)*PRICE if type(tokens) is int and 0 <= tokens <= MAX_TOKENS else MAX_CALL_USD
+        if Decimal(call['cost_upper_usd']) != expected:
+            raise ValueError('prior cost mismatch')
+        spend += expected; sent.add(identifier)
+    if spend != Decimal(report['spend_upper_usd']) or len(sent) != report['inference_calls']:
+        raise ValueError('prior spend/count mismatch')
+    carried = [row for row in receipt['outcomes'] if row['id'] in sent
+               or (row['status']=='local_only' and not planned[row['id']]['requests'])]
+    return calls, carried, spend, held.digest(receipt)
+
+
 def collect(test_bytes, reserve_bytes, manifest, plan, output, cap, *,
-            workers=8, transport=None, rate=10, deadline=540):
+            workers=8, transport=None, rate=10, deadline=540, prior=None):
     if os.environ.get('TYPESAFE_BASE_URL', '').strip():
         raise ValueError('proxy override is outside this approved run')
     if not 1 <= workers <= 8 or not 0 < rate <= 1000 or not 0 < deadline <= 540:
@@ -92,11 +130,18 @@ def collect(test_bytes, reserve_bytes, manifest, plan, output, cap, *,
     if transport is None and rate > 10:
         raise ValueError('live rate exceeds the approved conservative rate')
     budget = Budget(cap)
+    calls = []; outcomes = []; prior_hash = None
+    if prior:
+        calls, outcomes, budget.spent, prior_hash = prior_verified(prior, manifest, plan)
+        if budget.upper() > budget.cap:
+            raise ValueError('prior spend exceeds total approved cap')
+    carried_ids = {row['id'] for row in outcomes}
+    todo = [row for row in manifest['test'] if row['id'] not in carried_ids]
     output = Path(output); output.mkdir(parents=True, exist_ok=False)
     os.chmod(output, 0o700)
     original = client.ask; send = transport or one_post
     context = threading.local(); write_lock = threading.Lock(); pace_lock = threading.Lock()
-    next_send = [time.monotonic()]; started = time.monotonic(); calls = []; outcomes = []
+    next_send = [time.monotonic()]; started = time.monotonic()
     planned = {row['id']: row for row in plan['rows']}
     import csv, io
     source_rows = list(csv.DictReader(io.StringIO(test_bytes.decode('utf-8-sig'), newline='')))
@@ -126,9 +171,10 @@ def collect(test_bytes, reserve_bytes, manifest, plan, output, cap, *,
                 raise client.JevError('budget_stopped')
             record.update(full_request_sha256=held.sha(body), status='attempt_started')
             append('attempts.jsonl', record)
-            then = time.monotonic(); tokens = None
+            then = time.monotonic(); tokens = None; response_received = False
             try:
                 raw = send(body, headers, timeout)
+                response_received = True
                 try:
                     response = json.loads(raw)
                     usage = response.get('usage', {})
@@ -143,7 +189,7 @@ def collect(test_bytes, reserve_bytes, manifest, plan, output, cap, *,
             finally:
                 record['elapsed_ms'] = int((time.monotonic()-then)*1000)
                 record['cost_upper_usd'] = str(Decimal(tokens)*PRICE if tokens is not None else MAX_CALL_USD)
-                budget.settle(tokens)
+                budget.settle(tokens, stop_unknown=response_received)
 
         try:
             reply = original(state, questions, model=MODEL, provider='typesafe',
@@ -184,9 +230,13 @@ def collect(test_bytes, reserve_bytes, manifest, plan, output, cap, *,
             'rate_input_usd_per_million':'0.042','pricing_source':'https://docs.typesafe.ai/models',
             'reserved_input_tokens_per_call':MAX_TOKENS, 'no_retries':True,
             'threshold':webscreen.INJECTION_THRESHOLD, 'reserve_inference':False}
+    meta['prior_receipt_sha256'] = prior_hash
+    meta['prior_spend_upper_usd'] = str(budget.spent)
     append('approval.jsonl', meta)
     with patch.object(client, 'ask', new=ask), ThreadPoolExecutor(max_workers=workers) as pool:
-        list(pool.map(run, manifest['test']))
+        list(pool.map(run, todo))
+    for call in calls:
+        append('all-calls.jsonl', call)
     observed_models = sorted({c['model_returned'] for c in calls if c.get('model_returned')})
     provenance = {'provider':'typesafe','model_requested':MODEL,'model_returned':observed_models,
                   'question_sha256':plan['question_template_sha256'],
@@ -223,10 +273,11 @@ def main():
     parser.add_argument('--plan',type=Path,required=True)
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--usd-cap',required=True)
+    parser.add_argument('--prior',type=Path,help='Verified prior run; only never-sent rows may execute')
     args=parser.parse_args()
     if not args.execute: parser.error('nothing sent; add --execute only with exact owner approval')
     result=collect(args.test.read_bytes(),args.reserve.read_bytes(),json.loads(args.manifest.read_text()),
-                   json.loads(args.plan.read_text()),args.out,args.usd_cap)
+                   json.loads(args.plan.read_text()),args.out,args.usd_cap,prior=args.prior)
     print(json.dumps({key:value for key,value in result.items() if key!='report'},indent=2,sort_keys=True))
 
 

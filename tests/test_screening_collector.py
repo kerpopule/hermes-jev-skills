@@ -92,5 +92,28 @@ class CollectorTests(unittest.TestCase):
             with self.assertRaises(client.JevError): c.one_post(b'{}',{},1)
             connection.return_value.request.assert_called_once()
 
+    def test_verified_continuation_only_sends_never_sent_rows_and_carries_spend(self):
+        c=load(); from jevkit import client
+        test=b'text,label\nPublic one,0\nPublic two,0\n'; reserve=b'text,label\nReserved text,0\n'
+        manifest=held.freeze(test,reserve); plan=preflight.prepare(test,reserve,manifest)
+        with tempfile.TemporaryDirectory() as folder, patch.dict('os.environ', {'TYPESAFE_BASE_URL':''}), patch('jevkit.keystore.resolve',return_value='offline-fixture'):
+            root=Path(folder)
+            def failed(*args): raise client.JevError('network')
+            first=c.collect(test,reserve,manifest,plan,root/'first','0.003',workers=1,transport=failed,rate=1000)
+            self.assertEqual(first['inference_calls'],1)
+            sent=[]
+            def success(body,*args):
+                sent.append(json.loads(body))
+                return json.dumps({'model':c.MODEL,'usage':{'input_tokens':20},'answers':{k:{'type':'noul','noul':0.2} for k in sent[-1]['questions']}}).encode()
+            second=c.collect(test,reserve,manifest,plan,root/'second','5',workers=1,transport=success,rate=1000,prior=root/'first')
+            self.assertEqual(len(sent),1)
+            self.assertEqual(second['inference_calls'],2)
+            self.assertGreater(c.Decimal(second['spend_upper_usd']),c.MAX_CALL_USD)
+            self.assertEqual(second['report']['clean']['statuses']['fail_open'],1)
+            self.assertEqual(second['report']['clean']['statuses']['ok'],1)
+            self.assertNotIn('Public one',json.dumps(sent))
+            with self.assertRaises(ValueError):
+                c.collect(test,reserve,manifest,plan,root/'denied','0.001',prior=root/'second')
+
 
 if __name__=='__main__': unittest.main()
