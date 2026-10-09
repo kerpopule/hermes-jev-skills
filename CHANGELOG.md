@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.23.0 (2026-10-09)
+
+Released by the daily Jev steward: 9 commit(s) on main since v0.22.2.
+
 - Add an offline-by-default bounded design-choice reference example (`jevkit.design_choice`), with complete preset IDs, escaped local copy, contrast/bounds checks, opt-in validated Jev selection and exact baseline fallbacks. Add offline transport/CLI tests and an optional 12-case real-browser QA script. No live selection benchmark, new skill, routing hook or default change; see `docs/design-choice.md`.
 
 - Fix #36: make the Hermes manifest provider-neutral instead of prompting every installation for a TypeSafe-only key. Document runtime provider/key resolution and preserve no-key fail-open behavior. Add OpenRouter-only disposable-install and offline no-key regressions; no key flow, endpoint or provider default changes.
@@ -13,6 +17,21 @@
 - Complete the authorized frozen #25 public regression replay with pinned TypeSafe `jev-1.13.0`, capped single-POST collection and verified never-sent-row continuation. Actual aggregate withholding: 322/1,051 attack-labeled rows and 1/1,050 clean-labeled rows, retaining 11 fail-opens and two local-only rows. Publish sanitized provenance/accounting and an honest scorecard; no reserve scoring, threshold tuning or detector/default changes. Conservative list-price spend upper bound $0.061657764 under a $5 approval. #25 remains open.
 
 - Add an offline, hash-only screening preflight for #25 that verifies frozen source/selection identities and captures the real screening payload construction without inference or credential lookup. Reverify pinned public receipts and publish a sanitized preflight summary. Reserve rows are not screened, no detection scores are fabricated, and a live collector/budget remains separately gated.
+
+**New**
+
+- Add tested bounded design-choice reference example (23a5409)
+- Reconcile opt-in local-goal pilot with public source (7b7da6c)
+- Add verified offline screening preflight without inference (58434c8)
+- Add reviewed bounded collector for authorized frozen screening replay (38395b5)
+
+**Changes and fixes**
+
+- Fix provider-neutral Hermes manifest and installation regression (bf348be)
+- Resume only unattempted rows while carrying conservative prior spend (27b7825)
+- Publish actual capped screening replay and advisory-only safety findings (3b2e46b)
+- Fail closed on inconsistent collector recovery evidence (88dba15)
+- Document first-principles PR review and combined offline qualification (c714060)
 
 ## 0.22.2 (2026-10-07)
 
