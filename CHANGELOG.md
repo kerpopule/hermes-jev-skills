@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Bound Pomerado artifact inspection by total directory entries, including empty directories; preserve default-off and explicit host-code acknowledgement. Refresh PR against current main without changing runtime defaults.
+
+- Add an optional Pomerado saved-integration companion. Default-off, explicit host-code acknowledgement, source fingerprint checks, no inherited model keys, no minting or browser attachment. Pilot accepts declared reads without sign-in; metadata and environment filtering are not a sandbox. Existing Jev and browser defaults remain unchanged.
+
 ## 0.25.2 (2026-10-28)
 
 Released by the daily Jev steward: 2 commit(s) on main since v0.25.1.

@@ -1,0 +1,9 @@
+{
+  "name": "read_fixture",
+  "description": "Read the heading on a disposable local fixture. Hand-authored, not minted.",
+  "request": {
+    "url": "http://127.0.0.1:18765/",
+    "intent": "Read the fixture heading without changing anything",
+    "effect": "read"
+  }
+}

@@ -1,0 +1,22 @@
+import {test,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,cpSync,readFileSync,writeFileSync,symlinkSync,rmSync,realpathSync,mkdirSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {inspectArtifact,launchSpec} from './pomerado.mjs';
+const source=fileURLToPath(new URL('../fixtures/pomerado/read-heading',import.meta.url));
+const created=[];
+function fixture(){const root=realpathSync(mkdtempSync(join(tmpdir(),'pomerado-unit-')));created.push(root);cpSync(source,root,{recursive:true});return root;}
+after(()=>{for(const root of created)rmSync(root,{recursive:true});});
+test('inspect is inert and returns exact digest, schema and risk',()=>{const a=inspectArtifact(source);assert.match(a.sha256,/^[a-f0-9]{64}$/);assert.match(a.warning,/not a sandbox/);assert.equal(a.effect,'read');assert.equal(a.files.length,3);});
+test('off by default, even with valid artifact',()=>assert.throws(()=>launchSpec({directory:source}),/explicit_opt_in/));
+test('acknowledgement alone cannot enable',()=>assert.throws(()=>launchSpec({directory:source,acknowledgeHostCode:true}),/explicit_opt_in/));
+test('digest mismatch cannot launch',()=>assert.throws(()=>launchSpec({directory:source,enabled:true,acknowledgeHostCode:true,approved:'0'.repeat(64)}),/review_changed/));
+test('changed source invalidates review',()=>{const dir=fixture(),before=inspectArtifact(dir).sha256;writeFileSync(join(dir,'src/read.mjs'),'changed');assert.notEqual(inspectArtifact(dir).sha256,before);});
+test('source traversal refused',()=>{const dir=fixture();let m=JSON.parse(readFileSync(join(dir,'pomerado.json')));m.files=['../elsewhere'];m.entrypoint=m.files[0];writeFileSync(join(dir,'pomerado.json'),JSON.stringify(m));assert.throws(()=>inspectArtifact(dir),/invalid_source_path/);});
+test('symlinks refused',()=>{const dir=fixture();symlinkSync('/etc/hosts',join(dir,'link'));assert.throws(()=>inspectArtifact(dir),/symlink/);});
+test('declared writes refused',()=>{const dir=fixture();const d=JSON.parse(readFileSync(join(dir,'deployment.json')));d.request.effect='write';writeFileSync(join(dir,'deployment.json'),JSON.stringify(d));assert.throws(()=>inspectArtifact(dir),/read_only/);});
+test('sign-in and questions refused',()=>{const dir=fixture();const m=JSON.parse(readFileSync(join(dir,'pomerado.json')));m.questions={password:{}};writeFileSync(join(dir,'pomerado.json'),JSON.stringify(m));assert.throws(()=>inspectArtifact(dir),/authentication_or_input/);});
+test('empty directory flood is bounded',()=>{const dir=fixture();for(let i=0;i<257;i++)mkdirSync(join(dir,'empty-'+i));assert.throws(()=>inspectArtifact(dir),/artifact_bounds/);});
+test('runtime unavailable fails without another browser fallback',()=>{const a=inspectArtifact(source);assert.throws(()=>launchSpec({directory:source,enabled:true,acknowledgeHostCode:true,approved:a.sha256,node:'/not-installed',cli:'/not-installed'}));});
