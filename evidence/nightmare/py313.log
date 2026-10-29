@@ -1,0 +1,75 @@
+......................................................................................................................<home>/Projects/hermes-jev-nightmare-20261029/tests/test_coagent_cu.py:130: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/93/ykh0935j4lzgpq604w7w23r40000gn/T/tmpybvw0s3w/cfg/cu-token' mode='r' encoding='UTF-8'>
+  self.assertEqual(open(token_file).read().strip(), "client-secret")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+............................................................<home>/.local/share/uv/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=0, laddr=('127.0.0.1', 59516)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.<home>/.local/share/uv/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=0, laddr=('127.0.0.1', 59521)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.<home>/.local/share/uv/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=0, laddr=('127.0.0.1', 59532)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.<home>/.local/share/uv/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=7, family=2, type=1, proto=0, laddr=('127.0.0.1', 59534)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+..<home>/.local/share/uv/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=8, family=2, type=1, proto=0, laddr=('127.0.0.1', 59545)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.<home>/.local/share/uv/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=8, family=2, type=1, proto=0, laddr=('127.0.0.1', 59549)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+....<home>/.local/share/uv/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/argparse.py:1656: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=0, laddr=('127.0.0.1', 59502)>
+  return getattr(self, handler_func_name)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<home>/.local/share/uv/python/cpython-3.13.14-macos-aarch64-none/lib/python3.13/argparse.py:1656: ResourceWarning: unclosed <socket.socket fd=4, family=2, type=1, proto=0, laddr=('127.0.0.1', 59506)>
+  return getattr(self, handler_func_name)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/vib
+
+... [OUTPUT TRUNCATED - 666 chars omitted out of 8,597 total] ...
+
+ython/cpython-3.13.14-macos-aarch64-none/lib/python3.13/argparse.py:1656: ResourceWarning: unclosed <socket.socket fd=8, family=2, type=1, proto=0, laddr=('127.0.0.1', 59551)>
+  return getattr(self, handler_func_name)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+..............................................FileExistsError: cannot create preview; check copy and output path
+................................................................................................................................................<home>/Projects/hermes-jev-nightmare-20261029/skills/jev-computer-use/scripts/jev_gui_agent.py:1253: ResourceWarning: unclosed file <_io.TextIOWrapper name=4 encoding='UTF-8'>
+  return 2
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<home>/Projects/hermes-jev-nightmare-20261029/skills/jev-computer-use/scripts/jev_gui_agent.py:1253: ResourceWarning: unclosed file <_io.TextIOWrapper name=6 encoding='UTF-8'>
+  return 2
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.............................................................................[nightly-handoff]   kept open (capsule error): s-newest
+.[nightly-handoff]   kept open (capsule write_failed): s-newest
+.[nightly-handoff]   skipped (cron is not a conversation): cron_87473d0a7883_run
+..[nightly-handoff]   kept open (lane cli goes to cli-today): cli-yesterday
+...[nightly-handoff]   kept open (lane telegram:-100777 goes to s-alice): s-bob
+............handoff capsule failed: session=old-session
+Traceback (most recent call last):
+  File "<home>/Projects/hermes-jev-nightmare-20261029/hermes/plugin/hermes-handoff/__init__.py", line 145, in work
+    result = run_handoff(context)
+  File "<home>/Projects/hermes-jev-nightmare-20261029/tests/test_handoff_plugin.py", line 152, in __call__
+    raise self.error
+RuntimeError: writer exploded
+.................................................................................sssss...............usage: install.py [-h] [--check] [--uninstall] [--hermes-home HERMES_HOME]
+                  [--enable ENABLE] [--skills-dir SKILLS_DIR] [--no-claude-md]
+                  [--hermes-root-only] [--search-browser-only]
+install.py: error: --hermes-root-only cannot be combined with --uninstall or --skills-dir
+...........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 1690 tests in 71.040s
+
+OK (skipped=5)
+  step 1: no interactive elements observed
+  step  1  jev    0 ms + act    0 ms  op=click  conf=0.91  {"effect": "delivered", "message": ""}
+  step  2  jev    0 ms + act    0 ms  op=click  conf=0.91  {"effect": "delivered", "message": ""}
+  verified before step 3; stopping
+  step  1  jev    0 ms + act    0 ms  op=click  conf=0.95  {"effect": "unverifiable", "message": ""}
+  step 1: driver posted click, but the observed window did not change; stopping plan
+  step  1  jev    0 ms + act    0 ms  op=click  conf=0.95  {"effect": "unverifiable", "message": ""}
+  step 1: driver posted click, but the observed window did not change; stopping plan
+  step  1  jev    0 ms + act    0 ms  op=click  conf=0.95  {"effect": "unverifiable", "message": ""}
+  step  1  jev    0 ms + act    0 ms  op=click  conf=0.91  {"effect": "delivered", "message": ""}
+  step  2  jev    0 ms + act    0 ms  op=click  conf=0.91  {"effect": "delivered", "message": ""}
+  step 3: repeated click:library left the observed screen unchanged; stopping
+  step 1: Jev returned an id outside this observation; stopping

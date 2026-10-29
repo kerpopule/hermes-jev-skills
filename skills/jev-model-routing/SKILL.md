@@ -38,6 +38,10 @@ jev route --prompt "<the task, in the person's words>" --current "<provider:mode
 
 Use `model_id` from the reply. `routed: false` means stay where you are; `reason` says why. Relay `notice` if the person likes to see routing.
 
+## Offline adversarial qualification
+
+Before changing a Jev question or accepting a wire-validator repair, run the synthetic nightmare corpus and definition-bound replay described in [nightmare qualification](../../docs/nightmare-qualification.md). Reject ambiguous duplicate JSON members, unsolicited answer IDs and invalid score distributions through the shared client boundary. Treat replay as structural evidence only, never proof that a real action executed, a model is semantically calibrated or a routing/policy mode may be promoted. Preserve supported missing score spreads and empty choice-criterion shorthand. Use synthetic/public fixtures only; never turn on raw owner/customer trace logging.
+
 ## Effort delivery and evidence
 
 Preserve explicit manual effort, including `none` and `off`. Chat Completions uses top-level `reasoning_effort`; Responses uses `reasoning.effort` only when a reasoning object is already enabled and no effort is explicitly set. Never enable disabled reasoning or emit an applied-effort notice for an unchanged request. Shadow remains observational. Available pools are not active configuration, and model confidence needs task-specific qualification. See [fleet guidance](../../docs/using-jev-in-a-hermes-fleet.md) and [measurement/provenance](../../docs/measurement-and-provenance.md).
@@ -102,6 +106,19 @@ On Hermes, `jev lane shadow` (from cron) classifies new Kanban cards and logs wh
 - Turns that look like they contain secrets, and any profile listed in `private_profiles`, send Jev only coarse features (length, code present, risk words), never text. Those turns, and a profile with `mode: features`, also opt out of the merged request below.
 - Its three questions normally travel in the **same request** as skill selection's stage 1 (`jevkit/turn.py`), because Jev charges per request and not per question, and the connection underneath is pooled (a fresh TLS session per call used to be ~275 ms of the ~520 ms a decision cost). Measured live 2026-09-21/22: one question ~180-250 ms warm, and **1784 ms → 672 ms** per turn that needs both, 3 requests → 2. Each feature still reads its own answers through its own thresholds. `/jev merge_requests off` separates them again.
 - Jev down, slow (2.5 s budget) or malformed: current model, no delay beyond the budget. An answer that contradicts itself — a spread that does not cover the options, mass that does not sum to one, a chosen option that is not the maximum, a score that disagrees with its own distribution — is refused as `invalid_response` and lands here too.
+
+## Measure routing value, do not import quota claims
+
+Model-plus-effort selection already exists here; an external router is not a
+reason to add another per-call classifier or change live defaults. Preserve
+manual model/effort pins, session isolation, provider compatibility, disabled
+modes and the host's supported request shape. Run `tests/test_plugin_middleware.py`
+when changing this boundary. Historical replay and simulated token/quota savings
+are counterfactuals, not measured production savings or quality evidence. Count
+the selector, retries, fallbacks and final task verification in comparisons.
+Keep deterministic bookkeeping in code and choose Jev only for genuinely uncertain,
+prevalidated alternatives. Never use a model's approval or confidence to create
+spending, publication or credential authority.
 
 ## Tuning
 

@@ -18,9 +18,12 @@ rather than read. Every path says which check it actually got.
 from __future__ import annotations
 
 import datetime
+import math
+import re
 import json
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
+from urllib.parse import urlsplit, urlunsplit
 from . import client, privacy, rerank
 
 # The same ceiling the memory filter uses, and for the same reason: past this, results
@@ -41,6 +44,205 @@ SUFFICIENCY_THRESHOLD = 0.5
 JEV_AND_LOCAL = rerank.JEV_AND_LOCAL
 LOCAL_ONLY = rerank.LOCAL_ONLY
 NONE = rerank.NONE
+
+# Complete prevalidated plans avoid the cross-product of source/query/time picks.
+# Selection never invokes an engine, enables a paid source or changes permissions.
+TIME_RANGES = ('any', 'day', 'week', 'month', 'year')
+_PLAN_ID = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$')
+
+
+def plan_sources(request: Mapping[str, Any], *, timeout=3.0, transport=None) -> Dict[str, Any]:
+    """Pick one of at most twelve complete caller-authored search plans, or none.
+
+    Source IDs remain local; the model sees descriptions. It cannot invent a
+    query, time range, engine, tool call or authorization. Call only when this
+    extra decision is worthwhile; the ordinary search path is unchanged.
+    """
+    if (not isinstance(request, Mapping) or set(request) - {'question', 'sources', 'plans', 'private'}
+            or type(request.get('private', False)) is not bool):
+        raise ValueError('Expected question, sources, plans and optional boolean private')
+    def text(value, limit):
+        if not isinstance(value, str) or not value.strip() or len(value) > limit:
+            raise ValueError('Plan text is missing or exceeds its bound')
+        return value
+    def identifier(value):
+        if not isinstance(value, str) or not _PLAN_ID.fullmatch(value):
+            raise ValueError('Plan and source IDs must be short opaque identifiers')
+        return value
+    question = text(request.get('question'), 1500)
+    sources = request.get('sources')
+    plans = request.get('plans')
+    if not isinstance(sources, list) or not 1 <= len(sources) <= 8:
+        raise ValueError('Provide between one and eight available sources')
+    if not isinstance(plans, list) or not 1 <= len(plans) <= 12:
+        raise ValueError('Provide between one and twelve complete plans')
+    source_map = {}
+    for source in sources:
+        if not isinstance(source, Mapping) or set(source) != {'id', 'description'}:
+            raise ValueError('Source fields must be exactly id and description')
+        ident = identifier(source['id'])
+        if ident in source_map:
+            raise ValueError('Duplicate source ID')
+        source_map[ident] = text(source['description'], 200)
+    table = {}
+    local = {}
+    ids = set()
+    for i, plan in enumerate(plans):
+        if not isinstance(plan, Mapping) or set(plan) != {'id', 'query', 'sources', 'time_range'}:
+            raise ValueError('Plan fields must be exactly id, query, sources and time_range')
+        ident = identifier(plan['id'])
+        if ident in ids:
+            raise ValueError('Duplicate plan ID')
+        ids.add(ident)
+        query = text(plan['query'], QUERY_CHARS)
+        selected = plan['sources']
+        if (not isinstance(selected, list) or not 1 <= len(selected) <= 3
+                or any(not isinstance(s, str) or s not in source_map for s in selected)
+                or len(set(selected)) != len(selected)):
+            raise ValueError('Each plan names one to three unique available sources')
+        if not isinstance(plan['time_range'], str) or plan['time_range'] not in TIME_RANGES:
+            raise ValueError('Unknown time range')
+        key = 'p' + str(i)
+        table[key] = json.dumps({'query': query, 'sources': [source_map[s] for s in selected],
+                                 'time_range': plan['time_range']})
+        local[key] = {**plan, 'sources': list(selected)}
+    if type(timeout) not in (int, float) or not math.isfinite(timeout) or not 0 < timeout <= 30:
+        raise ValueError('timeout must be positive, finite and at most 30 seconds')
+    table['none'] = 'No offered plan is appropriate; return to the caller without searching'
+    result = {'schema': 'jev.search_plan_v1', 'status': 'unknown', 'plan': None,
+              'executed': False, 'jev_called': False, 'confidence': None}
+    if request.get('private', False) or privacy.is_sensitive(question + json.dumps(table)):
+        return {**result, 'reason': 'private_or_sensitive_not_sent'}
+    if len(local) == 1:
+        return {**result, 'status': 'ok', 'plan': local['p0'], 'reason': 'single_caller_plan'}
+    safe_table = {key: privacy.redact(value, 1200) for key, value in table.items()}
+    try:
+        result['jev_called'] = True
+        reply = client.ask({'question': privacy.redact(question, 1500)}, {'plan': client.choice(
+            'Which offered search plan best fits the question, including freshness and authoritative sources? '
+            'Choose none when none is suitable. This is advice, not permission to execute.', safe_table)},
+            timeout=timeout, retries=0, transport=transport)
+        answer = reply['answers']['plan']
+        picked, confidence = answer['choice'], answer['confidence']
+        if (picked not in table or type(confidence) not in (int, float)
+                or not math.isfinite(confidence) or not .65 <= confidence <= 1):
+            return {**result, 'reason': 'unusable_or_low_confidence'}
+        return {**result, 'status': 'ok', 'plan': local.get(picked),
+                'confidence': confidence, 'reason': 'none_suitable' if picked == 'none' else 'chosen'}
+    except (client.JevError, KeyError, TypeError, ValueError):
+        return {**result, 'reason': 'jev_unavailable_or_unusable'}
+
+
+def _canonical_url(raw):
+    if not isinstance(raw, str) or not 1 <= len(raw) <= 2048 or any(c.isspace() for c in raw):
+        raise ValueError('Expected a bounded HTTP(S) URL without whitespace')
+    parts = urlsplit(raw)
+    if parts.scheme not in ('http', 'https') or not parts.hostname or parts.username or parts.password:
+        raise ValueError('Only HTTP(S) URLs without embedded credentials can be grouped')
+    # Validate the port as well, even though the URL is never fetched here.
+    port = parts.port
+    host = parts.hostname.lower()
+    if ':' in host:
+        host = '[' + host + ']'
+    if port is not None and port != (443 if parts.scheme == 'https' else 80):
+        host += ':' + str(port)
+    # Keep query bytes/order and meaningful fragments (including SPA routes).
+    # Decoding/re-encoding can collapse signed URLs or distinct server semantics.
+    query = '&'.join(part for part in parts.query.split('&')
+                     if not part.split('=', 1)[0].lower().startswith('utm_')
+                     and part.split('=', 1)[0].lower() not in ('fbclid', 'gclid'))
+    return urlunsplit((parts.scheme, host, parts.path or '/', query, parts.fragment))
+
+
+def merge_sources(batches) -> Dict[str, Any]:
+    """Group URLs locally without throwing away conflicting/untrusted snippets.
+
+    All variants are returned for the existing screen. A merged group is NOT a
+    vetted result; no source failure is represented as a successful empty query.
+    Tracking parameters alone are removed; semantic query bytes/order and fragments stay.
+    """
+    if not isinstance(batches, list) or not 1 <= len(batches) <= 8:
+        raise ValueError('Provide between one and eight source batches')
+    groups, flattened, seen = {}, [], set()
+    failed, empty = [], []
+    for i, batch in enumerate(batches):
+        if not isinstance(batch, Mapping) or set(batch) != {'source', 'status', 'results'}:
+            raise ValueError('A batch has exactly source, status and results')
+        source = batch['source']
+        if not isinstance(source, str) or not _PLAN_ID.fullmatch(source) or source in seen:
+            raise ValueError('Source IDs must be unique short opaque identifiers')
+        seen.add(source)
+        rows = batch['results']
+        status = batch['status']
+        if not isinstance(status, str) or status not in ('ok', 'error', 'unavailable'):
+            raise ValueError('Source status must be ok, error or unavailable')
+        if not isinstance(rows, list) or len(rows) > 100 or (status != 'ok' and rows):
+            raise ValueError('A batch has at most 100 results; failed batches cannot carry results')
+        if status != 'ok':
+            failed.append(source)
+        elif not rows:
+            empty.append(source)
+        for j, row in enumerate(rows):
+            if not isinstance(row, Mapping) or set(row) - {'id', 'url', 'title', 'snippet'} or 'url' not in row:
+                raise ValueError('A result has url and optional id, title and snippet')
+            for key, limit in (('title', 500), ('snippet', 3000), ('id', 128)):
+                if key in row and (not isinstance(row[key], str) or len(row[key]) > limit):
+                    raise ValueError('Result text is malformed or exceeds its bound')
+            canonical = _canonical_url(row['url'])
+            ident = f'b{i}r{j}'
+            flattened.append({'id': ident, 'url': row['url'], 'title': row.get('title', ''),
+                              'snippet': row.get('snippet', '')})
+            if canonical not in groups:
+                groups[canonical] = {'url': row['url'], 'canonical_url': canonical,
+                                     'sources': [], 'variant_ids': []}
+            group = groups[canonical]
+            if source not in group['sources']:
+                group['sources'].append(source)
+            group['variant_ids'].append(ident)
+    return {'schema': 'jev.search_merge_v1', 'groups': list(groups.values()),
+            'screening_results': flattened, 'failed_sources': failed, 'empty_sources': empty,
+            'source_status': {batch['source']: batch['status'] for batch in batches},
+            'results_seen': len(flattened), 'unique_urls': len(groups),
+            'screening': 'none', 'requires_variant_screening': True}
+
+
+def gate_sources(question, batches, **kwargs):
+    """Screen all snippet variants before emitting a deduplicated reading list.
+
+    A duplicate cannot hide a flagged or unread companion. The result retains
+    source failures and all normal gate accounting; it never treats model
+    relevance as a fact or as permission to execute anything.
+    """
+    merged = merge_sources(batches)
+    result = gate(question, merged['screening_results'], **kwargs)
+    rejected = set(result.get('dropped_injection_ids', [])) | set(result.get('local_screen_ids', []))
+    rejected |= set(result.get('unjudged_ids', [])) | set(result.get('clipped_ids', []))
+    # The existing gate truncates before assigning overflow IDs to its report.
+    # Keep those variants explicit so an unread duplicate cannot be laundered.
+    unread = [row['id'] for row in merged['screening_results'][MAX_RESULTS:]]
+    rejected.update(unread)
+    selected = result.get('selected_ids', [])
+    by_id = {row['id']: row for row in merged['screening_results']}
+    selected_groups = []
+    withheld = []
+    for group in merged['groups']:
+        variants = group['variant_ids']
+        readable = [ident for ident in selected if ident in variants]
+        if set(variants) & rejected or result.get('screening') != JEV_AND_LOCAL:
+            withheld.extend(variants)
+        elif readable:
+            # Fetch the selected variant's exact original URL, never the grouping key.
+            selected_groups.append({**group, 'url': by_id[readable[0]]['url'], 'selected_ids': readable})
+    if set(selected) & set(withheld):
+        result['selected_ids'] = [ident for ident in selected if ident not in withheld]
+        result.update(sufficient=None, sufficiency=None, decision=UNKNOWN, status='partial')
+    selected_groups.sort(key=lambda group: min(selected.index(ident) for ident in group['selected_ids']))
+    return {**result, 'selected_groups': selected_groups,
+            'withheld_variant_ids': withheld, 'unread_variant_ids': unread,
+            'failed_sources': merged['failed_sources'],
+            'empty_sources': merged['empty_sources'], 'source_status': merged['source_status'],
+            'unique_urls': merged['unique_urls']}
+
 
 # What the caller should do next. Every value except "answer" means the agent still has
 # work to do; none of them ever means "Jev wrote you something".

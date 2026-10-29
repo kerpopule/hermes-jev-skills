@@ -295,15 +295,22 @@ def cmd_search(args: argparse.Namespace) -> int:
             raise ValueError("stdin is nested too deeply to read") from None
         if not isinstance(request, dict):
             raise ValueError('the request must be a JSON object: {"question": ..., "results": [...]}')
-        for field in ("question", "results"):
-            if request.get(field) is None:
-                raise ValueError(f'the request has no "{field}"')
+        if request.get('question') is None:
+            raise ValueError('the request has no "question"')
         if not isinstance(request["question"], str):
             raise ValueError('"question" must be a string')
-        if not isinstance(request["results"], list):
-            raise ValueError('"results" must be a list of {"id", "title", "url", "snippet"} objects')
-        return _out(search.gate(
-            request["question"], request["results"],
+        if 'source_batches' in request:
+            if 'results' in request:
+                raise ValueError('Use either results or source_batches, not both')
+            action, rows = search.gate_sources, request['source_batches']
+        else:
+            if request.get('results') is None:
+                raise ValueError('the request has no "results"')
+            if not isinstance(request["results"], list):
+                raise ValueError('"results" must be a list of {"id", "title", "url", "snippet"} objects')
+            action, rows = search.gate, request['results']
+        return _out(action(
+            request["question"], rows,
             queries_tried=request.get("queries_tried") or [],
             candidate_queries=request.get("candidate_queries") or [],
             round_index=int(request.get("round_index") or args.round),
@@ -313,6 +320,28 @@ def cmd_search(args: argparse.Namespace) -> int:
             timeout=args.timeout))
     except ValueError as error:
         _out({"error": "invalid_request", "detail": str(error)})
+        return 2
+
+
+def cmd_search_plan(args: argparse.Namespace) -> int:
+    """Opt-in bounded source/query/time selection; never execute a search."""
+    try:
+        request = json.loads(_triage_stdin_text())
+        return _out(search.plan_sources(request, timeout=args.timeout))
+    except (ValueError, RecursionError) as error:
+        _out({'error': 'invalid_request', 'detail': str(error)})
+        return 2
+
+
+def cmd_search_merge(args: argparse.Namespace) -> int:
+    """Purely local URL grouping with all variants retained for screening."""
+    try:
+        request = json.loads(_triage_stdin_text())
+        if not isinstance(request, dict) or set(request) != {'batches'}:
+            raise ValueError('Expected exactly a batches list')
+        return _out(search.merge_sources(request['batches']))
+    except (ValueError, RecursionError) as error:
+        _out({'error': 'invalid_request', 'detail': str(error)})
         return 2
 
 
@@ -802,7 +831,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=float, default=1.0)
     p.set_defaults(func=cmd_blender_next)
 
-    p = sub.add_parser("search", help="one round of a search: which results to read, whether that is enough, which query next")
+    p = sub.add_parser('search-plan', help='Pick a caller-authored source/query/time plan (never searches)')
+    p.add_argument('--timeout', type=float, default=3)
+    p.set_defaults(func=cmd_search_plan)
+
+    p = sub.add_parser('search-merge', help='Group source URLs locally without losing snippet variants')
+    p.set_defaults(func=cmd_search_merge)
+
+    p = sub.add_parser("search", help="Which search results to read, whether they are enough, and which query next")
     p.add_argument("--round", type=int, default=1, help="which round this is, 1-based")
     p.add_argument("--max-rounds", type=int, default=3, help="rounds you are willing to run in total")
     p.add_argument("--top-k", type=int, default=6, help="how many results to hand back to read")

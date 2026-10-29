@@ -1,0 +1,72 @@
+{
+  "pr": 56,
+  "head": "9db2ad8ecfde67a28256de797e3e8ac0cc1ff550",
+  "mergeable": "MERGEABLE",
+  "state": "OPEN",
+  "local_python_tests": 1649,
+  "local_node_tests": 11,
+  "checks": [
+    {
+      "name": "windows-cli (3.10)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/kerpopule/hermes-jev-skills/actions/runs/40949318463/job/123712909056"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.9)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/kerpopule/hermes-jev-skills/actions/runs/40949318131/job/123712907681"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.9)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/kerpopule/hermes-jev-skills/actions/runs/40949309334/job/123712877577"
+    },
+    {
+      "name": "windows-cli (3.13)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/kerpopule/hermes-jev-skills/actions/runs/40949318463/job/123712909762"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.13)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/kerpopule/hermes-jev-skills/actions/runs/40949318131/job/123712908097"
+    },
+    {
+      "name": "test (ubuntu-latest, 3.13)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/kerpopule/hermes-jev-skills/actions/runs/40949309334/job/123712878441"
+    },
+    {
+      "name": "test (macos-latest, 3.9)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/kerpopule/hermes-jev-skills/actions/runs/40949318131/job/123712908052"
+    },
+    {
+      "name": "test (macos-latest, 3.9)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/kerpopule/hermes-jev-skills/actions/runs/40949309334/job/123712877955"
+    },
+    {
+      "name": "test (macos-latest, 3.13)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/kerpopule/hermes-jev-skills/actions/runs/40949318131/job/123712908264"
+    },
+    {
+      "name": "test (macos-latest, 3.13)",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/kerpopule/hermes-jev-skills/actions/runs/40949309334/job/123712878060"
+    }
+  ],
+  "review": "self-review; merge not performed",
+  "comment": "https://github.com/kerpopule/hermes-jev-skills/pull/56#issuecomment-6507942347"
+}
