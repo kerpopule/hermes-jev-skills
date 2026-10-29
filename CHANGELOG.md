@@ -6,6 +6,15 @@
 - Harden the opt-in browser runner with semantic checkbox/menu/select/scroll progress, explicit proposal/execution receipts, bounded stale/no-progress handling and completed/blocked/degraded outcomes. A matching title cannot override an execution error, host escape or exhausted budget. Close only the browser created by the runner, including in embedded execution.
 - Reject contradictory failure/fallback/drift metadata at the existing strict gate tiebreak boundary; leave host approvals and gate/routing modes unchanged. Document ecosystem reuse, existing model/effort regression coverage and code-first decision placement. Include offline fixtures and a real Chromium DOM smoke with synthetic decisions, no provider calls and blocked network egress.
 
+## 0.25.2 (2026-10-28)
+
+Released by the daily Jev steward: 2 commit(s) on main since v0.25.1.
+
+**Changes and fixes**
+
+- fix(routing): isolate concurrent model and effort decisions (333c78e)
+- Keep historical audit notes out of current middleware fix (2f490be)
+
 ## 0.25.1 (2026-10-23)
 
 Released by the daily Jev steward: 10 commit(s) on main since v0.25.0.
