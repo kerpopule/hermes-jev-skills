@@ -1,6 +1,6 @@
 import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,cpSync,readFileSync,writeFileSync,symlinkSync,rmSync,realpathSync} from 'node:fs';
+import {mkdtempSync,cpSync,readFileSync,writeFileSync,symlinkSync,rmSync,realpathSync,mkdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -18,4 +18,5 @@ test('source traversal refused',()=>{const dir=fixture();let m=JSON.parse(readFi
 test('symlinks refused',()=>{const dir=fixture();symlinkSync('/etc/hosts',join(dir,'link'));assert.throws(()=>inspectArtifact(dir),/symlink/);});
 test('declared writes refused',()=>{const dir=fixture();const d=JSON.parse(readFileSync(join(dir,'deployment.json')));d.request.effect='write';writeFileSync(join(dir,'deployment.json'),JSON.stringify(d));assert.throws(()=>inspectArtifact(dir),/read_only/);});
 test('sign-in and questions refused',()=>{const dir=fixture();const m=JSON.parse(readFileSync(join(dir,'pomerado.json')));m.questions={password:{}};writeFileSync(join(dir,'pomerado.json'),JSON.stringify(m));assert.throws(()=>inspectArtifact(dir),/authentication_or_input/);});
+test('empty directory flood is bounded',()=>{const dir=fixture();for(let i=0;i<257;i++)mkdirSync(join(dir,'empty-'+i));assert.throws(()=>inspectArtifact(dir),/artifact_bounds/);});
 test('runtime unavailable fails without another browser fallback',()=>{const a=inspectArtifact(source);assert.throws(()=>launchSpec({directory:source,enabled:true,acknowledgeHostCode:true,approved:a.sha256,node:'/not-installed',cli:'/not-installed'}));});

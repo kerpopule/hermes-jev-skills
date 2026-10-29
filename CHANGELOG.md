@@ -2,7 +2,18 @@
 
 ## Unreleased
 
+- Bound Pomerado artifact inspection by total directory entries, including empty directories; preserve default-off and explicit host-code acknowledgement. Refresh PR against current main without changing runtime defaults.
+
 - Add an optional Pomerado saved-integration companion. Default-off, explicit host-code acknowledgement, source fingerprint checks, no inherited model keys, no minting or browser attachment. Pilot accepts declared reads without sign-in; metadata and environment filtering are not a sandbox. Existing Jev and browser defaults remain unchanged.
+
+## 0.25.2 (2026-10-28)
+
+Released by the daily Jev steward: 2 commit(s) on main since v0.25.1.
+
+**Changes and fixes**
+
+- fix(routing): isolate concurrent model and effort decisions (333c78e)
+- Keep historical audit notes out of current middleware fix (2f490be)
 
 ## 0.25.1 (2026-10-23)
 
@@ -84,6 +95,7 @@ Released by the daily Jev steward: 15 commit(s) on main since v0.24.0.
 
 - Bind cached routing decisions to provider, endpoint and model context; count actual request-model changes and add offline audit/evaluation tools. Custom identity enablement remains blocked pending host and gateway evidence. Prepared patch version; not deployed by this work.
 - Follow up PR #51 review: invalidate routing for the remainder of a changed-context turn, suppress stale routing/effort notices, distinguish audited installed 0.20.0 from repository base 0.24.0, and exclude synthetic/unclassified evaluation pairs while requiring structured cost and human-review provenance.
+- Close PR #51 concurrent routing/effort races: claim context before classification, keep simultaneous followers unchanged, and revalidate turn identity and binding before publishing a decision or committing request changes. Add deterministic configured-effort and concurrent-turn regressions.
 
 
 ## 0.24.0 (2026-10-16)

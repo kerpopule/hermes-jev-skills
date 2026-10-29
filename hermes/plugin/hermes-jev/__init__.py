@@ -396,6 +396,7 @@ def _on_post_tool_call(tool_name: str = "", args: Any = None, session_id: str = 
     """Remember what a session loaded; settle the pending suggestion if this was it.
     Shell commands and new cards may feed the policy shadows, and a vision call goes to the
     vision shadow instead (each off unless switched on)."""
+
     try:
         _policy_shadow_tool(tool_name, args, session_id, status)
     except Exception:  # noqa: BLE001 - a shadow must never touch the tool it watches
@@ -446,6 +447,17 @@ def _with_effort(request: Dict[str, Any], level: str) -> Dict[str, Any]:
     return {**request, "reasoning_effort": level}
 
 
+def _keep_routing_request(request: Dict[str, Any], model: str, provider: str,
+                          mode: str, first_request: bool, reason: str) -> None:
+    """Record a non-mutating fallback without retaining/logging the endpoint."""
+    _log({"kind": "route_effective", "mode": mode, "applied": False,
+          "requested_model": request.get("model", model),
+          "effective_request_model": request.get("model", model),
+          "provider": provider, "provider_identity": None,
+          "compatibility": reason, "first_request": first_request,
+          "reason": f"{reason}; retaining original model and effort"})
+
+
 def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = "", turn_id: Any = None,
                     model: str = "", provider: str = "", base_url: str = "", **_: Any) -> Any:
     mode = _setting("routing", "off")
@@ -459,21 +471,25 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
         turn = _TURNS.get(session_id or "-")
         if not turn or turn["turn_id"] != turn_id:
             return None
+        first_request = turn.get("request_count", 0) == 0
+        turn["request_count"] = turn.get("request_count", 0) + 1
         decision = turn["decision"]
-        if decision is not None and turn.get("route_binding") != binding:
+        if "route_binding" not in turn:
+            # Claim the context before releasing the lock for the classifier RPC.
+            turn["route_binding"] = binding
+        elif turn["route_binding"] != binding:
             # Irreversible for this turn: A -> B -> A must not revive A's decision.
             # A fresh pre_llm_call creates the next turn's independent state.
             turn["route_invalidated"] = True
             turn.pop("effort", None)
         invalidated = turn.get("route_invalidated", False)
+        pending = turn.get("route_inflight", False)
+        if not invalidated and not pending and decision is None:
+            turn["route_inflight"] = True
     if invalidated:
-        _log({"kind": "route_effective", "mode": mode, "applied": False,
-              "requested_model": request.get("model", model),
-              "effective_request_model": request.get("model", model),
-              "provider": provider, "provider_identity": None,
-              "compatibility": "request_context_changed", "first_request": False,
-              "reason": "cached routing context changed; retaining original model"})
-        return None
+        return _keep_routing_request(request, model, provider, mode, first_request, "request_context_changed")
+    if pending:
+        return _keep_routing_request(request, model, provider, mode, first_request, "routing_decision_pending")
     route_answers: Any = None
     if decision is None:                       # first API call of this turn: ask Jev exactly once
         catalog_provider = catalog.HERMES_ALIASES.get(provider, provider)
@@ -536,8 +552,12 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
             # goes ahead on its own model, and the log says routing failed instead of
             # going quiet, which would read as "nothing needed routing".
             decision = {"routed": False, "model": current, "reason": f"routing failed ({type(error).__name__})"}
-        turn["decision"] = decision
-        turn["route_binding"] = binding
+        with _LOCK:
+            turn.pop("route_inflight", None)
+            if (_TURNS.get(session_id or "-") is not turn or turn.get("route_invalidated")
+                    or turn["route_binding"] != binding):
+                return _keep_routing_request(request, model, provider, mode, first_request, "routing_context_invalidated")
+            turn["decision"] = decision
         # The effort pick reads the same answers routing bought; route.decide now carries
         # them back on the decision, so no second Jev call is needed.
         route_answers = decision.get("answers")
@@ -564,21 +584,11 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
     # Shadow, pins, and failed decisions must never count as applied savings. This is
     # not provider usage telemetry: a later middleware or provider may still change it.
     effective = decision["model_id"] if applied else request.get("model", model)
-    _log({"kind": "route_effective", "mode": mode, "applied": applied,
-          "provider": provider, "provider_identity": None if provider == "custom" else provider,
-          "compatibility": "operator_assertion" if provider == "custom" and decision.get("routed")
-                           else "router_provider_guard" if decision.get("routed") else "not_selected",
-          "requested_model": request.get("model", model), "effective_request_model": effective,
-          "decision_model": decision.get("model"), "reason": decision.get("reason"),
-          "first_request": turn.get("request_count", 0) == 0})
-    turn["request_count"] = turn.get("request_count", 0) + 1
     # Effort routing: the difficulty answer routing already bought is reused to pick a
     # reasoning-effort level for the request. It runs whether or not the model is swapped —
     # the mode gates the swap, and a kept model still wants the right thinking budget.
     # Off by default; `jevkit/effort.py` returns None whenever the table is not configured
     # or the answer is not there, and None leaves the request alone.
-    # The notice describes the current outgoing request, not an earlier request in this turn.
-    turn.pop("effort", None)
     effort_level = None
     model_key = f"{catalog.HERMES_ALIASES.get(provider, provider)}:{effective}"
     # Shadow is observation only. Explicit user effort, including a provider-specific
@@ -600,18 +610,34 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
                     effort_level = candidate
         except (TypeError, ValueError, AttributeError):
             pass  # Invalid opt-in fails open without changing the outgoing request.
+    # Commit model, effort, notice state and effective telemetry against the same
+    # live context. Another callback may have invalidated/replaced the turn while
+    # routing or effort selection ran; neither computation owns the lock across RPC.
+    with _LOCK:
+        if (_TURNS.get(session_id or "-") is not turn or turn.get("route_invalidated")
+                or turn["route_binding"] != binding):
+            return _keep_routing_request(request, model, provider, mode, first_request, "routing_context_invalidated")
+        _log({"kind": "route_effective", "mode": mode, "applied": applied,
+              "provider": provider, "provider_identity": None if provider == "custom" else provider,
+              "compatibility": "operator_assertion" if provider == "custom" and decision.get("routed")
+                               else "router_provider_guard" if decision.get("routed") else "not_selected",
+              "requested_model": request.get("model", model), "effective_request_model": effective,
+              "decision_model": decision.get("model"), "reason": decision.get("reason"),
+              "first_request": first_request})
+        # Notices describe this committed callback, never an earlier effort pick.
+        turn.pop("effort", None)
         if effort_level:
             _log({"kind": "effort", "mode": mode, "level": effort_level,
                   "tier": decision.get("tier"), "model": model_key})
             turn["effort"] = effort_level
-    if not applied:
+        if not applied:
+            if effort_level:
+                return {"request": _with_effort(request, effort_level)}
+            return None
+        out = {**request, "model": effective}
         if effort_level:
-            return {"request": _with_effort(request, effort_level)}
-        return None
-    out = {**request, "model": effective}
-    if effort_level:
-        out = _with_effort(out, effort_level)
-    return {"request": out}
+            out = _with_effort(out, effort_level)
+        return {"request": out}
 
 
 def _on_transform_output(response_text: str = "", session_id: str = "", **_: Any) -> Any:

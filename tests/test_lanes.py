@@ -148,7 +148,7 @@ class Evidence(unittest.TestCase):
         self.repo = Path(self._tmp.name)
         env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
-        for command in (["git", "init", "-q"], ["git", "commit", "-q", "--allow-empty", "-m", "base"]):
+        for command in (["git", "init", "-q"], ["git", "config", "core.excludesfile", ""], ["git", "commit", "-q", "--allow-empty", "-m", "base"]):
             subprocess.run(command, cwd=self.repo, check=True, env=env)
         (self.repo / "src").mkdir()
         (self.repo / "src" / "app.py").write_text("print('hi')\n")

@@ -12,10 +12,13 @@ const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const safePath = path => typeof path === 'string' && path.length > 0 && !path.includes('\\') && !isAbsolute(path) && path.split('/').every(p => p && p !== '..' && p !== '.');
 export function inspectArtifact(directory) {
   if (!isAbsolute(directory) || realpathSync(directory) !== directory) fail('absolute_real_directory_required');
-  const files = []; let size = 0;
+  const files = []; let size = 0; let entries = 0;
   function walk(base, depth = 0) {
     if (depth > 8) fail('artifact_too_deep');
-    for (const name of readdirSync(base).sort()) {
+    const names = readdirSync(base);
+    entries += names.length;
+    if (entries > 256) fail('artifact_bounds');
+    for (const name of names.sort()) {
       const path = join(base, name); const info = lstatSync(path);
       if (info.isSymbolicLink()) fail('symlink_denied');
       if (info.isDirectory()) { walk(path, depth + 1); continue; }
