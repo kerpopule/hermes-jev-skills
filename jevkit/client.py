@@ -218,6 +218,8 @@ def check_questions(questions: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
         raise ValueError("questions must be a mapping of {name: question}")
     if not questions:
         raise ValueError("no questions")
+    if len(set(map(str, questions))) != len(questions):
+        raise ValueError("question ids collide after string conversion")
     return {str(name): check_question(str(name), question) for name, question in questions.items()}
 
 
@@ -501,7 +503,10 @@ def _invalid(name: str, invariant: str, detail: str = "") -> JevError:
 def _unit(value: Any, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise JevError("malformed", f"{name} is not numeric")
-    number = float(value)
+    try:
+        number = float(value)
+    except OverflowError:
+        raise JevError("malformed", f"{name} is outside numeric range") from None
     if not math.isfinite(number) or not -1e-6 <= number <= 1 + 1e-6:
         raise JevError("malformed", f"{name} is outside 0..1")
     return min(1.0, max(0.0, number))
@@ -563,8 +568,14 @@ def _check_answer(name: str, question: Mapping[str, Any], answer: Any) -> Dict[s
                 "confidence": _unit(answer.get("confidence"), f"{name}.confidence")}
     levels = len(question["criteria"])
     value = answer.get("score")
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise JevError("malformed", f"answer {name} has no numeric score")
+    try:
+        value = float(value)
+    except OverflowError:
+        raise JevError("malformed", f"answer {name} scored off the rubric") from None
+    if not math.isfinite(value):
+        raise JevError("malformed", f"answer {name} has no finite score")
     if not -0.5 <= float(value) <= levels - 0.5:
         raise JevError("malformed", f"answer {name} scored off the rubric")
     # The per-level spread says far more than the averaged score: an unsure answer averages to
@@ -576,10 +587,12 @@ def _check_answer(name: str, question: Mapping[str, Any], answer: Any) -> Dict[s
     # the score as unverified instead of quietly averaging over nothing.
     raw = answer.get("probabilities")
     spread: Dict[int, float] = {}
+    if raw is not None and not isinstance(raw, dict):
+        raise _invalid(name, "score_distribution_mass", "probabilities are not an object")
     if isinstance(raw, dict) and raw:
         keys = []
         for key in raw:
-            if not str(key).isdigit() or int(key) >= levels:
+            if not isinstance(key, str) or key not in {str(i) for i in range(levels)}:
                 raise _invalid(name, "score_distribution_on_rubric", f"level {key!r} is not 0..{levels - 1}")
             keys.append(str(key))
         spread = {int(key): value for key, value in
@@ -596,13 +609,44 @@ def _check_answer(name: str, question: Mapping[str, Any], answer: Any) -> Dict[s
     legend = {}
     if isinstance(answer.get("legend"), dict):
         legend = {int(key): str(text) for key, text in answer["legend"].items()
-                  if str(key).isdigit() and int(key) < levels and isinstance(text, str)}
+                  if isinstance(key, str) and key in {str(i) for i in range(levels)} and isinstance(text, str)}
     out = {"type": "score", "score": float(value), "probabilities": spread,
            "spread_reported": bool(spread), "confidence": _unit(answer.get("confidence", 1.0),
                                                                f"{name}.confidence")}
     if legend:
         out["legend"] = legend
     return out
+
+
+def _unique_object(pairs: Any) -> Dict[str, Any]:
+    """Reject ambiguous JSON rather than letting its last duplicate key win."""
+    result: Dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON member")
+        result[key] = value
+    return result
+
+
+def validate_reply(raw: bytes, questions: Mapping[str, Any]) -> Any:
+    """Pure strict wire validation, shared by live calls and offline trace replays.
+
+    No keys, transport, model calls or transitions. Returns payload and checked answers.
+    """
+    questions = check_questions(questions)
+    if not isinstance(raw, bytes) or len(raw) > MAX_RESPONSE_BYTES:
+        raise JevError("malformed", "reply exceeds byte bound or is not bytes")
+    try:
+        payload = json.loads(raw, object_pairs_hook=_unique_object)
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        raise JevError("malformed", "reply is not JSON") from None
+    answers = payload.get("answers") if isinstance(payload, dict) else None
+    if not isinstance(answers, dict):
+        raise JevError("malformed", "reply has no answers")
+    if set(answers) != set(questions):
+        raise JevError("malformed", "reply answer ids differ from requested question ids")
+    checked = {name: _check_answer(name, question, answers.get(name)) for name, question in questions.items()}
+    return payload, checked
 
 
 # ── public call ──────────────────────────────────────────────────────────────
@@ -711,21 +755,14 @@ def ask(
                 wait = error.retry_after
             time.sleep(wait)
 
-    try:
-        payload = json.loads(raw)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        raise JevError("malformed", "reply is not JSON") from None
-    answers = payload.get("answers") if isinstance(payload, dict) else None
-    if not isinstance(answers, dict):
-        raise JevError("malformed", "reply has no answers")
-    checked = {name: _check_answer(name, question, answers.get(name)) for name, question in questions.items()}
+    payload, checked = validate_reply(raw, questions)
     usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
     model_seen = payload.get("model")
     tokens = usage.get("input_tokens")
     return {"answers": checked, "usage": usage, "latency_ms": int((time.monotonic() - started) * 1000),
             "jev_model": model_seen if isinstance(model_seen, str) and model_seen else None,
             "input_tokens": int(tokens) if isinstance(tokens, (int, float)) and not isinstance(tokens, bool)
-            and math.isfinite(float(tokens)) and tokens >= 0 else None,
+            and 0 <= tokens <= 2**63 - 1 and math.isfinite(float(tokens)) else None,
             "provider": "custom" if endpoint else via}
 
 

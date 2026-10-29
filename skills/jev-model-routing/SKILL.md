@@ -38,6 +38,10 @@ jev route --prompt "<the task, in the person's words>" --current "<provider:mode
 
 Use `model_id` from the reply. `routed: false` means stay where you are; `reason` says why. Relay `notice` if the person likes to see routing.
 
+## Offline adversarial qualification
+
+Before changing a Jev question or accepting a wire-validator repair, run the synthetic nightmare corpus and definition-bound replay described in [nightmare qualification](../../docs/nightmare-qualification.md). Reject ambiguous duplicate JSON members, unsolicited answer IDs and invalid score distributions through the shared client boundary. Treat replay as structural evidence only, never proof that a real action executed, a model is semantically calibrated or a routing/policy mode may be promoted. Preserve supported missing score spreads and empty choice-criterion shorthand. Use synthetic/public fixtures only; never turn on raw owner/customer trace logging.
+
 ## Effort delivery and evidence
 
 Preserve explicit manual effort, including `none` and `off`. Chat Completions uses top-level `reasoning_effort`; Responses uses `reasoning.effort` only when a reasoning object is already enabled and no effort is explicitly set. Never enable disabled reasoning or emit an applied-effort notice for an unchanged request. Shadow remains observational. Available pools are not active configuration, and model confidence needs task-specific qualification. See [fleet guidance](../../docs/using-jev-in-a-hermes-fleet.md) and [measurement/provenance](../../docs/measurement-and-provenance.md).
