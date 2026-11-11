@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fix tagged Ollama defaults incorrectly suppressing routing, thanks to Ivo Sele (@phaze9, PR #61). Preserve explicit different-tag pins and limit the untagged/`:latest` equivalence to Ollama; add middleware regressions.
+- Pin the CI Python 3.9/3.13 matrix to compatible Ubuntu 24.04 and macOS 15 Intel runners after `ubuntu-latest` advanced to 26.04 without a Python 3.9 build.
 
 ## 0.25.2 (2026-10-28)
 

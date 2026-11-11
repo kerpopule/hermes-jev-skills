@@ -5,7 +5,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # setup-python no longer supplies 3.9 for ubuntu-latest (26.04).
+        # Pin compatible runner images so the supported 3.9/3.13 matrix runs.
+        os: [ubuntu-24.04, macos-15-intel]
         python: ["3.9", "3.13"]
     steps:
       - uses: actions/checkout@v4
