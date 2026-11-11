@@ -98,6 +98,27 @@ class RoutingMiddlewareTests(unittest.TestCase):
         self.assertTrue(self.decisions[0]["pinned"])
         self.assertIsNone(result)
 
+    def test_untagged_ollama_default_matches_explicit_latest(self):
+        plugin._on_pre_llm_call(session_id="ollama-latest", turn_id="t1", user_message=HARD)
+        with mock.patch.object(plugin, "_default_model", lambda: "ollama:some-model"):
+            with mock.patch.object(plugin.route, "load_config", return_value={
+                    "provider_aliases": {"custom": "ollama"}}):
+                plugin._on_llm_request(
+                    request={"model": "some-model:latest", "messages": []},
+                    session_id="ollama-latest", turn_id="t1",
+                    model="some-model:latest", provider="custom")
+        self.assertFalse(self.decisions[0]["pinned"])
+
+    def test_non_ollama_latest_is_not_equated_to_bare_default(self):
+        plugin._on_pre_llm_call(session_id="not-ollama", turn_id="t1", user_message=HARD)
+        with mock.patch.object(plugin, "_default_model", lambda: "vendor/model"):
+            result = plugin._on_llm_request(
+                request={"model": "vendor/model:latest", "messages": []},
+                session_id="not-ollama", turn_id="t1",
+                model="vendor/model:latest", provider="openrouter")
+        self.assertTrue(self.decisions[0]["pinned"])
+        self.assertIsNone(result)
+
     def test_custom_endpoint_bare_id_matches_vendor_qualified_default(self):
         plugin._on_pre_llm_call(session_id="custom-default", turn_id="t1", user_message=HARD)
         with mock.patch.object(plugin.route, "load_config", return_value={"provider_aliases": {"custom": "tokenharbor"}}):

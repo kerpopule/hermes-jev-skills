@@ -538,14 +538,22 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
         # An untagged Ollama id means its latest tag, so normalise both sides: an explicit
         # :latest pick on an untagged default is still the default; any other explicit tag
         # on the same core is a deliberate /model pick and stays pinned.
-        req_core, _, req_tag = bare.partition(":")
-        def_core, _, def_tag = default_bare.partition(":")
-        same_default = (req_core == def_core
-                        and (req_tag or "latest") == (def_tag or "latest")) or (
-            provider == "custom" and "/" in def_core and "/" not in req_core
-            and req_core == def_core.rsplit("/", 1)[-1]
-            and (req_tag or "latest") == (def_tag or "latest")
-        )
+        # Only Ollama treats an omitted tag as :latest. Elsewhere a colon may be
+        # meaningful syntax, so never equate an explicit :latest choice to a bare id.
+        if catalog_provider == "ollama":
+            req_core, _, req_tag = bare.partition(":")
+            def_core, _, def_tag = default_bare.partition(":")
+            same_default = (req_core == def_core
+                            and (req_tag or "latest") == (def_tag or "latest")) or (
+                provider == "custom" and "/" in def_core and "/" not in req_core
+                and req_core == def_core.rsplit("/", 1)[-1]
+                and (req_tag or "latest") == (def_tag or "latest")
+            )
+        else:
+            same_default = bare == default_bare or (
+                provider == "custom" and "/" in default_bare and "/" not in bare
+                and bare == default_bare.rsplit("/", 1)[-1]
+            )
         messages = request.get("messages") or request.get("input") or []
         try:
             if provider == "custom" and catalog_provider == "custom":

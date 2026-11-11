@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix tagged Ollama defaults incorrectly suppressing routing, thanks to Ivo Sele (@phaze9, PR #61). Preserve explicit different-tag pins and limit the untagged/`:latest` equivalence to Ollama; add middleware regressions.
+
 ## 0.25.2 (2026-10-28)
 
 Released by the daily Jev steward: 2 commit(s) on main since v0.25.1.
