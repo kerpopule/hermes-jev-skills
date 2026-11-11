@@ -524,13 +524,27 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
             return None
         current = f"{catalog_provider}:{bare}"
         default = _default_model()
-        default_bare = str(default).split(":", 1)[-1] if default else ""
+        default_bare = str(default) if default else ""
+        # `default` may carry a provider prefix (ollama:name:tag); strip it the same way
+        # as `bare` did above, not by splitting on the first colon — that colon separates
+        # the Ollama tag from the model name, so the old split(":", 1)[-1] left only "latest".
+        if default_bare.startswith(f"{catalog_provider}:"):
+            default_bare = default_bare[len(catalog_provider) + 1:]
+        elif default_bare.startswith(f"{provider}:"):
+            default_bare = default_bare[len(provider) + 1:]
         # A custom endpoint can report only its bare model id while Hermes's default
         # includes the vendor namespace. Treat that one spelling difference as equal;
         # keep distinct vendor-qualified ids pinned, and do not relax ordinary providers.
-        same_default = bare == default_bare or (
-            provider == "custom" and "/" in default_bare and "/" not in bare
-            and bare == default_bare.rsplit("/", 1)[-1]
+        # An untagged Ollama id means its latest tag, so normalise both sides: an explicit
+        # :latest pick on an untagged default is still the default; any other explicit tag
+        # on the same core is a deliberate /model pick and stays pinned.
+        req_core, _, req_tag = bare.partition(":")
+        def_core, _, def_tag = default_bare.partition(":")
+        same_default = (req_core == def_core
+                        and (req_tag or "latest") == (def_tag or "latest")) or (
+            provider == "custom" and "/" in def_core and "/" not in req_core
+            and req_core == def_core.rsplit("/", 1)[-1]
+            and (req_tag or "latest") == (def_tag or "latest")
         )
         messages = request.get("messages") or request.get("input") or []
         try:
