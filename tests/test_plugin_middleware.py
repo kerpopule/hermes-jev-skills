@@ -68,6 +68,36 @@ class RoutingMiddlewareTests(unittest.TestCase):
         self.assertFalse(self.decisions[0]["pinned"])
         self.assertEqual(result["request"]["model"], "moonshotai/kimi-k3")
 
+    def test_tagged_default_model_is_not_treated_as_pinned(self):
+        # Ollama-style defaults carry a version tag after the id core. The pinned check
+        # compares against the default with its tag, and an exact match on the full id is
+        # still "the default" — the user ran no /model command.
+        plugin._on_pre_llm_call(session_id="s-tag", turn_id="t1", user_message=HARD)
+        with mock.patch.object(plugin, "_default_model", lambda: "huihui-qwen38-abli:latest"):
+            with mock.patch.object(plugin.route, "load_config", return_value={
+                    "provider_aliases": {"custom": "ollama"}}):
+                result = plugin._on_llm_request(
+                    request={"model": "huihui-qwen38-abli:latest", "messages": []},
+                    session_id="s-tag", turn_id="t1",
+                    model="huihui-qwen38-abli:latest", provider="custom")
+        self.assertEqual(self.decisions[0]["current"], "ollama:huihui-qwen38-abli:latest")
+        self.assertFalse(self.decisions[0]["pinned"])
+        self.assertEqual(result["request"]["model"], "moonshotai/kimi-k3")
+
+    def test_explicit_tag_pick_stays_pinned_even_on_the_default_core(self):
+        # /model on the same core but a different tag is a deliberate choice: two tags
+        # are two different Ollama models, so keep the pin.
+        plugin._on_pre_llm_call(session_id="s-tag-pin", turn_id="t1", user_message=HARD)
+        with mock.patch.object(plugin, "_default_model", lambda: "huihui-qwen38-abli:latest"):
+            with mock.patch.object(plugin.route, "load_config", return_value={
+                    "provider_aliases": {"custom": "ollama"}}):
+                result = plugin._on_llm_request(
+                    request={"model": "huihui-qwen38-abli:q6_k", "messages": []},
+                    session_id="s-tag-pin", turn_id="t1",
+                    model="huihui-qwen38-abli:q6_k", provider="custom")
+        self.assertTrue(self.decisions[0]["pinned"])
+        self.assertIsNone(result)
+
     def test_custom_endpoint_bare_id_matches_vendor_qualified_default(self):
         plugin._on_pre_llm_call(session_id="custom-default", turn_id="t1", user_message=HARD)
         with mock.patch.object(plugin.route, "load_config", return_value={"provider_aliases": {"custom": "tokenharbor"}}):
