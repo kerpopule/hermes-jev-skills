@@ -6,6 +6,20 @@
 
 - Add an optional Pomerado saved-integration companion. Default-off, explicit host-code acknowledgement, source fingerprint checks, no inherited model keys, no minting or browser attachment. Pilot accepts declared reads without sign-in; metadata and environment filtering are not a sandbox. Existing Jev and browser defaults remain unchanged.
 
+## 0.25.3 (2026-11-12)
+
+Released by the daily Jev steward: 3 commit(s) on main since v0.25.2.
+
+- Fix tagged Ollama defaults incorrectly suppressing routing, thanks to Ivo Sele (@phaze9, PR #61). Preserve explicit different-tag pins and limit the untagged/`:latest` equivalence to Ollama; add middleware regressions.
+- Pin the CI Python 3.9/3.13 matrix to compatible Ubuntu 24.04 and macOS 15 Intel runners after `ubuntu-latest` advanced to 26.04 without a Python 3.9 build.
+
+**Changes and fixes**
+
+- Fix pinned check misreading Ollama tag for a tagged default (2a4bdfa)
+- Scope Ollama tag equivalence and credit PR 61 (f9262a3)
+- Keep CI Python 3.9 on supported runner images (12a7a70)
+
+
 ## 0.25.2 (2026-10-28)
 
 Released by the daily Jev steward: 2 commit(s) on main since v0.25.1.
