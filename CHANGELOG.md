@@ -9,6 +9,20 @@
 - Harden the opt-in browser runner with semantic checkbox/menu/select/scroll progress, explicit proposal/execution receipts, bounded stale/no-progress handling and completed/blocked/degraded outcomes. A matching title cannot override an execution error, host escape or exhausted budget. Close only the browser created by the runner, including in embedded execution.
 - Reject contradictory failure/fallback/drift metadata at the existing strict gate tiebreak boundary; leave host approvals and gate/routing modes unchanged. Document ecosystem reuse, existing model/effort regression coverage and code-first decision placement. Include offline fixtures and a real Chromium DOM smoke with synthetic decisions, no provider calls and blocked network egress.
 
+## 0.25.3 (2026-11-12)
+
+Released by the daily Jev steward: 3 commit(s) on main since v0.25.2.
+
+- Fix tagged Ollama defaults incorrectly suppressing routing, thanks to Ivo Sele (@phaze9, PR #61). Preserve explicit different-tag pins and limit the untagged/`:latest` equivalence to Ollama; add middleware regressions.
+- Pin the CI Python 3.9/3.13 matrix to compatible Ubuntu 24.04 and macOS 15 Intel runners after `ubuntu-latest` advanced to 26.04 without a Python 3.9 build.
+
+**Changes and fixes**
+
+- Fix pinned check misreading Ollama tag for a tagged default (2a4bdfa)
+- Scope Ollama tag equivalence and credit PR 61 (f9262a3)
+- Keep CI Python 3.9 on supported runner images (12a7a70)
+
+
 ## 0.25.2 (2026-10-28)
 
 Released by the daily Jev steward: 2 commit(s) on main since v0.25.1.
