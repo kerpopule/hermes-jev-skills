@@ -1,0 +1,24 @@
+{
+  "cases": 863,
+  "validated_controls": 104,
+  "mismatches": [],
+  "model_calls": 0,
+  "execution_verified": false,
+  "source_sha256": "31e6d6f5c2ad8a752927b382f1c52ba27c4d36d720ec4f06eadeff5bfd0a6111",
+  "replay": {
+    "cases": 863,
+    "matches": 863,
+    "changes": [],
+    "execution_verified": false,
+    "model_calls": 0
+  },
+  "invalid_cases": 759,
+  "notes": [
+    "Synthetic structural qualification, not live model semantic accuracy.",
+    "trace.json and trace-final.json retain earlier corpus iterations, not final evidence.",
+    "Python 3.11 and 3.13 each skipped five PyYAML-dependent installer checks; Python 3.9 ran all package checks.",
+    "Dashboard initial 3.11 run failed for missing PyYAML; retry under existing 3.9 environment passed 71 tests.",
+    "Initial overstrict choice criterion proposal was rejected by regressions and removed.",
+    "No new binaries, paid calls, policy promotions, merges to main or gateway restarts."
+  ]
+}

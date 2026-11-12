@@ -107,6 +107,11 @@ Installed feature branches, published main and already-loaded processes are diff
 
 ## What leaves your machine
 
+Pre-search planning (`jev search-plan`) is local-only. A single caller plan is
+returned code-first; multiple plans return `local_planning_required`. Arbitrary
+plan source descriptions, candidate queries and time ranges are never sent by
+this helper. The existing post-search `jev search` disclosure below is unchanged.
+
 Jev is a cloud API, so this is spelled out rather than implied:
 
 - **Routing**: the user's turn, redacted (emails, phones, tokens, long hex masked), capped at 2,500 characters (`ask_chars`), read as the opening and, mostly, the end. Never history, tool results, files or memory. Turns that look like they hold a secret, and any profile you list in `private_profiles`, send only coarse features: length, whether code is present, whether risk words appear.

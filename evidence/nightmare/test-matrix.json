@@ -1,0 +1,27 @@
+{
+  "checks": [
+    {
+      "label": "py39",
+      "exit_code": 0,
+      "tests": 1690,
+      "seconds": 38.029,
+      "skipped": 0
+    },
+    {
+      "label": "py311",
+      "exit_code": 0,
+      "tests": 1690,
+      "seconds": 70.323,
+      "skipped": 5
+    },
+    {
+      "label": "py313",
+      "exit_code": 0,
+      "tests": 1690,
+      "seconds": 71.04,
+      "skipped": 5
+    }
+  ],
+  "review": "self-review, not independent",
+  "model_calls": 0
+}

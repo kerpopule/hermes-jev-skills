@@ -265,6 +265,10 @@ def tiebreak_verdict(decision: Mapping[str, Any]) -> str:
     action = decision.get("action")
     if action == "deny":
         return "deny"
+    # A serialized/replayed verdict can contain contradictory metadata. An
+    # approval label is not permission when its provider failed or drifted.
+    if decision.get('fallback_used') or decision.get('error') or decision.get('drift'):
+        return "escalate"
     if action == "approve" and str(decision.get("policy", "")).startswith("gate-strict@"):
         return "approve"
     return "escalate"

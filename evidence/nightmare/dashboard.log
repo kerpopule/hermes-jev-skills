@@ -1,0 +1,42 @@
+..........................................<home>/Projects/hermes-jev-nightmare-20261029/router-dashboard/tests/test_routing_store.py:119: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/93/ykh0935j4lzgpq604w7w23r40000gn/T/tmp1574rtve/backups/model-routing-dashboard/20261029T204502Z/config.yaml.e23d93d6' mode='r' encoding='utf-8'>
+  self.assertIn("deepseek/deepseek-v4.1-flash", open(rec["backup"], encoding="utf-8").read())
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+..<home>/Projects/hermes-jev-nightmare-20261029/router-dashboard/tests/test_routing_store.py:82: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/93/ykh0935j4lzgpq604w7w23r40000gn/T/tmpacxbjkz0/config.yaml' mode='r' encoding='utf-8'>
+  text = open(self.root_cfg, encoding="utf-8").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+..<home>/Projects/hermes-jev-nightmare-20261029/router-dashboard/tests/test_routing_store.py:75: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/93/ykh0935j4lzgpq604w7w23r40000gn/T/tmp34egkb2g/config.yaml' mode='r' encoding='utf-8'>
+  text = open(self.root_cfg, encoding="utf-8").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.<home>/Projects/hermes-jev-nightmare-20261029/router-dashboard/tests/test_routing_store.py:66: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/93/ykh0935j4lzgpq604w7w23r40000gn/T/tmpkjkqv431/config.yaml' mode='r' encoding='utf-8'>
+  text = open(self.root_cfg, encoding="utf-8").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+......dashboard "GET /api/state HTTP/1.1" 200 -
+.dashboard "GET /api/state?token=s3cret HTTP/1.1" 200 -
+.dashboard "GET /?token=s3cret HTTP/1.1" 302 -
+.dashboard "GET /api/state HTTP/1.1" 401 -
+.dashboard "GET /?token=nope HTTP/1.1" 200 -
+..dashboard "GET /api/state HTTP/1.1" 401 -
+dashboard "GET /api/state HTTP/1.1" 200 -
+.dashboard "GET / HTTP/1.1" 200 -
+.dashboard "GET /api/jev/pools HTTP/1.1" 200 -
+.dashboard "GET /api/jev/pools HTTP/1.1" 200 -
+.dashboard "POST /api/apply HTTP/1.1" 400 -
+.dashboard "POST /api/apply HTTP/1.1" 200 -
+.dashboard "GET /api/health HTTP/1.1" 200 -
+.dashboard "POST /api/plan HTTP/1.1" 400 -
+.<home>/Projects/hermes-jev-nightmare-20261029/router-dashboard/tests/test_server.py:87: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/93/ykh0935j4lzgpq604w7w23r40000gn/T/tmpmid7o1j0/config.yaml' mode='r' encoding='utf-8'>
+  before = open(os.path.join(self.home, "config.yaml"), encoding="utf-8").read()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+dashboard "POST /api/plan HTTP/1.1" 200 -
+<home>/Projects/hermes-jev-nightmare-20261029/router-dashboard/tests/test_server.py:92: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/93/ykh0935j4lzgpq604w7w23r40000gn/T/tmpmid7o1j0/config.yaml' mode='r' encoding='utf-8'>
+  self.assertEqual(open(os.path.join(self.home, "config.yaml"), encoding="utf-8").read(), before)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.dashboard "GET /api/state HTTP/1.1" 200 -
+.dashboard "GET / HTTP/1.1" 200 -
+.dashboard "POST /api/apply HTTP/1.1" 404 -
+dashboard "POST /api/plan HTTP/1.1" 400 -
+.
+----------------------------------------------------------------------
+Ran 71 tests in 2.162s
+
+OK

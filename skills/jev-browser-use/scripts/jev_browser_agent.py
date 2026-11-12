@@ -28,6 +28,8 @@ from __future__ import annotations
 import argparse
 import atexit
 import contextlib
+import hashlib
+import math
 import json
 import os
 import shutil
@@ -171,6 +173,50 @@ def outcome_verified(title: str, heading: str, url: str, expect: str) -> bool:
         return False
     haystack = " ".join([title or "", heading or "", url or ""]).lower()
     return expect.lower() in haystack
+
+
+class BrowserProgress:
+    """Local semantic progress, not model confidence or an authorization verdict.
+
+    Only digests and numeric/boolean metadata enter the trace. Raw DOM, labels,
+    URLs and typed values remain in the executor and are not forwarded to Jev.
+    """
+    def __init__(self, max_stagnant=3):
+        self.max_stagnant = max_stagnant
+        self.stagnant = 0
+        self.previous = None
+        self.trace = []
+
+    def observe(self, page, *, proposed=None, executed=False):
+        digest = hashlib.sha256(json.dumps(page, sort_keys=True).encode()).hexdigest() if page is not None else None
+        changed = (self.previous is not None and digest != self.previous) if digest is not None else None
+        if digest is not None:
+            self.stagnant = 0 if changed else self.stagnant + int(executed)
+            self.previous = digest
+        proposed = proposed or {}
+        confidence = proposed.get('confidence')
+        if type(confidence) not in (int, float) or not math.isfinite(confidence) or not 0 <= confidence <= 1:
+            confidence = None
+        row = {'observation_sha256': digest, 'progress': changed,
+               'proposed': bool(proposed), 'executed': bool(executed),
+               'confidence': confidence, 'stagnant': self.stagnant}
+        self.trace.append(row)
+        return row
+
+    @property
+    def blocked(self):
+        return self.stagnant >= self.max_stagnant
+
+
+# Include controls that can change without URL/title/body-copy changes. No input
+# values are read; checkbox/selected/expanded state is sufficient for this probe.
+SEMANTIC_PAGE = """(() => ({url: location.href, title: document.title,
+  text: (document.body?.innerText || '').slice(0, 20000), scroll: [scrollX, scrollY],
+  controls: [...document.querySelectorAll('input,select,option,button,[aria-expanded],[aria-checked]')]
+    .slice(0, 128).map(e => ({tag:e.tagName, type:e.type || '', checked:!!e.checked,
+      selected:!!e.selected, index:e.selectedIndex ?? null,
+      expanded:e.getAttribute('aria-expanded'), ariaChecked:e.getAttribute('aria-checked'),
+      disabled:!!e.disabled}))}))()"""
 
 
 # ── browser ownership ────────────────────────────────────────────────────────
@@ -369,8 +415,100 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def run_agent(agent, *, allow, expect, max_ticks):
+    """Exercise the real predict/act boundary, retaining failed execution evidence.
+
+    Caller owns the context and its cleanup. No recovery guesses or extra model
+    calls: stale observations consume a tick; all terminal paths are explicit.
+    """
+    if type(max_ticks) is not int or not 1 <= max_ticks <= 100:
+        raise ValueError('max_ticks must be an integer between 1 and 100')
+    progress = BrowserProgress()
+    ticks = 0
+    left_allowlist = False
+    stop_reason = 'tick_budget'
+    error = None
+    title = heading = ''
+    try:
+        progress.observe(agent.browser.evaluate(SEMANTIC_PAGE))
+        while ticks < max_ticks:
+            if not host_allowed(agent.state['page'].get('url', ''), allow):
+                left_allowlist = True
+                stop_reason = 'allowlist'
+                break
+            before = len(agent.state['history'])
+            proposed = None
+            ticks += 1
+            try:
+                agent.command('predict')
+                proposed = dict(agent.state.get('decision') or {})
+                # predict may refresh a stale page; recheck before any input.
+                if not host_allowed(agent.state['page'].get('url', ''), allow):
+                    left_allowlist = True
+                    stop_reason = 'allowlist'
+                    break
+                agent.command('act', {'fingerprint': agent.state['page']['fingerprint']})
+            except Exception as exc:
+                if type(exc).__name__ != 'StalePage':
+                    raise
+                agent.state['page'] = agent.browser.observe(screenshot=False)
+                agent.state['status'] = 'ready'
+            finally:
+                executed = len(agent.state['history']) > before
+                try:
+                    observation = agent.browser.evaluate(SEMANTIC_PAGE)
+                except Exception:
+                    # Mutation may have happened before observation failed. Keep
+                    # that receipt, but never fabricate a successful observation.
+                    progress.observe(None, proposed=proposed, executed=executed)
+                    raise
+                progress.observe(observation, proposed=proposed, executed=executed)
+            if not host_allowed(agent.state['page'].get('url', ''), allow):
+                left_allowlist = True
+                stop_reason = 'allowlist'
+                break
+            if progress.blocked:
+                stop_reason = 'no_progress'
+                break
+            # The vendor's older text fingerprint misses checkbox/menu changes.
+            # Override only its post-execution stagnation heuristic, never an
+            # explicit BLOCKED decision or an exception/budget failure.
+            repeated = agent.state['history'][-3:]
+            vendor_stagnation = (len(repeated) == 3 and
+                                 all(row.get('page_changed') is False and row.get('kind') != 'wait'
+                                     for row in repeated))
+            if (agent.state['status'] == 'blocked' and vendor_stagnation and proposed
+                    and proposed.get('choice') not in ('BLOCKED', 'DONE')
+                    and progress.trace[-1]['executed'] and progress.trace[-1]['progress']):
+                agent.state['status'] = 'ready'
+            if agent.state['status'] in ('done', 'blocked'):
+                stop_reason = 'model_done' if agent.state['status'] == 'done' else 'agent_blocked'
+                break
+    except Exception as exc:
+        error = type(exc).__name__  # never log error text containing a URL or typed value
+        stop_reason = 'execution_or_observation_error'
+    final_url = agent.state['page'].get('url', '')
+    try:
+        title = agent.browser.evaluate('document.title') or ''
+        heading = agent.browser.evaluate("(document.querySelector('h1')||{}).textContent||''") or ''
+    except Exception as exc:
+        error = type(exc).__name__
+        stop_reason = 'verification_error'
+    # A matched title cannot overrule a failed executor, exhausted budget or host escape.
+    verified = (stop_reason == 'model_done' and not error and not left_allowlist
+                and outcome_verified(title, heading, final_url, expect))
+    outcome = 'completed' if verified else ('degraded' if error or stop_reason == 'model_done' else 'blocked')
+    return {'schema': 'hermes.browser_use_jev_run_v1', 'final_url': final_url, 'title': title,
+            'heading': heading, 'steps': len(agent.state['history']),
+            'text_calls': len(agent.state['text_calls']), 'ticks': ticks,
+            'left_allowlist': left_allowlist, 'expected': expect, 'verified': bool(verified),
+            'outcome': outcome, 'stop_reason': stop_reason, 'error': error, 'trace': progress.trace}
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if not 1 <= args.max_ticks <= 100:
+        raise SystemExit('--max-ticks must be between 1 and 100')
 
     creds = resolve_credentials(dict(os.environ))
     print(f"typesafe: {redact(creds.get('TYPESAFE_API_KEY'))} model={creds['TYPESAFE_MODEL']}")
@@ -397,6 +535,7 @@ def main(argv: list[str] | None = None) -> int:
     # the replacement process never runs the parent's atexit handler, so it leaks.
     ensure_importable(argv)
 
+    owned = None
     if args.cdp:
         os.environ["BU_CDP_WS"] = args.cdp
     elif not args.launch_chrome:
@@ -409,62 +548,21 @@ def main(argv: list[str] | None = None) -> int:
             with contextlib.suppress(Exception):
                 signal.signal(_signal, lambda *_: (owned.stop(), sys.exit(130)))
 
-    from jev_ultrafast import Agent
-
-    ticks = 0
-    left_allowlist = False
-    final_url = title = heading = ""
-    with Agent(args.url, args.goal) as agent:
-        try:
-            for _state in agent.run():
-                ticks += 1
-                page_url = agent.state["page"].get("url", "")
-                if not host_allowed(page_url, allow):
-                    left_allowlist = True
-                    print(f"ABORT: page left the allowlist -> {page_url}")
-                    break
-                last = agent.state["history"][-1] if agent.state["history"] else {}
-                print(f"  tick {ticks:>2}  {agent.state['elapsed_ms']:>6} ms  "
-                      f"actions={len(agent.state['history'])}  status={agent.state['status']}  "
-                      f"last={last.get('kind', '-')}")
-                if ticks >= args.max_ticks:
-                    print(f"  stopping at the {args.max_ticks}-tick budget")
-                    break
-        except Exception as exc:  # noqa: BLE001
-            print(f"  loop error {type(exc).__name__}: {str(exc)[:200]}")
-
-        final_url = agent.state["page"].get("url", "")
-        try:
-            title = agent.browser.evaluate("document.title") or ""
-            heading = agent.browser.evaluate("(document.querySelector('h1')||{}).textContent||''") or ""
-        except Exception as exc:  # noqa: BLE001
-            print(f"  could not read the live document: {type(exc).__name__}")
-        history = list(agent.state["history"])
-        text_calls = list(agent.state["text_calls"])
-
-    verified = outcome_verified(title, heading, final_url, args.expect)
-    result = {
-        "schema": "hermes.browser_use_jev_run_v1",
-        "goal": args.goal,
-        "final_url": final_url,
-        "title": title,
-        "heading": heading,
-        "steps": len(history),
-        "text_calls": len(text_calls),
-        "ticks": ticks,
-        "left_allowlist": left_allowlist,
-        "expected": args.expect,
-        "verified": verified,
-        "browser": "attached" if args.cdp else "owned",
-    }
-    print(f"  final_url: {final_url}")
-    print(f"  title: {title!r}")
-    print(f"  independent check for {args.expect!r}: {'PASS' if verified else 'FAIL'}")
+    try:
+        from jev_ultrafast import Agent
+        with Agent(args.url, args.goal) as agent:
+            result = run_agent(agent, allow=allow, expect=args.expect, max_ticks=args.max_ticks)
+    finally:
+        if owned is not None:
+            owned.stop()
+    result.update(goal=args.goal, browser='attached' if args.cdp else 'owned')
+    print(f"  outcome: {result['outcome']} ({result['stop_reason']})")
+    print(f"  independent check: {'PASS' if result['verified'] else 'FAIL'}")
     if args.json:
         print(json.dumps(result))
-    if left_allowlist:
+    if result['left_allowlist']:
         return 5
-    return 0 if verified else 4
+    return 0 if result['verified'] else 4
 
 
 if __name__ == "__main__":

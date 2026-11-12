@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "matched_files": 14,
+  "fresh_installed_import": true,
+  "fresh_cli": true,
+  "duplicate_member_refused": true,
+  "offline_replay": true,
+  "provider_calls": 0,
+  "gateway_loaded": "not_asserted",
+  "source_commit": "47845ee3b53705d3de22d5d52bddc434f6fbf539",
+  "scope": "root-only; no other-profile writes",
+  "warning": null
+}

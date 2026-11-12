@@ -1,0 +1,120 @@
+{
+  "schema": "jev.root_install_verification_v1",
+  "passed": true,
+  "source_commit": "bd4d5e4880dd28bd7a1b824009acd89eb23deece",
+  "matched_managed_files": 162,
+  "protected_config_and_mode_hashes_unchanged": 47,
+  "qualified_sources_unchanged": true,
+  "fresh_installed_model_smoke": {
+    "status": "ok",
+    "decision": "answer_from_what_we_have",
+    "evidence_thin": true,
+    "screening": "jev+local",
+    "selected_ids": [
+      "protocol"
+    ],
+    "dropped_injection_ids": [],
+    "local_screen_ids": [],
+    "unjudged_ids": [],
+    "clipped_ids": [],
+    "scores": {
+      "protocol": {
+        "relevance": 0.97,
+        "injection": 0.03
+      },
+      "recipe": {
+        "relevance": 0.01,
+        "injection": 0.01
+      }
+    },
+    "answerable": 0.96,
+    "sufficient": false,
+    "sufficiency": 0.27,
+    "next_query": null,
+    "queries_tried": [],
+    "candidate_queries": [],
+    "round_index": 1,
+    "max_rounds": 1,
+    "top_k": 1,
+    "results_seen": 2,
+    "truncated": false,
+    "latency_ms": 136,
+    "usage": {
+      "input_tokens": 979,
+      "output_tokens": 115
+    }
+  },
+  "loaded_gateway": "not_asserted",
+  "scope": "root-only",
+  "other_profile_writes": false,
+  "policy_modes_changed": false,
+  "paid_benchmark": false,
+  "fresh_cli_checks": [
+    {
+      "command": "search-plan",
+      "exit": 0
+    },
+    {
+      "command": "search-plan",
+      "exit": 0
+    },
+    {
+      "command": "search",
+      "exit": 2
+    },
+    {
+      "command": "pick-skill",
+      "exit": 2
+    },
+    {
+      "command": "pick-skill",
+      "exit": 2
+    }
+  ],
+  "installed_host_protocol": {
+    "schema": "jev.host_protocol_probe_v1",
+    "registered_via_real_plugin_manager": true,
+    "actual_host_resolver": {
+      "glm-5.3-flash": "chat_completions",
+      "deepseek-v4-flash": "chat_completions",
+      "grok-4.7": "codex_responses"
+    },
+    "real_middleware_chain": [
+      {
+        "candidate": "grok-4.7",
+        "effective_model": "glm-5.3-flash",
+        "changed": false
+      },
+      {
+        "candidate": "deepseek-v4-flash",
+        "effective_model": "deepseek-v4-flash",
+        "changed": true
+      }
+    ],
+    "provider_calls": 0,
+    "source_plugin_sha256": "dcb34e25e4fd50a63dc5e29785dacfb2b6b08ccc3a401f7eac217545a7d1e4d7",
+    "not_claimed": [
+      "live provider transport",
+      "live gateway reload",
+      "model semantic accuracy"
+    ]
+  },
+  "configuration_review": {
+    "routing": "shadow retained",
+    "privacy": "redacted-text retained",
+    "skill_thresholds": [
+      0.5,
+      0.5
+    ],
+    "dormant_pool_warning": "Cached-price inversion and duplicate specialty cells retained pending task-specific calibration; they do not select the active owner model.",
+    "owner_default": "openai-codex:gpt-6.1-sol/medium retained"
+  },
+  "limits": [
+    "No already-running gateway reload asserted",
+    "No live mixed-protocol provider HTTP experiment",
+    "No model-quality or cost-savings benchmark",
+    "No other-profile install",
+    "No main merge or release",
+    "Pomerado companion remains uninstalled and default-off"
+  ]
+}

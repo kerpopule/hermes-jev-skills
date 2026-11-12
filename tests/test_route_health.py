@@ -390,6 +390,7 @@ class PluginCase(unittest.TestCase):
         # Hermes's own skill roots would win over the jevkit helper these tests exercise
         # (run under the Hermes venv, three root tests saw the machine's folders instead).
         for patch in (mock.patch.object(plugin, "_default_model", lambda: DEFAULT),
+                      mock.patch.object(plugin, "_model_api_mode", return_value='chat_completions'),
                       mock.patch.object(plugin, "_hermes_config", lambda: {}),
                       mock.patch.object(plugin, "_hermes_skill_roots", lambda: [])):
             patch.start()
@@ -410,7 +411,7 @@ class PluginCase(unittest.TestCase):
     def turn(self, request, session="s", turn_id="t1"):
         plugin._on_pre_llm_call(session_id=session, turn_id=turn_id, user_message=TURN)
         return plugin._on_llm_request(request=request, session_id=session, turn_id=turn_id,
-                                      model=DEFAULT, provider="openrouter")
+                                      model=DEFAULT, provider="openrouter", api_mode='chat_completions')
 
     def log(self):
         path = self.home / "logs" / "jev-decisions.jsonl"

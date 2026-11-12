@@ -37,6 +37,7 @@ _LOCK = threading.Lock()
 _TURNS: Dict[str, Dict[str, Any]] = {}      # session_id -> the current turn's text and decision
 _MAX_SESSIONS = 256
 _CTX: Any = None
+_RESOLVE_THRESHOLDS = getattr(skillpick, 'resolve_thresholds', None)
 
 
 # ── settings ─────────────────────────────────────────────────────────────────
@@ -224,6 +225,20 @@ def _on_pre_llm_call(session_id: str = "", turn_id: Any = None, user_message: An
         return None
     skills_on = _setting("skills", "off") == "on"
     routing_on = _setting("routing", "off") in ("on", "shadow")
+    thresholds = {}
+    if skills_on:
+        try:
+            settings = _CTX.get_config('skill_selection', {}) if _CTX is not None else {}
+            if not isinstance(settings, dict):
+                raise ValueError('Skill selection settings must be a mapping')
+            if _RESOLVE_THRESHOLDS is None:
+                if settings or any(k in os.environ for k in ('JEV_PICK_NEED_THRESHOLD', 'JEV_PICK_MATCH_THRESHOLD')):
+                    raise ValueError('Installed skill picker does not support threshold settings')
+            else:
+                thresholds = _RESOLVE_THRESHOLDS(settings)
+        except ValueError:
+            _log({'kind': 'skill', 'status': 'fail_open', 'reason_code': 'invalid_threshold_settings', 'picked': []})
+            return None
     skills = skillpick.discover(_skill_roots(), disabled=_disabled_skills()) if skills_on else []
     picked = None
     if skills_on and routing_on and _setting("merge_requests", "on") == "on":
@@ -236,7 +251,7 @@ def _on_pre_llm_call(session_id: str = "", turn_id: Any = None, user_message: An
                 record = _TURNS.get(session_id or "-")
                 if record is not None:
                     record["route_answers"] = merged["route_answers"]
-            picked = skillpick.pick(text, skills, top_k=1, stage_one=merged["stage_one"],
+            picked = skillpick.pick(text, skills, top_k=1, **thresholds, stage_one=merged["stage_one"],
                                     stage_one_latency=merged.get("latency_ms"))
             _log({"kind": "merged", "status": "ok", "latency_ms": merged.get("latency_ms"),
                   "picked": [s["name"] for s in picked.get("skills", [])]})
@@ -251,7 +266,7 @@ def _on_pre_llm_call(session_id: str = "", turn_id: Any = None, user_message: An
     if picked is None:
         if not skills_on:
             return None
-        picked = skillpick.pick(text, skills, top_k=1)
+        picked = skillpick.pick(text, skills, top_k=1, **thresholds)
     _log({"kind": "skill", "status": picked.get("status"), "needs_skill": picked.get("needs_skill"),
           "picked": [s["name"] for s in picked.get("skills", [])], "latency_ms": picked.get("latency_ms"),
           "reason_code": _skill_failure_code(picked)})
@@ -458,15 +473,37 @@ def _keep_routing_request(request: Dict[str, Any], model: str, provider: str,
           "reason": f"{reason}; retaining original model and effort"})
 
 
+def _model_api_mode(provider: str, model: str, base_url: str = "") -> Optional[str]:
+    """Ask the host's model-derived wire resolver, never a plugin model-name list.
+
+    Unknown hosts/providers keep the request. No credential resolution, catalogue
+    fetch or API probe is performed. A custom alias is not transport attestation.
+    """
+    if provider == 'custom' or not provider or not model:
+        return None
+    try:
+        from hermes_cli.model_switch import model_derived_api_mode
+        from hermes_cli.providers import determine_api_mode, get_provider
+        derived = model_derived_api_mode(provider, model)
+        if derived:
+            return derived if isinstance(derived, str) else None
+        if get_provider(provider) is None:
+            return None
+        mode = determine_api_mode(provider, base_url, model=model)
+        return mode if isinstance(mode, str) and mode else None
+    except Exception:  # an unavailable resolver cannot grant a model swap
+        return None
+
+
 def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = "", turn_id: Any = None,
-                    model: str = "", provider: str = "", base_url: str = "", **_: Any) -> Any:
+                    model: str = "", provider: str = "", base_url: str = "", api_mode: str = "", **_: Any) -> Any:
     mode = _setting("routing", "off")
     if mode not in ("on", "shadow") or not isinstance(request, dict):
         return None
     # A turn can survive a fallback or a /model change. Never reuse a decision bought
     # for a different connection or model. Keep the endpoint only in memory: URLs may
     # contain credentials, so this binding must never be included in telemetry.
-    binding = (provider, base_url, model, request.get("model", model))
+    binding = (provider, base_url, model, request.get("model", model), api_mode)
     with _LOCK:
         turn = _TURNS.get(session_id or "-")
         if not turn or turn["turn_id"] != turn_id:
@@ -601,6 +638,19 @@ def _on_llm_request(request: Optional[Dict[str, Any]] = None, session_id: str = 
         _log(entry)
     requested = request.get("model", model)
     proposed = decision.get("model_id")
+    if decision.get('routed') and proposed and proposed != requested:
+        try:
+            proposed_mode = _model_api_mode(provider, proposed, base_url)
+        except Exception:
+            proposed_mode = None
+        reason = ('protocol_unknown' if not api_mode or not proposed_mode else
+                  'protocol_incompatible' if proposed_mode != api_mode else None)
+        if reason:
+            with _LOCK:
+                # A rejected proposal must not be reused or advertised as applied.
+                turn['route_invalidated'] = True
+                turn.pop('effort', None)
+            return _keep_routing_request(request, model, provider, mode, first_request, reason)
     applied = mode == "on" and bool(decision.get("routed") and proposed) and proposed != requested
     # Log the model at this middleware boundary, not merely Jev's preferred model.
     # Shadow, pins, and failed decisions must never count as applied savings. This is

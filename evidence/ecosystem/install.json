@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "matched_files": 10,
+  "fresh_installed_import": true,
+  "fresh_cli": true,
+  "provider_calls": 0,
+  "gateway_loaded": "not_asserted",
+  "source_commit": "d70e3939858073576c30115848e36383c602f0c5"
+}

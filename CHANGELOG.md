@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.25.4
+
+Development candidate; no release tag, public-main merge or policy-mode promotion is implied.
+
+- Fix #57: refuse model swaps unless the host's protocol resolver confirms the candidate matches the active wire. Unknown/custom capability retains the original model and effort; transport changes invalidate cached decisions. No transport or live-mode switch is performed.
+- Address #58: configurable skill need/match gates with settings > environment > unchanged 0.5/0.5 defaults, finite-range validation, CLI overrides and merged-request propagation. Credit @superuser-does for the configuration request and calibration caveats.
+- Keep pre-search planning local-only so arbitrary caller-authored source descriptions and candidate queries are never disclosed by that helper. Retain single-plan code-first selection, validation and provenance-preserving URL merge.
+- Reconcile current main, including credited Ollama pin fixes and supported CI images. Doctor distinguishes the recorded routing state from privacy mode and leaves loaded runtime unverified. Version 0.25.4 is an unreleased candidate, not a release/tag or default-mode promotion.
+
+- Add opt-in model-free, definition-bound decision traces and a bounded synthetic nightmare corpus inspired by Switch. Re-exercise actual wire validation; refuse changed definitions and trace corruption without replaying actions or promoting policies.
+- Harden every client transport against ambiguous duplicate JSON, unsolicited answer IDs, response-size bypasses, numeric overflows, noncanonical score keys, malformed present distributions and stringified question-ID collisions. Preserve valid score-spread absence and choice shorthand. Add adversarial regressions and document structural versus semantic qualification.
+
+- Add opt-in bounded pre-search source/query/time planning, code-first single-plan handling, and local URL grouping with original URLs, variant provenance and failed-versus-empty source accounting. `jev search` accepts `source_batches` and screens all variants before deduplicating; flagged, clipped or unread duplicates cannot hide behind a clean snippet. No new search engine, paid-source activation or provider setting changes.
+- Harden the opt-in browser runner with semantic checkbox/menu/select/scroll progress, explicit proposal/execution receipts, bounded stale/no-progress handling and completed/blocked/degraded outcomes. A matching title cannot override an execution error, host escape or exhausted budget. Close only the browser created by the runner, including in embedded execution.
+- Reject contradictory failure/fallback/drift metadata at the existing strict gate tiebreak boundary; leave host approvals and gate/routing modes unchanged. Document ecosystem reuse, existing model/effort regression coverage and code-first decision placement. Include offline fixtures and a real Chromium DOM smoke with synthetic decisions, no provider calls and blocked network egress.
+
 ## 0.25.3 (2026-11-12)
 
 Released by the daily Jev steward: 3 commit(s) on main since v0.25.2.
@@ -14,6 +30,7 @@ Released by the daily Jev steward: 3 commit(s) on main since v0.25.2.
 - Fix pinned check misreading Ollama tag for a tagged default (2a4bdfa)
 - Scope Ollama tag equivalence and credit PR 61 (f9262a3)
 - Keep CI Python 3.9 on supported runner images (12a7a70)
+
 
 ## 0.25.2 (2026-10-28)
 

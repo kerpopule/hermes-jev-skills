@@ -1,7 +1,7 @@
 ---
 name: jev-browser-use
 description: Use when driving a web page in a browser — clicking, typing, navigating, logged-in or JS-rendered pages. Jev picks each step from the elements observed, under a host allowlist and a step budget.
-version: 0.1.0
+version: 0.2.0
 license: MIT
 metadata:
   hermes:
@@ -71,6 +71,38 @@ So a good goal has three parts:
 1. **The end state** — "reach the article X", "book the cheapest direct flight".
 2. **What counts as progress** — the intermediate states that are legitimately on the way.
 3. **The constraints** — "never type", "do not use the search box", "stay on this site".
+
+## Runner diagnostics and truthful stopping
+
+The opt-in runner calls predict/act separately so it can check the observed host
+again before input. The host allowlist is still a navigation guard, not a network
+sandbox or permission for forms, purchases or submissions. Preserve executor
+freshness checks and all owner approvals.
+
+Its local semantic probe includes checkbox, selected option, expanded/ARIA states
+and scroll position, not just URL/title. Three executed actions without semantic
+progress stop as `blocked/no_progress`; stale observations consume the existing
+hard tick budget instead of spinning. A vendor text-only stagnation heuristic may
+be cleared only after an actual action and newly observed semantic progress,
+never for explicit `BLOCKED`, an exception or an exhausted budget. This is a
+bounded probe (first 20,000 body characters and 128 controls), not proof of full
+page coverage; unusual canvas, shadow DOM or large forms may need local inspection.
+
+`--json` includes `outcome` (`completed`, `blocked`, `degraded`), `stop_reason`,
+error class and a trace of proposed versus executed steps. Trace observations are
+local SHA-256 digests, not raw page text, typed values or URLs. `progress:null`
+means an action's receipt survived a failed observation; it does not mean success.
+The existing final URL/title/heading fields remain local report data, not safe
+content to publish automatically. A model `DONE` and independent expected-text
+match are both required; errors, allowlist escapes and budgets cannot become
+success merely because the title matched. The runner closes only its own browser
+on return, exception or interrupt and disconnects from attached browser resources.
+
+Keep bookkeeping and known repetitive steps in code. Do not call Jev to hash a
+page, count steps or re-decide a deterministic action. Use uncertain choices only
+where a bounded decision can improve the executor, not a high-frequency control
+loop. Run `scripts/browser_diagnostics_smoke.py` under your normal resource lease
+for real Chromium DOM checks with synthetic choices and zero provider calls.
 
 ## Rules for both
 

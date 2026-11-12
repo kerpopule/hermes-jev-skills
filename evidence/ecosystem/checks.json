@@ -1,0 +1,54 @@
+{
+  "schema": "jev.ecosystem_checks_v1",
+  "checked_at": "2026-10-28T02:47:51.002474+00:00",
+  "python": "3.9.6",
+  "checks": [
+    {
+      "name": "unittest",
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests"
+      ],
+      "exit_code": 0,
+      "log": "unittest-final.log",
+      "tests": 1674,
+      "seconds": 37.86
+    },
+    {
+      "name": "release",
+      "command": [
+        "python",
+        "scripts/check_release.py"
+      ],
+      "exit_code": 0,
+      "log": "release-final.log"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": "diff-final.log"
+    }
+  ],
+  "artifact_sha256": {
+    "jevkit/search.py": "73431ffc662d467d892094a603d98031e4e2bd323d70502d311b7f7ff1548b8e",
+    "jevkit/gate.py": "477cacbffd712a972821be967c02a65849d0cd35a2a4637ebe5b22e26c0dbaf4",
+    "jevkit/cli.py": "e6ed1686b6e9861136a9705d3b39b7dd6c932c069cea3c4be0a112149efff45b",
+    "skills/jev-browser-use/scripts/jev_browser_agent.py": "fa931eb69a5ce7b80ac272cc069cea6d4bd710c2253f6a6161236ce28bd7913a",
+    "scripts/browser_diagnostics_smoke.py": "3c724befef8e035f2d05d1a7b8d4916bc8b0ff8f4f180a116691f8416eec0077",
+    "tests/test_browser_diagnostics.py": "38a52eb67a2619cb5c4c70d96fd23f53a2bccfff4268a08ff6ee2342cbb3a6e9",
+    "tests/test_search_planning.py": "bb7f1f67970b2714c5d11acd6cae79ee82d37cc3ed5027f325c19e3af7a66a5f",
+    "tests/test_gate_failure_boundary.py": "fab5a3ba01857886c4b5d0524a484e1b8bd222cb08bdd4d1592bd18467cf6402"
+  },
+  "passed": true,
+  "paid_evaluation": false,
+  "independent_review": false
+}

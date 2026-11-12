@@ -1,0 +1,96 @@
+  step 1: no interactive elements observed
+  step  1  jev    0 ms + act    0 ms  op=click  conf=0.91  {"effect": "delivered", "message": ""}
+  step  2  jev    0 ms + act    0 ms  op=click  conf=0.91  {"effect": "delivered", "message": ""}
+  verified before step 3; stopping
+  step  1  jev    0 ms + act    0 ms  op=click  conf=0.95  {"effect": "unverifiable", "message": ""}
+  step 1: driver posted click, but the observed window did not change; stopping plan
+  step  1  jev    0 ms + act    0 ms  op=click  conf=0.95  {"effect": "unverifiable", "message": ""}
+  step 1: driver posted click, but the observed window did not change; stopping plan
+  step  1  jev    0 ms + act    0 ms  op=click  conf=0.95  {"effect": "unverifiable", "message": ""}
+  step  1  jev    0 ms + act    0 ms  op=click  conf=0.91  {"effect": "delivered", "message": ""}
+  step  2  jev    0 ms + act    0 ms  op=click  conf=0.91  {"effect": "delivered", "message": ""}
+  step 3: repeated click:library left the observed screen unchanged; stopping
+  step 1: Jev returned an id outside this observation; stopping
+......................................................................................................................<home>/Projects/hermes-jev-ecosystem-20261027/tests/test_coagent_cu.py:130: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/93/ykh0935j4lzgpq604w7w23r40000gn/T/tmpi8apuzku/cfg/cu-token' mode='r' encoding='UTF-8'>
+  self.assertEqual(open(token_file).read().strip(), "client-secret")
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+............................................................/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=8, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57598)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=8, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57611)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=8, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57630)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=8, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57641)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/threading.py:1225: ResourceWarning: unclosed <socket.socket fd=4, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57562)>
+  def invoke_excepthook(thread):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/threading.py:1225: ResourceWarning: unclosed <socket.socket fd=5, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57571)>
+  def invoke_excepthook(thread):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/threading.py:1225: ResourceWarning: unclosed <socket.socket fd=7, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57587)>
+  def invoke_excepthook(thread):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=9, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57663)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 57659)
+Traceback (most recent call last):
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/socketserver.py", line 683, in process_request_thread
+    self.finish_request(request, client_address)
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/socketserver.py", line 747, in __init__
+    self.handle()
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/server.py", line 434, in handle
+    self.handle_one_request()
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/server.py", line 422, in handle_one_request
+    method()
+  File "<home>/Projects/hermes-jev-ecosystem-20261027/tests/test_connection_reuse.py", line 47, in do_POST
+    self.wfile.write(body)
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/socketserver.py", line 826, in write
+    self._sock.sendall(b)
+BrokenPipeError: [Errno 32] Broken pipe
+----------------------------------------
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/threading.py:914: ResourceWarning: unclosed <socket.socket fd=8, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57651)>
+  del self._target, self._args, self._kwargs
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/suite.py:107: ResourceWarning: unclosed <socket.socket fd=4, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57670)>
+  for index, test in enumerate(self):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/suite.py:84: ResourceWarning: unclosed <socket.socket fd=4, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('127.0.0.1', 57682)>
+  return self.run(*args, **kwds)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+...........................................FileExistsError: cannot create preview; check copy and output path
+................................................................................................................................................<home>/Projects/hermes-jev-ecosystem-20261027/skills/jev-computer-use/scripts/jev_gui_agent.py:1253: ResourceWarning: unclosed file <_io.TextIOWrapper name=5 encoding='UTF-8'>
+  return 2
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+<home>/Projects/hermes-jev-ecosystem-20261027/skills/jev-computer-use/scripts/jev_gui_agent.py:1253: ResourceWarning: unclosed file <_io.TextIOWrapper name=7 encoding='UTF-8'>
+  return 2
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+.............................................................................[nightly-handoff]   kept open (capsule error): s-newest
+.[nightly-handoff]   kept open (capsule write_failed): s-newest
+.[nightly-handoff]   skipped (cron is not a conversation): cron_87473d0a7883_run
+..[nightly-handoff]   kept open (lane cli goes to cli-today): cli-yesterday
+...[nightly-handoff]   kept open (lane telegram:-100777 goes to s-alice): s-bob
+............handoff capsule failed: session=old-session
+Traceback (most recent call last):
+  File "<home>/Projects/hermes-jev-ecosystem-20261027/hermes/plugin/hermes-handoff/__init__.py", line 145, in work
+    result = run_handoff(context)
+  File "<home>/Projects/hermes-jev-ecosystem-20261027/tests/test_handoff_plugin.py", line 152, in __call__
+    raise self.error
+RuntimeError: writer exploded
+.....................................................................................................usage: install.py [-h] [--check] [--uninstall] [--hermes-home HERMES_HOME]
+                  [--enable ENABLE] [--skills-dir SKILLS_DIR] [--no-claude-md]
+                  [--hermes-root-only] [--search-browser-only]
+install.py: error: --hermes-root-only cannot be combined with --uninstall or --skills-dir
+.................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+----------------------------------------------------------------------
+Ran 1674 tests in 37.860s
+
+OK

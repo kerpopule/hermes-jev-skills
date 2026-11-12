@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from . import __version__, catalog, choose, cli_decide, cli_lane, client, compact, key_setup, keystore, ladder, mailbox, memo, plan, rerank, replay, route, search, skillpick, spend, supervise, triage
+from . import __version__, catalog, choose, cli_decide, cli_lane, client, compact, key_setup, keystore, ladder, mailbox, memo, plan, rerank, replay, route, search, skillpick, spend, supervise, switches, triage
 
 
 def _stdin_json() -> Any:
@@ -184,6 +184,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             report["jev"] = {"reachable": False, "error": error.code}
     config = route.load_config()
     report["routing"] = {"config": str(route.config_path()),
+                         "state_mode": switches.state().get('routing', 'not_configured'),
+                         "loaded_runtime": 'unverified',
                          # This is the PRIVACY mode (what is sent), not the on/shadow/off
                          # switch. They were both called "mode" and it read as the answer
                          # to "is routing on?", which it has never been.
@@ -196,6 +198,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             report["routing"]["warnings"] = [f"the routing checks could not run ({type(error).__name__}); "
                                              f"the pools were NOT checked. Look at {route.config_path()}."]
     report["hermes_home"] = str(catalog.hermes_home()) if catalog.hermes_home().is_dir() else None
+    try:
+        report['skill_thresholds'] = skillpick.resolve_thresholds()
+    except ValueError as error:
+        report['skill_thresholds'] = {'error': 'invalid_skill_threshold', 'detail': str(error)}
     _out(report)
     # Only a missing key fails doctor. The routing findings are warnings about cost: an
     # install script that gates on this exit code must not fail because a pool is pricey.
@@ -253,7 +259,13 @@ def cmd_compact(args: argparse.Namespace) -> int:
 
 def cmd_pick_skill(args: argparse.Namespace) -> int:
     turn = args.turn if args.turn is not None else _stdin_json()["turn"]
-    return _out(skillpick.pick(turn, skillpick.discover(_skill_roots(args.root)), top_k=args.top_k))
+    try:
+        return _out(skillpick.pick(turn, skillpick.discover(_skill_roots(args.root)), top_k=args.top_k,
+                                  need_threshold=getattr(args, 'need_threshold', None),
+                                  match_threshold=getattr(args, 'match_threshold', None)))
+    except ValueError as error:
+        _out({'error': 'invalid_skill_threshold', 'detail': str(error)})
+        return 2
 
 
 def cmd_choose(args: argparse.Namespace) -> int:
@@ -295,15 +307,22 @@ def cmd_search(args: argparse.Namespace) -> int:
             raise ValueError("stdin is nested too deeply to read") from None
         if not isinstance(request, dict):
             raise ValueError('the request must be a JSON object: {"question": ..., "results": [...]}')
-        for field in ("question", "results"):
-            if request.get(field) is None:
-                raise ValueError(f'the request has no "{field}"')
+        if request.get('question') is None:
+            raise ValueError('the request has no "question"')
         if not isinstance(request["question"], str):
             raise ValueError('"question" must be a string')
-        if not isinstance(request["results"], list):
-            raise ValueError('"results" must be a list of {"id", "title", "url", "snippet"} objects')
-        return _out(search.gate(
-            request["question"], request["results"],
+        if 'source_batches' in request:
+            if 'results' in request:
+                raise ValueError('Use either results or source_batches, not both')
+            action, rows = search.gate_sources, request['source_batches']
+        else:
+            if request.get('results') is None:
+                raise ValueError('the request has no "results"')
+            if not isinstance(request["results"], list):
+                raise ValueError('"results" must be a list of {"id", "title", "url", "snippet"} objects')
+            action, rows = search.gate, request['results']
+        return _out(action(
+            request["question"], rows,
             queries_tried=request.get("queries_tried") or [],
             candidate_queries=request.get("candidate_queries") or [],
             round_index=int(request.get("round_index") or args.round),
@@ -313,6 +332,28 @@ def cmd_search(args: argparse.Namespace) -> int:
             timeout=args.timeout))
     except ValueError as error:
         _out({"error": "invalid_request", "detail": str(error)})
+        return 2
+
+
+def cmd_search_plan(args: argparse.Namespace) -> int:
+    """Opt-in bounded source/query/time selection; never execute a search."""
+    try:
+        request = json.loads(_triage_stdin_text())
+        return _out(search.plan_sources(request, timeout=args.timeout))
+    except (ValueError, RecursionError) as error:
+        _out({'error': 'invalid_request', 'detail': str(error)})
+        return 2
+
+
+def cmd_search_merge(args: argparse.Namespace) -> int:
+    """Purely local URL grouping with all variants retained for screening."""
+    try:
+        request = json.loads(_triage_stdin_text())
+        if not isinstance(request, dict) or set(request) != {'batches'}:
+            raise ValueError('Expected exactly a batches list')
+        return _out(search.merge_sources(request['batches']))
+    except (ValueError, RecursionError) as error:
+        _out({'error': 'invalid_request', 'detail': str(error)})
         return 2
 
 
@@ -789,6 +830,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_compact)
 
     p = sub.add_parser("pick-skill", help="which skill, if any, this turn needs")
+    p.add_argument('--need-threshold', type=float, default=None)
+    p.add_argument('--match-threshold', type=float, default=None)
     p.add_argument("--turn")
     p.add_argument("--root", action="append", default=[])
     p.add_argument("--top-k", type=int, default=3)
@@ -802,7 +845,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=float, default=1.0)
     p.set_defaults(func=cmd_blender_next)
 
-    p = sub.add_parser("search", help="one round of a search: which results to read, whether that is enough, which query next")
+    p = sub.add_parser('search-plan', help='Pick a caller-authored source/query/time plan (never searches)')
+    p.add_argument('--timeout', type=float, default=3)
+    p.set_defaults(func=cmd_search_plan)
+
+    p = sub.add_parser('search-merge', help='Group source URLs locally without losing snippet variants')
+    p.set_defaults(func=cmd_search_merge)
+
+    p = sub.add_parser("search", help="Which search results to read, whether they are enough, and which query next")
     p.add_argument("--round", type=int, default=1, help="which round this is, 1-based")
     p.add_argument("--max-rounds", type=int, default=3, help="rounds you are willing to run in total")
     p.add_argument("--top-k", type=int, default=6, help="how many results to hand back to read")

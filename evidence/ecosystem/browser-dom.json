@@ -1,0 +1,175 @@
+{
+  "schema": "jev.browser_diagnostics_smoke_v1",
+  "real_chromium": true,
+  "synthetic_decisions": true,
+  "provider_calls": 0,
+  "network_requests_forwarded": 0,
+  "cases": [
+    {
+      "case": "controls_without_navigation",
+      "outcome": "completed",
+      "verified": true,
+      "stop_reason": "model_done",
+      "ticks": 4,
+      "trace": [
+        {
+          "observation_sha256": "ed4589849e0469e9d941580aa9e5fd2847d9b599ab69fa1587cae825c025fd37",
+          "progress": false,
+          "proposed": false,
+          "executed": false,
+          "confidence": null,
+          "stagnant": 0
+        },
+        {
+          "observation_sha256": "fcfce0a2e599f41f6c9c697c1657272acc0ac98f1ad9bdf963d97108f3f94cb4",
+          "progress": true,
+          "proposed": true,
+          "executed": true,
+          "confidence": 0.9,
+          "stagnant": 0
+        },
+        {
+          "observation_sha256": "30ceffe0b2f361b03922e9d8072d1244314c0aeba924a404b5572d86ae6775a9",
+          "progress": true,
+          "proposed": true,
+          "executed": true,
+          "confidence": 0.9,
+          "stagnant": 0
+        },
+        {
+          "observation_sha256": "d41d25b9364465a71dd303ef35a4d6d399bfb46a8c9000da3bb1c2016e47e931",
+          "progress": true,
+          "proposed": true,
+          "executed": true,
+          "confidence": 0.9,
+          "stagnant": 0
+        },
+        {
+          "observation_sha256": "d41d25b9364465a71dd303ef35a4d6d399bfb46a8c9000da3bb1c2016e47e931",
+          "progress": false,
+          "proposed": true,
+          "executed": false,
+          "confidence": 0.9,
+          "stagnant": 0
+        }
+      ]
+    },
+    {
+      "case": "scroll_without_navigation",
+      "outcome": "completed",
+      "verified": true,
+      "stop_reason": "model_done",
+      "ticks": 4,
+      "trace": [
+        {
+          "observation_sha256": "ed4589849e0469e9d941580aa9e5fd2847d9b599ab69fa1587cae825c025fd37",
+          "progress": false,
+          "proposed": false,
+          "executed": false,
+          "confidence": null,
+          "stagnant": 0
+        },
+        {
+          "observation_sha256": "254f00a4f2494c3ffca033177a2bf4d982df8a71821f37fb657eac0bf93fa2d6",
+          "progress": true,
+          "proposed": true,
+          "executed": true,
+          "confidence": 0.9,
+          "stagnant": 0
+        },
+        {
+          "observation_sha256": "755c6dd94ca97325d3a6ba6a903d10f6e667075ac96d316ded90c3578043d47f",
+          "progress": true,
+          "proposed": true,
+          "executed": true,
+          "confidence": 0.9,
+          "stagnant": 0
+        },
+        {
+          "observation_sha256": "b832bdf2b88197a9fb3573478b6dcb35998d054491740b062c801ae77fe958fc",
+          "progress": true,
+          "proposed": true,
+          "executed": true,
+          "confidence": 0.9,
+          "stagnant": 0
+        },
+        {
+          "observation_sha256": "b832bdf2b88197a9fb3573478b6dcb35998d054491740b062c801ae77fe958fc",
+          "progress": false,
+          "proposed": true,
+          "executed": false,
+          "confidence": 0.9,
+          "stagnant": 0
+        }
+      ]
+    },
+    {
+      "case": "no_progress",
+      "outcome": "blocked",
+      "verified": false,
+      "stop_reason": "no_progress",
+      "ticks": 3,
+      "trace": [
+        {
+          "observation_sha256": "ed4589849e0469e9d941580aa9e5fd2847d9b599ab69fa1587cae825c025fd37",
+          "progress": false,
+          "proposed": false,
+          "executed": false,
+          "confidence": null,
+          "stagnant": 0
+        },
+        {
+          "observation_sha256": "ed4589849e0469e9d941580aa9e5fd2847d9b599ab69fa1587cae825c025fd37",
+          "progress": false,
+          "proposed": true,
+          "executed": true,
+          "confidence": 0.9,
+          "stagnant": 1
+        },
+        {
+          "observation_sha256": "ed4589849e0469e9d941580aa9e5fd2847d9b599ab69fa1587cae825c025fd37",
+          "progress": false,
+          "proposed": true,
+          "executed": true,
+          "confidence": 0.9,
+          "stagnant": 2
+        },
+        {
+          "observation_sha256": "ed4589849e0469e9d941580aa9e5fd2847d9b599ab69fa1587cae825c025fd37",
+          "progress": false,
+          "proposed": true,
+          "executed": true,
+          "confidence": 0.9,
+          "stagnant": 3
+        }
+      ]
+    },
+    {
+      "case": "explicit_blocked",
+      "outcome": "blocked",
+      "verified": false,
+      "stop_reason": "agent_blocked",
+      "ticks": 1,
+      "trace": [
+        {
+          "observation_sha256": "ed4589849e0469e9d941580aa9e5fd2847d9b599ab69fa1587cae825c025fd37",
+          "progress": false,
+          "proposed": false,
+          "executed": false,
+          "confidence": null,
+          "stagnant": 0
+        },
+        {
+          "observation_sha256": "ed4589849e0469e9d941580aa9e5fd2847d9b599ab69fa1587cae825c025fd37",
+          "progress": false,
+          "proposed": true,
+          "executed": false,
+          "confidence": 0.9,
+          "stagnant": 0
+        }
+      ]
+    }
+  ],
+  "passed": true,
+  "owned_browser_closed": true
+}
