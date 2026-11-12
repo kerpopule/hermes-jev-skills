@@ -1,0 +1,147 @@
+{
+  "schema": "jev.repair_qualification_v1",
+  "local_checks": [
+    {
+      "checks": [
+        {
+          "name": "package",
+          "exit_code": 0,
+          "seconds": 34.82,
+          "counts": [
+            [
+              "1706",
+              ""
+            ]
+          ]
+        },
+        {
+          "name": "dashboard",
+          "exit_code": 0,
+          "seconds": 2.34,
+          "counts": [
+            [
+              "71",
+              ""
+            ]
+          ]
+        },
+        {
+          "name": "release",
+          "exit_code": 0,
+          "seconds": 0.34,
+          "counts": [
+            [
+              "",
+              "385"
+            ]
+          ]
+        },
+        {
+          "name": "diff",
+          "exit_code": 0,
+          "seconds": 0.02,
+          "counts": []
+        }
+      ],
+      "passed": true,
+      "revision": "45123133261b0dd6557919ef6be91dd3ab85607a",
+      "python": "Python 3.9.6"
+    },
+    {
+      "checks": [
+        {
+          "name": "package",
+          "exit_code": 0,
+          "seconds": 32.77,
+          "counts": [
+            [
+              "1706",
+              ""
+            ]
+          ]
+        },
+        {
+          "name": "dashboard",
+          "exit_code": 0,
+          "seconds": 2.27,
+          "counts": [
+            [
+              "71",
+              ""
+            ]
+          ]
+        },
+        {
+          "name": "release",
+          "exit_code": 0,
+          "seconds": 0.29,
+          "counts": [
+            [
+              "",
+              "385"
+            ]
+          ]
+        },
+        {
+          "name": "diff",
+          "exit_code": 0,
+          "seconds": 0.02,
+          "counts": []
+        }
+      ],
+      "passed": true,
+      "revision": "45123133261b0dd6557919ef6be91dd3ab85607a",
+      "python": "Python 3.11.15"
+    }
+  ],
+  "host_probe": {
+    "schema": "jev.host_protocol_probe_v1",
+    "registered_via_real_plugin_manager": true,
+    "actual_host_resolver": {
+      "glm-5.3-flash": "chat_completions",
+      "deepseek-v4-flash": "chat_completions",
+      "grok-4.7": "codex_responses"
+    },
+    "real_middleware_chain": [
+      {
+        "candidate": "grok-4.7",
+        "effective_model": "glm-5.3-flash",
+        "changed": false
+      },
+      {
+        "candidate": "deepseek-v4-flash",
+        "effective_model": "deepseek-v4-flash",
+        "changed": true
+      }
+    ],
+    "provider_calls": 0,
+    "source_plugin_sha256": "dcb34e25e4fd50a63dc5e29785dacfb2b6b08ccc3a401f7eac217545a7d1e4d7",
+    "not_claimed": [
+      "live provider transport",
+      "live gateway reload",
+      "model semantic accuracy"
+    ]
+  },
+  "actual_guard_removal_rejected": true,
+  "preserved_failure_classes": [
+    "initial missing behavior",
+    "legacy fixture and picker compatibility",
+    "version/changelog invariant",
+    "refused-model notice"
+  ],
+  "source_sha256": {
+    "hermes/plugin/hermes-jev/__init__.py": "dcb34e25e4fd50a63dc5e29785dacfb2b6b08ccc3a401f7eac217545a7d1e4d7",
+    "hermes/plugin/hermes-jev/plugin.yaml": "b11fb0052d08091ed56125d42c39a81f2e39b43aff4929611e051ff284c4b8e8",
+    "jevkit/__init__.py": "1059904b75e69293cae009c2a7bfe4ddcd1b072e3f9c91d7f1b70f6b6d2ed598",
+    "jevkit/skillpick.py": "0ef90e814ea62c51e7b7ea0fbec4a8302146f264e738e55908fe7974f1b28fd9",
+    "jevkit/search.py": "f21566b9504154ed4c59f85e709e3d97153d300697c7deeb5b53253bc099bea0",
+    "jevkit/cli.py": "297433156bea223060fd3fb8863012300c93ed83e0e08d4b965d8c42eb5d6e15",
+    "tests/test_repair_contracts.py": "cc0ce4f1a4741204463585442e309346db0bf2d498b20ecc0efa7b1ab15d9331",
+    "scripts/host_protocol_smoke.py": "1d437085015e5b88f6b77d319bfa4e6615f76017bfb2a46760850d368ea7481c"
+  },
+  "self_review": true,
+  "independent_review": false,
+  "paid_benchmark": false,
+  "public_main_merged": false,
+  "live_modes_changed": false
+}

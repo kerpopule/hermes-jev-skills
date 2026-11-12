@@ -51,11 +51,12 @@ Those are picks and a yes/no. Jev answers them in about half a second for a frac
 
 ## Optional planning before the first search
 
-When sources or freshness are genuinely ambiguous, run `jev search-plan` with
-complete caller-authored plans. It makes at most one bounded decision, never
-invokes an engine, invents a query or enables paid access. A single plan is
-returned locally with zero model calls. For obvious research, skip this extra
-step. Input example:
+When sources or freshness are genuinely ambiguous, validate complete
+caller-authored plans with `jev search-plan`. Planning is **local-only**: one
+plan is returned without inference, while multiple plans return
+`local_planning_required` for the caller to decide. It never sends source
+descriptions or candidate plan queries, invokes an engine, invents a query or
+enables paid access. For obvious research, skip this extra step. Input example:
 
 ```json
 {"question":"What changed in the latest public release?",
@@ -67,11 +68,10 @@ step. Input example:
 
 Only list sources already available and approved for this task. Each plan has
 one to three source IDs and a `time_range` of `any`, `day`, `week`, `month` or
-`year`. Maximum: eight sources, twelve plans. IDs stay local. A multi-plan
-request sends the public question, source descriptions, candidate queries and
-time ranges with privacy screening/redaction; it sends no results. Set
-`"private":true` to prevent that call. `status:unknown`, `plan:null`, low confidence,
-none-suitable or a timeout means the caller must decide; do not silently widen
+`year`. Maximum: eight sources, twelve plans. All fields stay local, including
+source descriptions, candidate queries and time ranges. Redaction cannot infer
+business confidentiality, so there is no remote opt-in in this helper.
+`status:unknown`, `plan:null` means the caller must decide; do not silently widen
 the time window, activate sources or execute a fallback. Returned plans are
 advice, not authority. See [contracts and evidence](https://github.com/kerpopule/hermes-jev-skills/blob/donna/jev-ecosystem-20261027/docs/ecosystem-adoption.md).
 

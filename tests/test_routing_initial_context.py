@@ -20,7 +20,7 @@ class InitialRequestContext(unittest.TestCase):
                 for outgoing in ('user-explicit-model', helpers.DEFAULT):
                     request = {'model': outgoing, 'messages': []}
                     original = dict(request)
-                    result = plugin._on_llm_request(request=request, model=helpers.DEFAULT,
+                    result = helpers._fixture_request(request=request, model=helpers.DEFAULT,
                         provider='openrouter', session_id=mode, turn_id='t1')
                     self.assertIsNone(result)
                     self.assertEqual(request, original)
@@ -33,7 +33,7 @@ class InitialRequestContext(unittest.TestCase):
 
     def test_equivalent_provider_prefix_does_not_block_a_valid_request(self):
         plugin._on_pre_llm_call(session_id='equivalent', turn_id='t1', user_message=helpers.HARD)
-        result = plugin._on_llm_request(request={'model': helpers.DEFAULT, 'messages': []},
+        result = helpers._fixture_request(request={'model': helpers.DEFAULT, 'messages': []},
             model='openrouter:' + helpers.DEFAULT, provider='openrouter', session_id='equivalent', turn_id='t1')
         self.assertEqual(result['request']['model'], 'moonshotai/kimi-k3')
 

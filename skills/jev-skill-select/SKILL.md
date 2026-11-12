@@ -10,6 +10,25 @@ metadata:
 
 # Skill selection with Jev
 
+## Configurable confidence gates
+
+Defaults remain **0.5 need / 0.5 match**. Do not raise them globally based on a
+small catalogue experiment. On Hermes, put `need_threshold` and `match_threshold`
+under `plugins.entries.hermes-jev.settings.skill_selection` using the host's
+supported configuration command. Settings override `JEV_PICK_NEED_THRESHOLD`
+and `JEV_PICK_MATCH_THRESHOLD`; the environment overrides the defaults. Values
+must be finite numbers in [0,1], never booleans; invalid settings produce an
+explicit `invalid_threshold_settings` fail-open log, not a silently clamped value.
+The same values reach standalone and merged-request skill selection. With an
+older bundled picker, unsupported explicit tuning fails open rather than being
+silently ignored. The ordinary agent turn still proceeds.
+
+The CLI accepts `--need-threshold` and `--match-threshold` as explicit overrides;
+invalid values return `invalid_skill_threshold` with exit 2 before inference.
+Offline doctor reports environment/default threshold values, not a claim that
+an already-loaded host adopted new settings. Plugin-relative settings are read
+by the host and can differ from that standalone CLI view.
+
 Two round trips, about 0.5 s on a warm connection (this was ~1.2 s before the connections were pooled — every call used to open a new TLS session). The first round trip ranks every skill against the turn: the catalog is cut into batches of 120 that are asked **side by side**, so a 377-skill catalog is four requests sent at once and a 960-skill one is eight, all landing in the time of the slowest. The second round trip is one request: it reads the top five properly, judges each on its own, and may reject them all. Wall clock and billed requests are not the same number, and it is the requests you pay for: reckon on `ceil(skills / 120) + 1` per turn that reaches Jev. A turn that nothing in the catalog comes close to ends after the first request. Small talk and ordinary turns come back with no skill. Reading the skill folders is extra: about 0.15 s for 460 skills.
 
 **When the plugin also runs model routing, the two share one request.** Jev charges per *request*, not per question, so the plugin asks routing's three questions and this stage-1 question or questions in the same call (`jevkit/turn.py`), then hands the answers to each feature's own thresholds. Both halves are also pooled at the connection level (`client.py` keeps keep-alive sockets; a fresh TLS session per call cost ~275 ms of the ~520 ms a decision used to take). Measured against the live API on 2026-09-21/22 with a 379-skill catalog in this fleet: one question ~180-250 ms on a warm connection, and a full Hermes turn (routing + skill selection, merged, pooled) **1784 ms → 672 ms** — 3 requests down to 2. The decisions do not change — the same answers, the same floors — and eight live turns before shipping gave the same tier and the same skill on all eight. `/jev merge_requests off` puts them back in separate requests. A private profile, a turn that looks sensitive, or routing configured for features-only state never merges, so no text moves that was not moving before.

@@ -27,6 +27,28 @@ DEFAULT = "deepseek/deepseek-v4.1-flash"
 HARD = "The scheduler deadlocks under load. Find the race and propose a fix."
 
 
+def setUpModule():
+    # Existing routing/effort fixtures declare compatible host metadata. Dedicated
+    # protocol tests exercise unknown/mixed modes and the actual host separately.
+    global _wire_patch
+    _wire_patch = mock.patch.object(plugin, '_model_api_mode', return_value='chat_completions')
+    _wire_patch.start()
+
+
+def tearDownModule():
+    _wire_patch.stop()
+
+
+def _fixture_request(*args, **kwargs):
+    request = kwargs.get('request') or {}
+    mode = 'codex_responses' if 'input' in request and 'messages' not in request else 'chat_completions'
+    kwargs.setdefault('api_mode', mode)
+    if mode == 'codex_responses':
+        with mock.patch.object(plugin, '_model_api_mode', return_value=mode):
+            return plugin._on_llm_request(*args, **kwargs)
+    return plugin._on_llm_request(*args, **kwargs)
+
+
 class RoutingMiddlewareTests(unittest.TestCase):
     def setUp(self):
         self.decisions = []
@@ -45,6 +67,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
             mock.patch.object(plugin, "_setting", lambda name, default: "on" if name == "routing" else default),
             mock.patch.object(plugin, "_default_model", lambda: DEFAULT),
             mock.patch.object(plugin, "_log", self.logs.append),
+            mock.patch.object(plugin, "_model_api_mode", return_value='chat_completions'),
             mock.patch.object(plugin.route, "decide", side_effect=fake_decide),
         ):
             patch.start()
@@ -52,7 +75,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
 
     def turn(self, session: str, turn_id: str, model: str):
         plugin._on_pre_llm_call(session_id=session, turn_id=turn_id, user_message=HARD)
-        return plugin._on_llm_request(
+        return _fixture_request(
             request={"messages": [{"role": "user", "content": HARD}], "model": model},
             session_id=session, turn_id=turn_id, model=model, provider="openrouter")
 
@@ -76,7 +99,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
         with mock.patch.object(plugin, "_default_model", lambda: "huihui-qwen38-abli:latest"):
             with mock.patch.object(plugin.route, "load_config", return_value={
                     "provider_aliases": {"custom": "ollama"}}):
-                result = plugin._on_llm_request(
+                result = _fixture_request(
                     request={"model": "huihui-qwen38-abli:latest", "messages": []},
                     session_id="s-tag", turn_id="t1",
                     model="huihui-qwen38-abli:latest", provider="custom")
@@ -91,7 +114,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
         with mock.patch.object(plugin, "_default_model", lambda: "huihui-qwen38-abli:latest"):
             with mock.patch.object(plugin.route, "load_config", return_value={
                     "provider_aliases": {"custom": "ollama"}}):
-                result = plugin._on_llm_request(
+                result = _fixture_request(
                     request={"model": "huihui-qwen38-abli:q6_k", "messages": []},
                     session_id="s-tag-pin", turn_id="t1",
                     model="huihui-qwen38-abli:q6_k", provider="custom")
@@ -103,7 +126,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
         with mock.patch.object(plugin, "_default_model", lambda: "ollama:some-model"):
             with mock.patch.object(plugin.route, "load_config", return_value={
                     "provider_aliases": {"custom": "ollama"}}):
-                plugin._on_llm_request(
+                _fixture_request(
                     request={"model": "some-model:latest", "messages": []},
                     session_id="ollama-latest", turn_id="t1",
                     model="some-model:latest", provider="custom")
@@ -112,7 +135,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
     def test_non_ollama_latest_is_not_equated_to_bare_default(self):
         plugin._on_pre_llm_call(session_id="not-ollama", turn_id="t1", user_message=HARD)
         with mock.patch.object(plugin, "_default_model", lambda: "vendor/model"):
-            result = plugin._on_llm_request(
+            result = _fixture_request(
                 request={"model": "vendor/model:latest", "messages": []},
                 session_id="not-ollama", turn_id="t1",
                 model="vendor/model:latest", provider="openrouter")
@@ -122,7 +145,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
     def test_custom_endpoint_bare_id_matches_vendor_qualified_default(self):
         plugin._on_pre_llm_call(session_id="custom-default", turn_id="t1", user_message=HARD)
         with mock.patch.object(plugin.route, "load_config", return_value={"provider_aliases": {"custom": "tokenharbor"}}):
-            plugin._on_llm_request(request={"model": "deepseek-v4.1-flash", "messages": []},
+            _fixture_request(request={"model": "deepseek-v4.1-flash", "messages": []},
                                    session_id="custom-default", turn_id="t1",
                                    model="custom:deepseek-v4.1-flash", provider="custom")
         self.assertEqual(self.decisions[0]["current"], "tokenharbor:deepseek-v4.1-flash")
@@ -135,7 +158,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
     def test_different_bare_id_remains_pinned_on_custom_endpoint(self):
         plugin._on_pre_llm_call(session_id="custom-pin", turn_id="t1", user_message=HARD)
         with mock.patch.object(plugin.route, "load_config", return_value={"provider_aliases": {"custom": "tokenharbor"}}):
-            plugin._on_llm_request(request={"model": "another-model", "messages": []},
+            _fixture_request(request={"model": "another-model", "messages": []},
                                    session_id="custom-pin", turn_id="t1",
                                    model="another-model", provider="custom")
         self.assertTrue(self.decisions[0]["pinned"])
@@ -157,7 +180,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
 
     def test_a_stale_turn_id_is_ignored(self):
         plugin._on_pre_llm_call(session_id="s6", turn_id="t2", user_message=HARD)
-        result = plugin._on_llm_request(
+        result = _fixture_request(
             request={"messages": [{"role": "user", "content": HARD}], "model": DEFAULT},
             session_id="s6", turn_id="t1", model=DEFAULT, provider="openrouter")
         self.assertIsNone(result)
@@ -172,7 +195,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
                 request = {"model": changed.get("request_model", DEFAULT), "messages": []}
                 original = dict(request)
                 before = len(self.decisions)
-                self.assertIsNone(plugin._on_llm_request(
+                self.assertIsNone(_fixture_request(
                     request=request, session_id="binding", turn_id="t1", **args))
                 self.assertEqual(request, original)
                 self.assertEqual(len(self.decisions), before)
@@ -202,7 +225,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
                     ]:
                         request = {"model": request_model, "messages": []}
                         original = dict(request)
-                        self.assertIsNone(plugin._on_llm_request(
+                        self.assertIsNone(_fixture_request(
                             request=request, session_id="sticky", turn_id="t1", **args))
                         self.assertEqual(request, original)
                         self.assertFalse(self.logs[-1]["applied"])
@@ -217,7 +240,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
 
     def test_endpoint_binding_is_not_logged(self):
         plugin._on_pre_llm_call(session_id="url", turn_id="t1", user_message=HARD)
-        plugin._on_llm_request(request={"model": DEFAULT}, model=DEFAULT,
+        _fixture_request(request={"model": DEFAULT}, model=DEFAULT,
                                provider="openrouter", session_id="url", turn_id="t1",
                                base_url="http://user:private-sentinel@localhost/v1")
         self.assertNotIn("private-sentinel", repr(self.logs))
@@ -228,14 +251,14 @@ class RoutingMiddlewareTests(unittest.TestCase):
                 plugin._on_pre_llm_call(session_id="invalid", turn_id="t1", user_message=HARD)
                 with mock.patch.object(plugin.route, "load_config", return_value={
                         "provider_aliases": {"custom": alias}}):
-                    self.assertIsNone(plugin._on_llm_request(
+                    self.assertIsNone(_fixture_request(
                         request={"model": DEFAULT}, model=DEFAULT, provider="custom",
                         session_id="invalid", turn_id="t1"))
 
     def test_custom_provider_without_mapping_is_not_routed_across_providers(self):
         plugin._on_pre_llm_call(session_id="custom", turn_id="t1", user_message=HARD)
         with mock.patch.object(plugin.route, "load_config", return_value={}):
-            result = plugin._on_llm_request(
+            result = _fixture_request(
                 request={"model": "deepseek-v4-1-flash", "messages": []},
                 session_id="custom", turn_id="t1", model="deepseek-v4-1-flash", provider="custom")
         self.assertIsNone(result)
@@ -245,7 +268,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
     def test_explicit_custom_provider_alias_limits_the_pool(self):
         plugin._on_pre_llm_call(session_id="custom-alias", turn_id="t1", user_message=HARD)
         with mock.patch.object(plugin.route, "load_config", return_value={"provider_aliases": {"custom": "venice"}}):
-            plugin._on_llm_request(
+            _fixture_request(
                 request={"model": "deepseek-v4-1-flash", "messages": []},
                 session_id="custom-alias", turn_id="t1", model="deepseek-v4-1-flash", provider="custom")
         self.assertEqual(self.decisions[0]["only_provider"], "venice")
@@ -254,7 +277,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
     def test_custom_prefixed_model_is_normalised_with_explicit_alias(self):
         plugin._on_pre_llm_call(session_id="custom-prefixed", turn_id="t1", user_message=HARD)
         with mock.patch.object(plugin.route, "load_config", return_value={"provider_aliases": {"custom": "venice"}}):
-            plugin._on_llm_request(request={"model": "custom:deepseek-v4-1-flash", "messages": []},
+            _fixture_request(request={"model": "custom:deepseek-v4-1-flash", "messages": []},
                                    session_id="custom-prefixed", turn_id="t1",
                                    model="custom:deepseek-v4-1-flash", provider="custom")
         self.assertEqual(self.decisions[0]["current"], "venice:deepseek-v4-1-flash")
@@ -274,7 +297,7 @@ class RoutingMiddlewareTests(unittest.TestCase):
         shadow = [x for x in self.logs if x["kind"] == "route_effective"][-1]
         self.assertEqual((shadow["applied"], shadow["effective_request_model"], shadow["decision_model"]),
                          (False, DEFAULT, "openrouter:moonshotai/kimi-k3"))
-        again = plugin._on_llm_request(request={"model": DEFAULT, "messages": []}, session_id="live",
+        again = _fixture_request(request={"model": DEFAULT, "messages": []}, session_id="live",
                                        turn_id="t1", model=DEFAULT, provider="openrouter")
         self.assertEqual(again["request"]["model"], "moonshotai/kimi-k3")
         self.assertFalse([x for x in self.logs if x["kind"] == "route_effective"][-1]["first_request"])
@@ -327,7 +350,7 @@ class EffortMiddlewareTests(unittest.TestCase):
         request = {"messages": [{"role": "user", "content": HARD}], "model": model}
         if request_extra:
             request.update(request_extra)
-        return plugin._on_llm_request(request=request, session_id=session, turn_id=turn_id,
+        return _fixture_request(request=request, session_id=session, turn_id=turn_id,
                                       model=model, provider="openrouter")
 
     def test_off_by_default_leaves_the_request_alone(self):
@@ -368,7 +391,7 @@ class EffortMiddlewareTests(unittest.TestCase):
                         if not responses:
                             request["messages"] = []
                         original = deepcopy(request)
-                        self.assertIsNone(plugin._on_llm_request(
+                        self.assertIsNone(_fixture_request(
                             request=request, session_id="isolation", turn_id="t1", **args))
                         self.assertEqual(request, original)
                         self.assertNotIn("effort", plugin._TURNS["isolation"])
@@ -395,7 +418,7 @@ class EffortMiddlewareTests(unittest.TestCase):
         args = {"model": DEFAULT, "provider": "openrouter", "base_url": ""}
         args.update({k: v for k, v in changes.items() if k not in ("request_model", "turn_id")})
         request = {"model": changes.get("request_model", DEFAULT), "messages": []}
-        return plugin._on_llm_request(request=request, session_id="race",
+        return _fixture_request(request=request, session_id="race",
                                       turn_id=changes.get("turn_id", "t1"), **args)
 
     def test_inflight_router_cannot_publish_after_context_change(self):
@@ -499,7 +522,7 @@ class EffortMiddlewareTests(unittest.TestCase):
         plugin._on_pre_llm_call(session_id=session, turn_id="t1", user_message=HARD)
         request = {"input": [{"role": "user", "content": HARD}], "model": DEFAULT}
         request.update(extra)
-        return plugin._on_llm_request(request=request, session_id=session, turn_id="t1",
+        return _fixture_request(request=request, session_id=session, turn_id="t1",
                                       model=DEFAULT, provider="openrouter")
 
     def test_responses_effort_uses_enabled_nested_object(self):
@@ -544,7 +567,7 @@ class EffortMiddlewareTests(unittest.TestCase):
     def test_followup_disabled_request_does_not_reuse_effort_notice(self):
         self.enable_for()
         self.codex_turn(reasoning={"summary": "auto"})
-        result = plugin._on_llm_request(request={"input": [], "model": DEFAULT},
+        result = _fixture_request(request={"input": [], "model": DEFAULT},
             session_id="responses", turn_id="t1", model=DEFAULT, provider="openrouter")
         self.assertNotIn("reasoning_effort", result["request"])
         self.assertNotIn("effort", plugin._TURNS["responses"])
@@ -588,7 +611,7 @@ class EffortMiddlewareTests(unittest.TestCase):
     def test_pinned_model_requires_its_own_capability(self):
         self.enable_for(model="other/model")
         plugin._on_pre_llm_call(session_id="pin", turn_id="t1", user_message=HARD)
-        result = plugin._on_llm_request(
+        result = _fixture_request(
             request={"messages": [{"role": "user", "content": HARD}], "model": "other/model"},
             session_id="pin", turn_id="t1", model="other/model", provider="openrouter")
         self.assertEqual(result["request"]["model"], "other/model")
@@ -643,7 +666,7 @@ class MergedRequestTests(unittest.TestCase):
 
     def call(self, session="s-merge", turn_id="t1"):
         plugin._on_pre_llm_call(session_id=session, turn_id=turn_id, user_message=HARD)
-        return plugin._on_llm_request(request={"messages": [{"role": "user", "content": HARD}]},
+        return _fixture_request(request={"messages": [{"role": "user", "content": HARD}]},
                                       session_id=session, turn_id=turn_id, model=DEFAULT, provider="openrouter")
 
     def test_the_merged_answers_are_what_routing_acts_on(self):

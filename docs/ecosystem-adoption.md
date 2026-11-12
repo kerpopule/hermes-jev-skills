@@ -18,7 +18,10 @@ was added. Playwright is optional for the Chromium smoke test only.
 - **Jev Search**, [source snapshot](https://github.com/superagents-lab/jev-search/tree/1bfe835e8b4320444a5304043243d4e96ed278b7), MIT.
   Reuse: decide sources and freshness before retrieval; distinguish failed
   sources from genuine empty results; merge duplicate URLs with provenance.
-  `jev search-plan` selects only caller-authored complete query/source/time plans.
+  `jev search-plan` validates caller-authored complete query/source/time plans
+  locally. One plan is returned code-first; multiple plans remain with the caller
+  (`local_planning_required`). No planning descriptions or candidate queries leave
+  the machine. This replaces the original experimental remote selection path.
   `jev search-merge` groups locally; `jev search` with `source_batches` screens
   every offered variant before producing a deduplicated reading list. A flagged,
   clipped or unread duplicate withholds its companions, including overflow beyond

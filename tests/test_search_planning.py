@@ -13,13 +13,14 @@ def request():
 
 
 class PlanningTests(unittest.TestCase):
-    def test_closed_plan_selection_returns_only_caller_query_sources_and_time(self):
+    def test_multiple_plans_return_to_caller_without_remote_selection(self):
         with patch('jevkit.search.client.ask', return_value={'answers': {'plan': {
             'choice': 'p1', 'confidence': .9}}}) as ask:
             out = search.plan_sources(request())
-        self.assertEqual(out['plan'], request()['plans'][1])
-        self.assertEqual(out['status'], 'ok')
-        self.assertEqual(ask.call_count, 1)
+        self.assertIsNone(out['plan'])
+        self.assertEqual(out['status'], 'unknown')
+        self.assertEqual(out['reason'], 'local_planning_required')
+        ask.assert_not_called()
         self.assertFalse(out['executed'])
 
 
@@ -44,7 +45,7 @@ class PlanningTests(unittest.TestCase):
         self.assertEqual(result['reason'], 'single_caller_plan')
         self.assertFalse(result['executed'])
 
-    def test_wire_transport_and_unknown_reply_are_validated(self):
+    def test_transport_is_unused_for_local_planning(self):
         import json
         import os
         from jevkit import client, keystore
@@ -56,8 +57,8 @@ class PlanningTests(unittest.TestCase):
             return json.dumps({'answers': {'plan': choice_answer(req['questions']['plan'], 'p0', confidence=.9)}}).encode()
         with patch.object(keystore, 'resolve', return_value='fixture-key'), patch.dict(os.environ, {'JEV_PROVIDER': 'typesafe'}):
             out = search.plan_sources(request(), transport=transport)
-        self.assertEqual(out['plan'], request()['plans'][0])
-        self.assertEqual(len(requests), 1)
+        self.assertIsNone(out['plan'])
+        self.assertEqual(len(requests), 0)
         self.assertNotIn('"docs"', json.dumps(requests))
         self.assertNotIn('"recent"', json.dumps(requests))
 

@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from . import __version__, catalog, choose, cli_decide, cli_lane, client, compact, key_setup, keystore, ladder, mailbox, memo, plan, rerank, replay, route, search, skillpick, spend, supervise, triage
+from . import __version__, catalog, choose, cli_decide, cli_lane, client, compact, key_setup, keystore, ladder, mailbox, memo, plan, rerank, replay, route, search, skillpick, spend, supervise, switches, triage
 
 
 def _stdin_json() -> Any:
@@ -184,6 +184,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             report["jev"] = {"reachable": False, "error": error.code}
     config = route.load_config()
     report["routing"] = {"config": str(route.config_path()),
+                         "state_mode": switches.state().get('routing', 'not_configured'),
+                         "loaded_runtime": 'unverified',
                          # This is the PRIVACY mode (what is sent), not the on/shadow/off
                          # switch. They were both called "mode" and it read as the answer
                          # to "is routing on?", which it has never been.
@@ -196,6 +198,10 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             report["routing"]["warnings"] = [f"the routing checks could not run ({type(error).__name__}); "
                                              f"the pools were NOT checked. Look at {route.config_path()}."]
     report["hermes_home"] = str(catalog.hermes_home()) if catalog.hermes_home().is_dir() else None
+    try:
+        report['skill_thresholds'] = skillpick.resolve_thresholds()
+    except ValueError as error:
+        report['skill_thresholds'] = {'error': 'invalid_skill_threshold', 'detail': str(error)}
     _out(report)
     # Only a missing key fails doctor. The routing findings are warnings about cost: an
     # install script that gates on this exit code must not fail because a pool is pricey.
@@ -253,7 +259,13 @@ def cmd_compact(args: argparse.Namespace) -> int:
 
 def cmd_pick_skill(args: argparse.Namespace) -> int:
     turn = args.turn if args.turn is not None else _stdin_json()["turn"]
-    return _out(skillpick.pick(turn, skillpick.discover(_skill_roots(args.root)), top_k=args.top_k))
+    try:
+        return _out(skillpick.pick(turn, skillpick.discover(_skill_roots(args.root)), top_k=args.top_k,
+                                  need_threshold=getattr(args, 'need_threshold', None),
+                                  match_threshold=getattr(args, 'match_threshold', None)))
+    except ValueError as error:
+        _out({'error': 'invalid_skill_threshold', 'detail': str(error)})
+        return 2
 
 
 def cmd_choose(args: argparse.Namespace) -> int:
@@ -818,6 +830,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_compact)
 
     p = sub.add_parser("pick-skill", help="which skill, if any, this turn needs")
+    p.add_argument('--need-threshold', type=float, default=None)
+    p.add_argument('--match-threshold', type=float, default=None)
     p.add_argument("--turn")
     p.add_argument("--root", action="append", default=[])
     p.add_argument("--top-k", type=int, default=3)

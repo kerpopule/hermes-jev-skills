@@ -10,6 +10,23 @@ metadata:
 
 # Model routing with Jev
 
+## Protocol compatibility is mandatory
+
+The host supplies the active `api_mode`. Before any model swap, the plugin asks
+the host's own model-derived protocol resolver whether the target uses that same
+wire. Same-provider membership alone is not enough: some providers serve Chat
+Completions, Responses and Messages models under one namespace. A missing host
+resolver/active mode or unknown capability logs `protocol_unknown`; a mismatch
+logs `protocol_incompatible`. Both retain the original model **and effort**.
+The plugin never changes transports, probes credentials or maintains a guessed
+model-name allowlist. An active-protocol change also invalidates the turn's
+cached decision, including an A → B → A return.
+
+Custom aliases only limit the candidate pool; they do not attest a wire. A
+generic `custom` endpoint therefore retains its model until the host can supply
+trustworthy transport capability. Do not bypass this by pretending the relay
+is another provider or by enabling routing blindly. Existing modes stay put.
+
 Jev reads a turn and answers three questions in one ~0.4 s request: how hard is it, what kind of work is it, and would a mistake be costly. Code then walks your pool for that tier and specialty and takes the first model that fits (images, context size). You do not pick models by feel; you ask.
 
 ## On Hermes it is automatic

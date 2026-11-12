@@ -8,6 +8,7 @@ the right one.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -369,9 +370,31 @@ def looks_trivial(turn: str) -> bool:
 
 # ── ranking ──────────────────────────────────────────────────────────────────
 
+def resolve_thresholds(settings=None, environ=None) -> Dict[str, float]:
+    """Explicit settings > environment > unchanged defaults; invalid values are errors."""
+    settings = {} if settings is None else settings
+    environ = os.environ if environ is None else environ
+    if not isinstance(settings, Mapping):
+        raise ValueError('Skill threshold settings must be a mapping')
+    result = {}
+    for name, env in (('need_threshold', 'JEV_PICK_NEED_THRESHOLD'),
+                      ('match_threshold', 'JEV_PICK_MATCH_THRESHOLD')):
+        value = settings[name] if name in settings else environ.get(env, .5)
+        if type(value) not in (int, float, str):
+            raise ValueError(name + ' must be a finite number in [0, 1]')
+        try:
+            number = float(value)
+        except (ValueError, OverflowError):
+            raise ValueError(name + ' must be a finite number in [0, 1]') from None
+        if not math.isfinite(number) or not 0 <= number <= 1:
+            raise ValueError(name + ' must be a finite number in [0, 1]')
+        result[name] = number
+    return result
+
+
 def pick(
-    turn: str, skills: List[Dict[str, str]], *, top_k: int = 3, need_threshold: float = 0.5,
-    match_threshold: float = 0.5, timeout: float = 5.0, transport: Optional[client.Transport] = None,
+    turn: str, skills: List[Dict[str, str]], *, top_k: int = 3, need_threshold: Optional[float] = None,
+    match_threshold: Optional[float] = None, timeout: float = 5.0, transport: Optional[client.Transport] = None,
     stage_one: Optional[Mapping[int, Mapping[str, float]]] = None, stage_one_latency: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Which skill, if any, this turn needs.
@@ -380,6 +403,9 @@ def pick(
     request that answered routing's questions, through `jevkit/turn.py`. Everything after
     stage 1, including the stage-2 verification and its thresholds, is unchanged.
     """
+    explicit = {k: v for k, v in (('need_threshold', need_threshold), ('match_threshold', match_threshold)) if v is not None}
+    thresholds = resolve_thresholds(explicit)
+    need_threshold, match_threshold = thresholds['need_threshold'], thresholds['match_threshold']
     skills = [skill for skill in skills if skill.get("name") not in META_SKILLS]
     if looks_trivial(turn):
         return {"status": "ok", "needs_skill": 0.0, "skills": [], "latency_ms": 0, "skipped": "trivial"}

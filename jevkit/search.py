@@ -115,22 +115,10 @@ def plan_sources(request: Mapping[str, Any], *, timeout=3.0, transport=None) -> 
         return {**result, 'reason': 'private_or_sensitive_not_sent'}
     if len(local) == 1:
         return {**result, 'status': 'ok', 'plan': local['p0'], 'reason': 'single_caller_plan'}
-    safe_table = {key: privacy.redact(value, 1200) for key, value in table.items()}
-    try:
-        result['jev_called'] = True
-        reply = client.ask({'question': privacy.redact(question, 1500)}, {'plan': client.choice(
-            'Which offered search plan best fits the question, including freshness and authoritative sources? '
-            'Choose none when none is suitable. This is advice, not permission to execute.', safe_table)},
-            timeout=timeout, retries=0, transport=transport)
-        answer = reply['answers']['plan']
-        picked, confidence = answer['choice'], answer['confidence']
-        if (picked not in table or type(confidence) not in (int, float)
-                or not math.isfinite(confidence) or not .65 <= confidence <= 1):
-            return {**result, 'reason': 'unusable_or_low_confidence'}
-        return {**result, 'status': 'ok', 'plan': local.get(picked),
-                'confidence': confidence, 'reason': 'none_suitable' if picked == 'none' else 'chosen'}
-    except (client.JevError, KeyError, TypeError, ValueError):
-        return {**result, 'reason': 'jev_unavailable_or_unusable'}
+    # Plans contain arbitrary caller-authored business context. Redaction is not
+    # confidentiality classification: never send descriptions/queries to a model.
+    # Retain the caller's decision instead of inventing a remote opt-in here.
+    return {**result, 'reason': 'local_planning_required'}
 
 
 def _canonical_url(raw):
