@@ -29,7 +29,9 @@ That is what [Jev](https://docs.typesafe.ai) is. It is TypeSafe's decision model
 | **[Blender](docs/blender.md)** | Default code-first checks and execution selection; bounded read-only Jev advice only for unclear expensive probes | Local gates; optional advice capped at 1 s |
 | **[Video QA](docs/video-qa.md)** | Default local-first, authorized-image triage, mandatory audits and privacy/full-review fallback; never final acceptance | The broader 33-frame synthetic holdout yielded no confident clears, so no general review-time saving is established |
 
-Thirteen skills ship as plain `SKILL.md` files, so they are not Hermes-only. The same folder works in Claude Code, Codex, or anything that reads a skill file.
+The [optional Pomerado companion](companions/POMERADO.md) runs separately installed, source-reviewed saved integrations. It is default-off, never mints or inherits model keys, and does not replace browser tools or Jev. Host-code risk must be explicitly acknowledged; it is not a sandbox.
+
+Fourteen skills ship as plain `SKILL.md` files, so they are not Hermes-only. The same folder works in Claude Code, Codex, or anything that reads a skill file.
 
 ```bash
 jev mail --file inbox.json             # sort a mailbox into lanes
@@ -141,7 +143,7 @@ Safety rails that do not depend on Jev being right:
 
 ```
 jevkit/            the library and the `jev` command (stdlib only)
-skills/            thirteen SKILL.md skills, agent-agnostic
+skills/            fourteen SKILL.md skills, agent-agnostic
 hermes/plugin/     the Hermes plugin
 router-dashboard/  the model routing page (`jev dashboard`)
 install.py         installer / uninstaller

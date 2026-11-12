@@ -1,0 +1,23 @@
+{
+  "entrypoint": "src/read.mjs",
+  "files": [
+    "src/read.mjs"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "heading": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "heading"
+    ],
+    "additionalProperties": false
+  }
+}
