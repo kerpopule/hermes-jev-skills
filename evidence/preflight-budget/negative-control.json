@@ -1,0 +1,9 @@
+{
+  "schema": "jev.preflight_negative_control_v1",
+  "exact_committed_baseline_sha256": "dcb34e25e4fd50a63dc5e29785dacfb2b6b08ccc3a401f7eac217545a7d1e4d7",
+  "baseline_rejected": true,
+  "rejection": "held callback exceeded two-second native-dispatch assertion",
+  "baseline_exit": 1,
+  "canonical_installed_source_unchanged": true,
+  "provider_calls": 0
+}

@@ -1,0 +1,9 @@
+{
+  "tests": 1714,
+  "seconds": 37.002,
+  "result": "OK",
+  "raw_log_sha256": "d4cd7500da55ec00e0eda12010709f55770c7b52dd574a7e6fa030182d16ed58",
+  "release_text_scan_passed": true,
+  "binary_scan_exclusion": "56 pre-existing binary assets; no new or modified binary",
+  "diff_check": "passed"
+}

@@ -1,0 +1,17 @@
+{
+  "schema": "jev.preflight_host_v1",
+  "real_plugin_manager": true,
+  "native_hook_dispatch": true,
+  "held_seconds": 1.5966,
+  "held_work_outlived_return": true,
+  "late_turn_state_unchanged": true,
+  "plugin_sha256": "36ccb4c6ff13276d9582caca0e4f030ae5e6af53e91038d5443ff6a987633003",
+  "preflight_sha256": "b2ad698b04f8ce3fe019bd6e165ed7dca15a6e8e708a5938e0aa83e9d173268b",
+  "live_public_text_inference": {
+    "performed": true,
+    "seconds": 0.2436,
+    "selection_status": "ok",
+    "suggestion_returned": true
+  },
+  "gateway_reload_claimed": false
+}

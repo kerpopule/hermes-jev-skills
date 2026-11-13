@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bound optional Hermes pre-call skill discovery, merged decisions and reachability checks to a 1.5-second wait with six outstanding callbacks and no queue. Preserve ContextVars, ignore late results, retain original model/routing behavior, and skip contended optional feedback locks. Direct Jev tools retain their existing transport budgets. This is not a claim of gateway reload or endurance qualification.
+
 ## 0.25.4
 
 Development candidate; no release tag, public-main merge or policy-mode promotion is implied.

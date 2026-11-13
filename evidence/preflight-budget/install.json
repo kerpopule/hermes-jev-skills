@@ -1,0 +1,8 @@
+{
+  "schema": "jev.preflight_install_v1",
+  "managed_files_match": 136,
+  "unchanged_config_hashes": 47,
+  "scope": "root-only; existing profile links untouched",
+  "warnings": [],
+  "gateway_reloaded": false
+}

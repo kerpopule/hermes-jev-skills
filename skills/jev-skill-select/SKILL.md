@@ -63,6 +63,18 @@ That is 115 repeats and 294 declined offers removed, at the cost of 8 loads. A l
 
 ## Diagnosing fail-open
 
+The optional Hermes pre-call selector waits at most 1.5 seconds for discovery,
+merged inference, selection and loader reachability together. A content-free
+`preflight` entry reports `timeout`, `busy` or `error`; this is not a negative
+skill verdict. At most six callbacks run without a queue. An already-started
+transport may finish under its existing timeout, but late results never update
+turn routing, emit suggestions or record feedback. Thread ContextVars follow the
+calling profile. Contended optional feedback locks are skipped, not waited on.
+Direct Jev tools and explicit CLI calls keep their existing budgets and privacy
+rules; do not reduce selection thresholds to hide slow dependencies. Installing
+these files is not proof an already-running gateway loaded them. Qualify fresh
+host loading, normal inference, held work and late-result isolation separately.
+
 The local `skill` decision-log entry now includes a bounded `reason_code`: `no_skills`, `sensitive_turn`, `stage_one_incomplete`, a recognized transport/validation code such as `timeout` or `invalid_response`, or `other`. Success records use null. Arbitrary reason text, prompts and raw exception messages are not logged. Separate intentional privacy/catalog skips from service failures before changing budgets or thresholds. Older records without this field cannot establish the cause retrospectively; keep them in an unknown bucket rather than guessing. A fail-open remains silence, not a negative skill verdict.
 
 ## Asking directly (any agent)

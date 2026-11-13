@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from .jevkit import catalog, choose, compact, effort, keystore, ladder, rerank, route, search, skillpick, supervise, turn, webscreen
-from .jevkit import cloud_vision, decide as policy_engine, evaluate, gate, omni_vision, policy as policies, route_to, shadowq, switches
+from .jevkit import cloud_vision, decide as policy_engine, evaluate, gate, omni_vision, policy as policies, preflight, route_to, shadowq, switches
 
 _LOCK = threading.Lock()
 _TURNS: Dict[str, Dict[str, Any]] = {}      # session_id -> the current turn's text and decision
@@ -239,41 +239,50 @@ def _on_pre_llm_call(session_id: str = "", turn_id: Any = None, user_message: An
         except ValueError:
             _log({'kind': 'skill', 'status': 'fail_open', 'reason_code': 'invalid_threshold_settings', 'picked': []})
             return None
-    skills = skillpick.discover(_skill_roots(), disabled=_disabled_skills()) if skills_on else []
-    picked = None
-    if skills_on and routing_on and _setting("merge_requests", "on") == "on":
-        # One request buys both decisions: routing's three questions and skill selection's
-        # stage 1. Measured 2026-09-21 on a 379-skill catalog: 540 ms + 647 ms separately,
-        # 620 ms together, because Jev charges per request and not per question.
-        merged = turn.decide_turn(text, skills, profile=_profile())
-        if merged.get("status") == "ok":
-            with _LOCK:
-                record = _TURNS.get(session_id or "-")
-                if record is not None:
-                    record["route_answers"] = merged["route_answers"]
-            picked = skillpick.pick(text, skills, top_k=1, **thresholds, stage_one=merged["stage_one"],
-                                    stage_one_latency=merged.get("latency_ms"))
-            _log({"kind": "merged", "status": "ok", "latency_ms": merged.get("latency_ms"),
-                  "picked": [s["name"] for s in picked.get("skills", [])]})
-        elif merged.get("status") == "fail_open":
-            # Jev did not answer. Nothing is stored and routing asks on its own rather than
-            # the turn losing its routing decision to somebody else's failed request.
-            _log({"kind": "merged", "status": "fail_open", "reason": merged.get("reason")})
-            return None
+    if not skills_on:
+        return None
+    merge_on = routing_on and _setting("merge_requests", "on") == "on"
+
+    def select():
+        # Data only. A timed-out worker must never mutate a later turn, log a
+        # suggestion as shown, or touch feedback. ContextVars are copied by run().
+        skills = skillpick.discover(_skill_roots(), disabled=_disabled_skills())
+        merged = turn.decide_turn(text, skills, profile=_profile()) if merge_on else None
+        if merged and merged.get("status") == "fail_open":
+            return merged, None, None
+        if merged and merged.get("status") == "ok":
+            picked = skillpick.pick(text, skills, top_k=1, **thresholds,
+                                    stage_one=merged["stage_one"], stage_one_latency=merged.get("latency_ms"))
         else:
-            # `not_mergeable` is the privacy boundary: those turns keep the two calls they had.
-            _log({"kind": "merged", "status": merged.get("status"), "reason": merged.get("reason")})
-    if picked is None:
-        if not skills_on:
+            # Includes the existing not_mergeable privacy boundary.
+            picked = skillpick.pick(text, skills, top_k=1, **thresholds)
+        candidates = picked.get("skills") or []
+        resolved = _reachable_skill(candidates[0]["name"]) if candidates else None
+        return merged, picked, resolved
+
+    status, result = preflight.run(select)
+    if status != "ok":
+        _log({"kind": "preflight", "status": "fail_open", "reason_code": status})
+        return None
+    merged, picked, resolved = result
+    with _LOCK:
+        record = _TURNS.get(session_id or "-")
+        if record is None or record.get("turn_id") != turn_id:
             return None
-        picked = skillpick.pick(text, skills, top_k=1, **thresholds)
+        if merged and merged.get("status") == "ok":
+            record["route_answers"] = merged["route_answers"]
+    if merged:
+        _log({"kind": "merged", "status": merged.get("status"),
+              "latency_ms": merged.get("latency_ms"),
+              "picked": [s["name"] for s in (picked or {}).get("skills", [])]})
+    if picked is None:
+        return None
     _log({"kind": "skill", "status": picked.get("status"), "needs_skill": picked.get("needs_skill"),
           "picked": [s["name"] for s in picked.get("skills", [])], "latency_ms": picked.get("latency_ms"),
           "reason_code": _skill_failure_code(picked)})
     if not picked.get("skills"):
         return None
     skill = picked["skills"][0]
-    resolved = _reachable_skill(skill["name"])
     if not resolved:
         _log({"kind": "skill_unreachable", "candidate": skill["name"], "status": picked.get("status")})
         return None
@@ -338,7 +347,9 @@ def _feedback_update(change: Any) -> Any:
             try:
                 import fcntl
 
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return None  # optional feedback must never wait behind another turn
             except (ImportError, OSError):
                 pass
             data = _read(path)
