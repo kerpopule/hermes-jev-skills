@@ -445,7 +445,7 @@ def _backup(path: Path) -> str:
 
 
 def install_claude(claude: Path, check: bool, with_block: bool = True) -> Dict[str, object]:
-    """Lane subagents into <claude>/agents and the lanes block into <claude>/CLAUDE.md.
+    """Lane subagents into the Claude directory's agents folder, and the lanes block into its CLAUDE.md.
 
     Additive and removable: an agent file of the same name that this installer did not write is
     left alone and reported; CLAUDE.md is backed up before any change, and only the text between

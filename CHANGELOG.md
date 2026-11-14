@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Clarify the Claude installer docstring so Hermes doesn't mistake a path placeholder for shell redirection.
+
 ## 0.25.3 (2026-11-12)
 
 Released by the daily Jev steward: 3 commit(s) on main since v0.25.2.
