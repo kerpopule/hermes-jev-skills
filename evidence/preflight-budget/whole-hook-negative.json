@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "variant": "old-source",
+      "source_sha256": "36ccb4c6ff13276d9582caca0e4f030ae5e6af53e91038d5443ff6a987633003",
+      "exit_code": 1,
+      "checks": 2
+    },
+    {
+      "variant": "restored-candidate",
+      "source_sha256": "86daf41482f0b2917818984006424acb444f0b5c1db74091ffabd0965740c0e6",
+      "exit_code": 0,
+      "checks": 2
+    }
+  ],
+  "owned_fixture_removed": true,
+  "live_gateway_mutated": false
+}

@@ -220,13 +220,22 @@ def _on_pre_llm_call(session_id: str = "", turn_id: Any = None, user_message: An
     with _LOCK:
         if len(_TURNS) >= _MAX_SESSIONS:
             _TURNS.pop(next(iter(_TURNS)))
-        _TURNS[session_id or "-"] = {"turn_id": turn_id, "text": text, "decision": None, "route_answers": None}
+        current = {"turn_id": turn_id, "text": text, "decision": None, "route_answers": None}
+        _TURNS[session_id or "-"] = current
     if not text.strip():
         return None
-    skills_on = _setting("skills", "off") == "on"
-    routing_on = _setting("routing", "off") in ("on", "shadow")
-    thresholds = {}
-    if skills_on:
+    # One deadline covers settings, catalog/provider reads AND optional I/O.
+    # Only the foreground applies a selection. Slow diagnostics may finish later,
+    # but cannot create a selection or publish pending feedback into a newer turn.
+    deadline = time.monotonic() + preflight.WAIT_SECONDS
+    session = session_id or "-"
+
+    def select():
+        events = []
+        if _setting("skills", "off") != "on":
+            return None, None, None, False, None, events
+        routing_on = _setting("routing", "off") in ("on", "shadow")
+        thresholds = {}
         try:
             settings = _CTX.get_config('skill_selection', {}) if _CTX is not None else {}
             if not isinstance(settings, dict):
@@ -237,70 +246,72 @@ def _on_pre_llm_call(session_id: str = "", turn_id: Any = None, user_message: An
             else:
                 thresholds = _RESOLVE_THRESHOLDS(settings)
         except ValueError:
-            _log({'kind': 'skill', 'status': 'fail_open', 'reason_code': 'invalid_threshold_settings', 'picked': []})
-            return None
-    if not skills_on:
-        return None
-    merge_on = routing_on and _setting("merge_requests", "on") == "on"
-
-    def select():
-        # Data only. A timed-out worker must never mutate a later turn, log a
-        # suggestion as shown, or touch feedback. ContextVars are copied by run().
+            events.append({'kind': 'skill', 'status': 'fail_open', 'reason_code': 'invalid_threshold_settings', 'picked': []})
+            return None, None, None, False, None, events
+        merge_on = routing_on and _setting("merge_requests", "on") == "on"
         skills = skillpick.discover(_skill_roots(), disabled=_disabled_skills())
         merged = turn.decide_turn(text, skills, profile=_profile()) if merge_on else None
         if merged and merged.get("status") == "fail_open":
-            return merged, None, None
+            return merged, None, None, False, None, events
         if merged and merged.get("status") == "ok":
             picked = skillpick.pick(text, skills, top_k=1, **thresholds,
                                     stage_one=merged["stage_one"], stage_one_latency=merged.get("latency_ms"))
         else:
-            # Includes the existing not_mergeable privacy boundary.
             picked = skillpick.pick(text, skills, top_k=1, **thresholds)
         candidates = picked.get("skills") or []
         resolved = _reachable_skill(candidates[0]["name"]) if candidates else None
-        return merged, picked, resolved
+        feedback = bool(resolved) and _setting("skill_feedback", "on") == "on"
+        why = _feedback_suppressed(_bare(resolved)) if feedback else None
+        return merged, picked, resolved, feedback, why, events
 
-    status, result = preflight.run(select)
+    status, result = preflight.run(select, timeout=max(0.0, deadline - time.monotonic()))
     if status != "ok":
-        _log({"kind": "preflight", "status": "fail_open", "reason_code": status})
+        # Admission is bounded and this optional diagnostic gets no extra wait.
+        # It contains no prompt/selection and cannot mutate later turn state.
+        preflight.run(lambda: _log({"kind": "preflight", "status": "fail_open", "reason_code": status}), timeout=0)
         return None
-    merged, picked, resolved = result
+    merged, picked, resolved, feedback, why, events = result
     with _LOCK:
-        record = _TURNS.get(session_id or "-")
-        if record is None or record.get("turn_id") != turn_id:
+        if _TURNS.get(session) is not current:
             return None
         if merged and merged.get("status") == "ok":
-            record["route_answers"] = merged["route_answers"]
+            current["route_answers"] = merged["route_answers"]
+        already = bool(resolved) and _bare(resolved) in _LOADED.get(session, ())
     if merged:
-        _log({"kind": "merged", "status": merged.get("status"),
-              "latency_ms": merged.get("latency_ms"),
-              "picked": [s["name"] for s in (picked or {}).get("skills", [])]})
-    if picked is None:
-        return None
-    _log({"kind": "skill", "status": picked.get("status"), "needs_skill": picked.get("needs_skill"),
-          "picked": [s["name"] for s in picked.get("skills", [])], "latency_ms": picked.get("latency_ms"),
-          "reason_code": _skill_failure_code(picked)})
-    if not picked.get("skills"):
-        return None
-    skill = picked["skills"][0]
-    if not resolved:
-        _log({"kind": "skill_unreachable", "candidate": skill["name"], "status": picked.get("status")})
-        return None
+        events.append({"kind": "merged", "status": merged.get("status"),
+                       "latency_ms": merged.get("latency_ms"),
+                       "picked": [s["name"] for s in (picked or {}).get("skills", [])]})
+    context = None
     name = _bare(resolved)
-    session = session_id or "-"
-    with _LOCK:
-        already = name in _LOADED.get(session, ())
-    if already:
-        _log({"kind": "skill_repeat", "candidate": name})
-        return None
-    if _setting("skill_feedback", "on") == "on":
-        why = _feedback_suppressed(name)
-        if why:
-            _log({"kind": "skill_suppressed", "candidate": name, "reason": why})
-            return None
-        _feedback_shown(session, name)
-    return {"context": f"[Jev skill suggestion] `{resolved}` looks like the right procedure for this turn "
-                       f"(match {skill['match']}). Load it with skill_view before starting, unless it clearly does not apply."}
+    if picked is not None:
+        events.append({"kind": "skill", "status": picked.get("status"), "needs_skill": picked.get("needs_skill"),
+                       "picked": [s["name"] for s in picked.get("skills", [])], "latency_ms": picked.get("latency_ms"),
+                       "reason_code": _skill_failure_code(picked)})
+        candidates = picked.get("skills") or []
+        if candidates:
+            skill = candidates[0]
+            if not resolved:
+                events.append({"kind": "skill_unreachable", "candidate": skill["name"], "status": picked.get("status")})
+            elif already:
+                events.append({"kind": "skill_repeat", "candidate": name})
+            elif why:
+                events.append({"kind": "skill_suppressed", "candidate": name, "reason": why})
+            else:
+                context = {"context": f"[Jev skill suggestion] `{resolved}` looks like the right procedure for this turn "
+                                      f"(match {skill['match']}). Load it with skill_view before starting, unless it clearly does not apply."}
+
+    def record():
+        for entry in events:
+            _log(entry)
+        if context is not None and feedback:
+            _feedback_shown(session, name, turn_record=current)
+
+    remaining = deadline - time.monotonic()
+    if remaining > 0:
+        # Same bounded admission, no queue, and only the remaining total budget.
+        # A completed selection stays useful if its optional audit write is slow.
+        preflight.run(record, timeout=remaining)
+    return context
 
 
 # ── skill suggestions that earn their place ──────────────────────────────────
@@ -392,7 +403,7 @@ def _feedback_suppressed(name: str) -> Optional[str]:
     return answer[0] if answer else None
 
 
-def _feedback_shown(session: str, name: str) -> None:
+def _feedback_shown(session: str, name: str, *, turn_record: Any = None) -> None:
     token = f"{time.time():.6f}-{os.getpid()}"
 
     def change(skills: Dict[str, Any], now: float) -> bool:
@@ -403,8 +414,15 @@ def _feedback_shown(session: str, name: str) -> None:
         return True
     if _feedback_update(change):
         with _LOCK:
-            _bounded(_PENDING, session)
-            _PENDING[session] = {"skill": name, "token": token}
+            accepted = turn_record is not None and name in _LOADED.get(session, ())
+            is_current = turn_record is None or _TURNS.get(session) is turn_record
+            if is_current and not accepted:
+                _bounded(_PENDING, session)
+                _PENDING[session] = {"skill": name, "token": token}
+        # A tool may have loaded it while this optional disk write was held.
+        # Settle the actual outcome without overwriting a newer pending token.
+        if accepted:
+            _feedback_accepted(name, token)
 
 
 def _feedback_accepted(name: str, token: str) -> None:

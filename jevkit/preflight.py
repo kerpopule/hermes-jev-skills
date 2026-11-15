@@ -1,6 +1,9 @@
 """Bound optional pre-call work without queueing or applying late results.
 
-The callback must return data only: never publish turn state or feedback from it.
+Selection callbacks must return data only: never publish turn state or feedback
+from a late selection. Optional bookkeeping for a committed timely suggestion
+may use the same admission with the remaining deadline, provided any pending
+publication is turn-identity guarded. Zero-wait diagnostics are best effort.
 Provider transports retain their own timeouts. Already-running requests cannot be
 cancelled by Python; at most six outstanding callbacks are admitted, without a queue.
 """

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Extend the same 1.5-second pre-call deadline across settings, feedback reads and optional logging/feedback writes, not just selection. A timely suggestion can survive slow optional bookkeeping. Late bookkeeping cannot replace a newer turn's pending suggestion, including reused turn IDs, and a load arriving before disk commit is retained. Native held-I/O regressions reproduce the old surrounding-I/O timeout hole; fresh-process qualification is not live gateway adoption or endurance proof.
+
 - Bound optional Hermes pre-call skill discovery, merged decisions and reachability checks to a 1.5-second wait with six outstanding callbacks and no queue. Preserve ContextVars, ignore late results, retain original model/routing behavior, and skip contended optional feedback locks. Direct Jev tools retain their existing transport budgets. This is not a claim of gateway reload or endurance qualification.
 
 ## 0.25.4

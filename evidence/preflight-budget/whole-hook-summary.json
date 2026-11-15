@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "tests": 1721,
+  "seconds": 41.652,
+  "outcome": "OK",
+  "full_log_sha256": "df80d3864342cd952d24d12a2e81c5d90478fb017e9341db0e5c05d270504c3f",
+  "managed_files_match": 164,
+  "configuration_hashes_unchanged": 48,
+  "backup_retained": true,
+  "source_and_root_install_equal": true,
+  "gateway_restart": false,
+  "running_gateway_adoption_proven": false,
+  "full_48h_acceptance": false
+}

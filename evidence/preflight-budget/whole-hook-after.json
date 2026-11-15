@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "qualification": "repaired-surrounding-io",
+  "source_sha256": "86daf41482f0b2917818984006424acb444f0b5c1db74091ffabd0965740c0e6",
+  "installed_bytes_equal_source": true,
+  "cases": [
+    {
+      "boundary": "baseline",
+      "elapsed_seconds": 0.000423,
+      "native_hook_skipped": false,
+      "suggestion_returned": true,
+      "held_entered": false,
+      "feedback_recorded_before_release": true,
+      "feedback_recorded_after_release": true
+    },
+    {
+      "boundary": "settings",
+      "elapsed_seconds": 1.572515,
+      "native_hook_skipped": false,
+      "suggestion_returned": false,
+      "held_entered": true,
+      "feedback_recorded_before_release": false,
+      "feedback_recorded_after_release": false
+    },
+    {
+      "boundary": "selection",
+      "elapsed_seconds": 1.575201,
+      "native_hook_skipped": false,
+      "suggestion_returned": false,
+      "held_entered": true,
+      "feedback_recorded_before_release": false,
+      "feedback_recorded_after_release": false
+    },
+    {
+      "boundary": "logging",
+      "elapsed_seconds": 1.528473,
+      "native_hook_skipped": false,
+      "suggestion_returned": true,
+      "held_entered": true,
+      "feedback_recorded_before_release": false,
+      "feedback_recorded_after_release": true
+    },
+    {
+      "boundary": "feedback_read",
+      "elapsed_seconds": 1.555071,
+      "native_hook_skipped": false,
+      "suggestion_returned": false,
+      "held_entered": true,
+      "feedback_recorded_before_release": false,
+      "feedback_recorded_after_release": false
+    },
+    {
+      "boundary": "feedback_write",
+      "elapsed_seconds": 1.527133,
+      "native_hook_skipped": false,
+      "suggestion_returned": true,
+      "held_entered": true,
+      "feedback_recorded_before_release": false,
+      "feedback_recorded_after_release": true
+    }
+  ],
+  "historical_cause_proven": false,
+  "live_gateway_latency_accepted": false,
+  "limits": "Held synthetic dependencies; no provider, owner state or shared gateway mutation. Feedback functions are instrumentation, not actual disk writes."
+}

@@ -63,13 +63,19 @@ That is 115 repeats and 294 declined offers removed, at the cost of 8 loads. A l
 
 ## Diagnosing fail-open
 
-The optional Hermes pre-call selector waits at most 1.5 seconds for discovery,
-merged inference, selection and loader reachability together. A content-free
-`preflight` entry reports `timeout`, `busy` or `error`; this is not a negative
-skill verdict. At most six callbacks run without a queue. An already-started
-transport may finish under its existing timeout, but late results never update
-turn routing, emit suggestions or record feedback. Thread ContextVars follow the
-calling profile. Contended optional feedback locks are skipped, not waited on.
+The optional Hermes pre-call selector shares one 1.5-second deadline across
+settings, discovery, merged inference, selection, loader reachability and feedback
+reads. Logging and feedback writes get only the remaining budget. A timely
+selection still returns its suggestion if optional bookkeeping is slow. A
+content-free `preflight` entry reports `timeout`, `busy` or `error` on a best-effort,
+zero-extra-wait basis; saturated admission can omit that diagnostic. This is not
+a negative skill verdict. At most six callbacks run without a queue. An
+already-started transport may finish under its existing timeout, but late
+selection results never update routing, emit suggestions or record feedback.
+Bookkeeping for a committed timely suggestion may finish later, cannot replace a
+newer turn's pending token (even with a reused turn ID), and settles a load that
+arrived before disk commit. Thread ContextVars follow the calling profile.
+Contended optional feedback locks are skipped, not waited on.
 Direct Jev tools and explicit CLI calls keep their existing budgets and privacy
 rules; do not reduce selection thresholds to hide slow dependencies. Installing
 these files is not proof an already-running gateway loaded them. Qualify fresh

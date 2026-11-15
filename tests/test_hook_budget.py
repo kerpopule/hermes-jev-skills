@@ -28,8 +28,7 @@ class HookBudgetTests(unittest.TestCase):
             mock.patch.object(plugin.skillpick, 'discover', return_value=[]),
             mock.patch.object(plugin, '_log', side_effect=self.logs.append),
             mock.patch.object(plugin, '_reachable_skill', return_value='synthetic-skill'),
-            mock.patch.object(plugin.preflight, 'run',
-                side_effect=functools.partial(plugin.preflight.run, timeout=.03)),
+            mock.patch.object(plugin.preflight, 'WAIT_SECONDS', .03),
         ]
         for patcher in self.patchers:
             patcher.start()
