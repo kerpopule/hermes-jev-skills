@@ -1,0 +1,73 @@
+{
+  "scope": "small synthetic corpus only; not production skill/caller acceptance",
+  "jev_estimate_rate_usd_per_million_input": 0.042,
+  "cohorts": [
+    {
+      "cohort": "matched-direct",
+      "provider": "jev",
+      "n": 34,
+      "correct": 34,
+      "latency_p50_ms": 79.0,
+      "latency_p95_ms": 324,
+      "brier_noul": 0.014950000000000001,
+      "input_tokens": 10212,
+      "reported_cost_usd": null,
+      "jev_configured_input_rate_estimate_usd": 0.0004289040000000001,
+      "invoice_verified": false
+    },
+    {
+      "cohort": "matched-direct",
+      "provider": "rightnow",
+      "n": 34,
+      "correct": 34,
+      "latency_p50_ms": 414.5,
+      "latency_p95_ms": 521,
+      "brier_noul": 0.015113911903500001,
+      "input_tokens": 9412,
+      "reported_cost_usd": 0.005528279999999999,
+      "jev_configured_input_rate_estimate_usd": null,
+      "invoice_verified": false
+    },
+    {
+      "cohort": "media",
+      "provider": "rightnow",
+      "n": 8,
+      "correct": 8,
+      "latency_p50_ms": 619.5,
+      "latency_p95_ms": 959,
+      "brier_noul": 0.00013274322737500018,
+      "input_tokens": 5801,
+      "reported_cost_usd": 0.03937419,
+      "jev_configured_input_rate_estimate_usd": null,
+      "invoice_verified": false
+    },
+    {
+      "cohort": "original-negation-baseline",
+      "provider": "jev",
+      "n": 26,
+      "correct": 20,
+      "latency_p50_ms": 83.0,
+      "latency_p95_ms": 138,
+      "brier_noul": 0.1290653846153846,
+      "input_tokens": 7666,
+      "reported_cost_usd": null,
+      "jev_configured_input_rate_estimate_usd": 0.000321972,
+      "invoice_verified": false
+    },
+    {
+      "cohort": "original-negation-pilot",
+      "provider": "rightnow",
+      "n": 26,
+      "correct": 19,
+      "latency_p50_ms": 407.5,
+      "latency_p95_ms": 509,
+      "brier_noul": null,
+      "input_tokens": 7212,
+      "reported_cost_usd": 0.004230279999999999,
+      "jev_configured_input_rate_estimate_usd": null,
+      "invoice_verified": false
+    }
+  ],
+  "errors": [],
+  "live_calls_made_by_summary": 0
+}

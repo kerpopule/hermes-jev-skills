@@ -1,0 +1,15 @@
+{
+  "scope": "Actual installed native gate with recorded live RightNow answer and a synthetic table; no broker or GUI action executed",
+  "source_sha256": "b43cdee497965b45e5646706f3fb3a286364fcf50fd775bcb31951670fbb8576",
+  "checks": [
+    "recorded-answer-shape",
+    "low-confidence",
+    "stale",
+    "wrong-table",
+    "unknown-id",
+    "consumed"
+  ],
+  "passed": 6,
+  "live_model_calls": 0,
+  "actions_executed": 0
+}

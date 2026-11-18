@@ -1,0 +1,29 @@
+{
+  "scope": "explicit opt-in evaluation, no production caller migration",
+  "package_tests": 1737,
+  "package_verdict": "OK",
+  "initial_failures_retained": [
+    "README skill count sentence stale",
+    "README skill count tree stale"
+  ],
+  "log_sha256": {
+    "regression.log": "18ae822314f6b160aa1cab03889f031deb4a3fd3416837eb38ef1e4160338910",
+    "regression-final.log": "e2deb3731b3e946c6d1f09f936c3bc4fbb171da6d4ea7c0ef4a035731d2ed3cb",
+    "regression-passing.log": "d8e2899e5753ebd3fac7268c5e497ba0a0de47c24fa6ed020d488bed1f4503a1"
+  },
+  "install": {
+    "prior_managed_files_matched": 164,
+    "final_managed_files_matched": 171,
+    "configuration_files_unchanged": 46,
+    "scope": "root-only; no profile links/settings edits or restart",
+    "provider_calls": 0
+  },
+  "source_sha256": {
+    "jevkit/rightnow.py": "b380ad8ac939ae7cf3d62445759a8e60f5350a69433cdd98efa8df669071a827",
+    "jevkit/rightnow_media.py": "9937cd5a4f3014cbd6d19529db647ef5d5b934ae3b70b37abe8676fe118d487d",
+    "tests/test_rightnow.py": "58bfaf0c02498057273ca8d4ab9b83d0e031f26dc7c457190ff03318e26d3e9d"
+  },
+  "new_paid_calls_after_checkpoint": 0,
+  "live_owner_caller_migration": "not performed; not qualified",
+  "public_evidence_inputs": "synthetic only"
+}
