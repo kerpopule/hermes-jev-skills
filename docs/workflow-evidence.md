@@ -12,6 +12,20 @@ This is a decision guide, not a claim that every feature is active or generally 
 | Web screening | [Scorecard](../evals/web-screen/SCORECARD-2026-09-26.md), [heldout](../evals/web-screen/HELDOUT.md), [follow-up](operational-follow-up-2026-10-01.md) document attack detection, benign losses, local fallback and limits | Local deterministic screen plus bounded classifier. Evaluate the security/availability trade-off; do not generalize a synthetic set into a production false-positive rate |
 | Model/effort routing | [Plugin](../hermes/plugin/hermes-jev/__init__.py), middleware regression tests, and [routing skill](../skills/jev-model-routing/SKILL.md) | Available is not active. Preserve manual choices. Chat Completions uses top-level `reasoning_effort`; Responses uses `reasoning.effort` only inside an already-enabled object |
 
+## Try a decision workflow offline
+
+From the repository root, run:
+
+```sh
+python3 -m scripts.offline_workflow_demo
+```
+
+This replays two canned responses through the existing [design-choice example](design-choice.md) and the real response validator. A confident answer selects `editorial`; an uncertain answer falls back to the original `product` preset. The output reports both paths and zero model calls. It does not read credentials, contact a provider, or measure accuracy or latency. The preview-first pattern is inspired by [TypeSafe Jev Workflows](https://github.com/chaitanya-y/typesafe-jev-workflows); no upstream code is used.
+
+## Code-search comparison
+
+The [code-search baseline](code-search-baseline.md) records three source-location questions and verified excerpts on a pinned public tree. It is a local baseline, not a JevGrep result.
+
 ## Question design is an evaluation, not an automatic upgrade
 
 The old video holdout is now development knowledge and must not become a newly claimed independent confirmation set. A fresh [offline A/B preparation](video-qa-question-ab.md) freezes the current composite question against independent presence/readability/occlusion/elements questions. It does **not** change the production question or floor, run paid calls, or promote a candidate.
