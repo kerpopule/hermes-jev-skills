@@ -73,6 +73,10 @@ def handoff_dir() -> Path:
 
 LANE_MAX = 120
 
+# A lane becomes a filename, every lane contains ':', and ':' is illegal in a Windows filename.
+# The other characters Windows rejects (: * ? " < > |) are already mapped to '_' by the substitution
+# in _clean(); ':' is kept there deliberately, so it is handled separately below.
+
 
 def _clean(key: str) -> str:
     """A filesystem-safe lane key that cannot collide.
@@ -83,7 +87,32 @@ def _clean(key: str) -> str:
     would be handed to another. Past the limit, keep a readable prefix and let a hash of
     the FULL key carry the identity.
     """
-    safe = re.sub(r"[^A-Za-z0-9._:-]", "_", key)
+    # '%' is allowed through so the percent-encoding below SURVIVES a second pass: capsule_path()
+    # re-cleans whatever lane it is handed, so without this a cleaned "telegram%3A1" came back as
+    # "telegram_3A1" and the writer and the reader disagreed (measured: 5 failing tests).
+    # Residual, documented: a lane that literally contained "%3A" would alias an encoded colon —
+    # platform names are words and chat/thread ids are numeric or GUID-shaped, so it cannot arise.
+    safe = re.sub(r"[^A-Za-z0-9._:%-]", "_", key)
+    # The lane is also a FILENAME: ``handoff-<lane>.md`` and ``pending-<lane>.json``. ':' is illegal
+    # in a Windows filename and NTFS does not raise — it stores everything after the colon as an
+    # ALTERNATE DATA STREAM. Python then reads and writes that path happily, while
+    # ls/Explorer/git/backup tools see a single extensionless file named ``handoff-telegram`` shared
+    # by EVERY Telegram lane; deleting that one innocuous file destroys every lane's capsule at
+    # once. Two or more colons — every thread/topic lane — is not even a stream: it is
+    # ``[Errno 22] Invalid argument``, so ``build()`` returns ``write_failed`` and no capsule exists.
+    #
+    # PERCENT-ENCODED rather than substituted with '_': ':' is the STRUCTURAL separator, so mapping
+    # it to '_' would make lane "telegram:a_b" (chat "a_b") and "telegram:a:b" (chat "a", thread
+    # "b") the SAME key — the collision this function promises never to allow, and the one that
+    # hands one conversation's capsule to another. '%' cannot appear in ``safe`` here (the
+    # substitution above maps it to '_'), so "%3A" is unambiguous.
+    #
+    # Applied on EVERY platform rather than behind ``os.name == "nt"``: CI is Linux and macOS, where
+    # ':' is a legal filename character, so a platform-gated fix could never be tested there. Writer
+    # and reader both go through _clean, so they keep agreeing on the key. Migration cost on POSIX: an
+    # existing capsule file is orphaned once (capsules are NOT pruned or TTL'd — only the pending
+    # marker is), so build() falls back to the pre-encoding filename when reading "previous".
+    safe = safe.replace(":", "%3A")
     if len(safe) <= LANE_MAX:
         return safe
     fingerprint = hashlib.sha256(key.encode("utf-8", "replace")).hexdigest()[:20]
@@ -205,11 +234,16 @@ def confidential_here() -> bool:
 
 
 def capsule_path(lane: str) -> Path:
-    return handoff_dir() / f"handoff-{lane}.md"
+    # _clean() at the PATH boundary, not only in lane_key(): build() and take_pending() are both
+    # callable with a lane from anywhere (tests, the nightly script, a third-party generator), and a
+    # raw "platform:chat:thread" lane produced "[Errno 22] Invalid argument" on Windows — one colon
+    # was a silent NTFS alternate data stream, two were an outright failure. Cleaning here is
+    # idempotent, so an already-clean key is unchanged and both sides always agree on the filename.
+    return handoff_dir() / f"handoff-{_clean(lane)}.md"
 
 
 def pending_path(lane: str) -> Path:
-    return handoff_dir() / f"pending-{lane}.json"
+    return handoff_dir() / f"pending-{_clean(lane)}.json"
 
 
 def is_trigger(text: Any) -> bool:
@@ -377,6 +411,14 @@ def build(
 
     previous = ""
     existing = capsule_path(lane)
+    if not existing.exists() and _clean(lane) != lane and os.name != "nt":
+        # The lane key gained percent-encoding, so a capsule written by an older build sits at the
+        # unencoded name. Capsules are never pruned and are read back as "previous" context, so
+        # without this fallback one upgrade silently breaks the chain instead of costing "at most
+        # one handoff".
+        legacy = handoff_dir() / f"handoff-{lane}.md"
+        if legacy.exists():
+            existing = legacy
     if existing.exists():
         try:
             previous = existing.read_text(encoding="utf-8")
@@ -448,11 +490,16 @@ def build(
     text = f"# Handoff — {stamp}\n\n{capsule}\n"
     try:
         capsule_path(lane).write_text(text, encoding="utf-8")
-        pending_path(lane).write_text(json.dumps({"at": time.time(), "lane": lane,
+        # The marker names the CLEANED lane, because that is what the file on disk is keyed on;
+        # writing the raw lane here would leave a marker pointing at a filename that does not exist
+        # (the two-identity split this patch exists to remove). The raw form is kept for debugging.
+        pending_path(lane).write_text(json.dumps({"at": time.time(), "lane": _clean(lane),
+                                                  "raw_lane": lane,
                                                   "session_id": str(session_id)}), encoding="utf-8")
     except OSError as error:
         return {"status": "write_failed", "error": str(error)[:200]}
-    return {"status": "ok", "lane": lane, "path": str(capsule_path(lane)), "messages": len(messages),
+    return {"status": "ok", "lane": _clean(lane), "path": str(capsule_path(lane)),
+            "messages": len(messages),
             "jev": jev, "jev_errors": jev_errors, "jev_calls": jev_calls, "counts": counts,
             "chars": len(text)}
 

@@ -1,5 +1,5 @@
 name: hermes-handoff
-version: 0.4.1
+version: 0.4.2
 description: Close a session deliberately and start the next one already knowing what matters. Say "handoff" or run /wrapup.
 author: Steve Darlow
 license: MIT

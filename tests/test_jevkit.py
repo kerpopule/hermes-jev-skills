@@ -1516,8 +1516,11 @@ class LaneResolutionTests(unittest.TestCase):
         self.assertIn("user-9", lane)
 
     def test_a_direct_chat_id_is_used_without_touching_the_store(self):
-        self.assertEqual(self.ho.lane_key({"platform": "teams", "chat_id": "chatZ", "thread_id": "3"}),
-                         "teams:chatZ:3")
+        lane = self.ho.lane_key({"platform": "teams", "chat_id": "chatZ", "thread_id": "3"})
+        # ':' is percent-encoded because the lane key is also a FILENAME (see _clean): a colon is
+        # illegal on Windows, where NTFS turns it into an alternate data stream or raises OSError 22.
+        self.assertEqual(lane, "teams%3AchatZ%3A3")
+        self.assertNotIn(":", lane, "a lane key must be a legal filename on every platform")
 
 
 class LaneCollisionTests(unittest.TestCase):
@@ -1543,13 +1546,15 @@ class LaneCollisionTests(unittest.TestCase):
         self.assertEqual(self.ho.lane_key(dict(args)), self.ho.lane_key(dict(args)))
 
     def test_short_keys_stay_readable_and_unhashed(self):
-        self.assertEqual(self.ho.lane_key({"source": "teams", "chat_id": "chatA", "thread_id": "1"}),
-                         "teams:chatA:1")
+        lane = self.ho.lane_key({"source": "teams", "chat_id": "chatA", "thread_id": "1"})
+        self.assertEqual(lane, "teams%3AchatA%3A1")
+        self.assertNotIn(":", lane)
 
     def test_a_long_key_keeps_a_readable_prefix(self):
         lane = self.ho.lane_key({"source": "teams", "chat_id": "a:1" + "Z" * 200, "thread_id": "1"})
-        self.assertTrue(lane.startswith("teams:a:1"))
+        self.assertTrue(lane.startswith("teams%3Aa%3A1"))
         self.assertLessEqual(len(lane), self.ho.LANE_MAX)
+        self.assertNotIn(":", lane)
 
     def test_a_hostile_conversation_id_cannot_escape_the_handoff_directory(self):
         """The property that matters is containment, not the absence of dots."""
