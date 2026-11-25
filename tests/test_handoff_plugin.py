@@ -14,6 +14,7 @@ import enum
 import importlib.util
 import json
 import os
+import pathlib
 import re
 import shutil
 import sqlite3
@@ -1037,6 +1038,74 @@ class ConfidentialPreviousCapsuleTests(unittest.TestCase):
         self.assertIn("do NOT carry it forward", prompt)
         self.assertIn("Do not lose identifiers",
                       compact.handoff_prompt("[KEEP VERBATIM] user: x", previous="## Pointers\nold"))
+
+
+class LaneKeyIsAFilenameTests(unittest.TestCase):
+    """A lane key is not just an id: it becomes a FILENAME (``handoff-<lane>.md``).
+
+    On Windows ``:`` is illegal in a filename and NTFS does not raise —
+    ``handoff-telegram:1.md`` is silently created as the file ``handoff-telegram`` plus an
+    ALTERNATE DATA STREAM named ``1.md``. The write reports success, ``exists()`` is False at the
+    real path, ``take_pending()`` finds nothing, and the capsule is never injected. Nothing caught
+    this because CI is Linux and macOS, where ``:`` is a perfectly legal filename character; a
+    Windows host simply never gets a handoff and nothing anywhere reports an error.
+    """
+
+    def setUp(self) -> None:
+        # Isolate HERMES_HOME like every other case in this file: capsule_path() creates
+        # <home>/handoffs, and a test that only wants a filename must not write into a real ~/.hermes.
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        env = mock.patch.dict(os.environ, {"HERMES_HOME": self.tmp.name})
+        env.start()
+        self.addCleanup(env.stop)
+        self.handoff = load_handoff("handoff_lane_under_test")
+
+    def test_lane_key_carries_no_filesystem_illegal_character(self) -> None:
+        lane = self.handoff.lane_key(
+            {"platform": "telegram", "chat_id": "5243073207", "thread_id": ""})
+        for ch in ': * ? " < > |'.split():
+            self.assertNotIn(ch, lane, "lane key would be an illegal filename character: %r" % ch)
+
+    def test_a_raw_lane_lands_where_capsule_path_says(self) -> None:
+        """Drives the PATH BOUNDARY with an un-cleaned lane, which is what build() and
+        take_pending() accept from any caller.
+
+        Note what is deliberately NOT asserted: that exists() is False before the fix. It is not —
+        Python reads and writes an NTFS alternate data stream perfectly happily, so the filesystem
+        cannot see this bug at all. Only the NAME can be asserted portably, which is why the test
+        above exists and why this one checks the round trip rather than the visibility.
+        """
+        raw = "telegram:-1003829274549:29"
+        target = self.handoff.capsule_path(raw)
+        self.assertEqual(target, self.handoff.capsule_path(self.handoff.lane_key(
+            {"platform": "telegram", "chat_id": "-1003829274549", "thread_id": "29"})))
+        for ch in ': * ? " < > |'.split():
+            self.assertNotIn(ch, target.name)
+        target.write_text("capsule", encoding="utf-8")
+        self.assertEqual(target.read_text(encoding="utf-8"), "capsule")
+
+    def test_truncation_and_fingerprint_still_hold(self) -> None:
+        lane = self.handoff._clean("t" + "x" * 400)
+        self.assertLessEqual(len(lane), 120)
+        self.assertIn("-", lane, "a long key must keep its hash fingerprint")
+        # Idempotency is load-bearing: capsule_path() re-cleans whatever it is given, and the
+        # truncated output is exactly LANE_MAX long while the guard is `<=`. Flip that to `<` and
+        # every long lane silently re-hashes, splitting the writer from the reader with no test
+        # failing — so it is pinned here, at both ends of the boundary.
+        self.assertEqual(self.handoff._clean(lane), lane)
+        for length in (118, 119, 120, 121):
+            key = "t" + "x" * (length - 1)
+            once = self.handoff._clean(key)
+            self.assertEqual(self.handoff._clean(once), once, "not idempotent at len %d" % length)
+
+    def test_colon_is_encoded_not_substituted_so_lanes_cannot_collide(self) -> None:
+        """':' is the STRUCTURAL separator. Mapping it to '_' would make chat "a_b" and chat "a"
+        with thread "b" the same lane — the collision that hands one conversation's capsule to
+        another. Percent-encoding keeps the mapping injective."""
+        a = self.handoff._clean("telegram:a_b")
+        b = self.handoff._clean("telegram:a:b")
+        self.assertNotEqual(a, b)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **handoff: a lane key is a filename, and ':' made it an NTFS data stream.** Every lane contains a
+  colon (`platform:chat_id`, plus `:thread_id` for threads and topics). On Windows one colon silently
+  writes the capsule into an alternate data stream — invisible to `ls`/Explorer/git/backup, shared by
+  every lane of that platform, and destroyed by deleting the one extensionless base file — while two
+  colons, i.e. every thread/topic lane, raise `[Errno 22]` and no capsule is written at all.
+  `_clean()` now percent-encodes `:` on every platform (encoded rather than mapped to `_`, which would
+  make chat `a_b` and chat `a`/thread `b` the same lane), `capsule_path()`/`pending_path()` clean at
+  the path boundary so any caller is safe, the pending marker records the cleaned lane, and reading
+  the previous capsule falls back to the pre-encoding filename on POSIX so an upgrade does not break
+  the chain. `hermes-handoff` `plugin.yaml` 0.4.2.
+
 ## 0.25.3 (2026-11-12)
 
 Released by the daily Jev steward: 3 commit(s) on main since v0.25.2.
