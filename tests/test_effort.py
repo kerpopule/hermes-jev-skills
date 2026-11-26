@@ -75,6 +75,13 @@ class LevelsFromConfigTests(unittest.TestCase):
         self.assertEqual(effort.levels_from_config({"effort": {"enabled": True, "levels": levels}}),
                          ("low", "low", "high", "max"))
 
+    def test_minimal_is_accepted(self):
+        # minimal is in Hermes' canonical ladder; a table naming it must not be
+        # rejected wholesale — that is the whole reason it is in KNOWN_LEVELS.
+        self.assertEqual(effort.levels_from_config(
+            {"effort": {"enabled": True, "levels": ["minimal", "medium", "high", "xhigh"]}}),
+            ("minimal", "medium", "high", "xhigh"))
+
     def test_a_dict_names_buckets_and_falls_back(self):
         table = effort.levels_from_config({"effort": {"enabled": True,
                                                       "levels": {"expert": "max"}}})

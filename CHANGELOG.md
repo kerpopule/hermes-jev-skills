@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Add `"minimal"` to `effort.KNOWN_LEVELS` in `jevkit/effort.py`, so a routing
+  config can name it in `effort.levels` and the `effort.models` capability
+  map. Without it, `levels_from_config` rejects the whole table and effort
+  never applies. `minimal` is in Hermes' canonical reasoning ladder
+  (`none`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`); Codex/Responses
+  wires clamp it to `low` and the Hermes chat-completions transport emits it
+  as `reasoning_effort: "minimal"`. This is the one code delta for the
+  config-only effort mechanism: `effort.enabled`, `effort.levels` (4-bucket
+  table) and `effort.models` (`alias:model_id` capability map) stay config-
+  only, floor semantics — a tier floor guarantees a minimum effort bucket,
+  never a ceiling, so a hard turn with substantial answers gets `high`.
+
 ## 0.25.4 (2026-11-26)
 
 - Allow an explicit compatible decision endpoint to opt into a longer request
