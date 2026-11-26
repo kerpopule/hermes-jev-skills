@@ -66,3 +66,11 @@ Remote machine on a private network (Tailscale, VPN): `jev setup-key --host <pri
 ## Where the key goes
 
 The OS secret store (macOS Keychain service `Hermes TypeSafe API`, or `secret-tool` on Linux), falling back to `~/.config/jev/credentials` (mode 0600). On a Hermes machine it is also written as `TYPESAFE_API_KEY` into `~/.hermes/.env` and every `profiles/*/.env`, because each Hermes lane reads its own file. Running gateways pick it up on their next restart; do not restart one without being asked.
+
+### Local compatible decision servers
+
+For a larger local decision model behind an explicitly configured
+`TYPESAFE_BASE_URL`, set `JEV_LOCAL_TIMEOUT_SECONDS` to the request budget
+needed by that model (for example, `60`). The client caps this override at
+300 seconds and preserves longer caller budgets. It does not change hosted
+provider timeouts. Verify a live decision before relying on routing.
