@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Allow an explicit compatible decision endpoint to opt into a longer request
+  budget with `JEV_LOCAL_TIMEOUT_SECONDS`, capped at 300 seconds. Hosted
+  endpoint budgets remain unchanged.
+
 ## 0.25.3 (2026-11-12)
 
 Released by the daily Jev steward: 3 commit(s) on main since v0.25.2.

@@ -651,6 +651,15 @@ def ask(
     if via not in keystore.PROVIDERS:
         via = "typesafe"
     endpoint = _custom_typesafe_endpoint(base) if base and via == "typesafe" else None
+    # Larger local decision models need more time than hosted Jev's budget.
+    # Opt in only for an explicitly configured compatible endpoint.
+    if endpoint and os.environ.get("JEV_LOCAL_TIMEOUT_SECONDS"):
+        try:
+            local_timeout = float(os.environ["JEV_LOCAL_TIMEOUT_SECONDS"])
+            if math.isfinite(local_timeout) and local_timeout > 0:
+                timeout = max(timeout, min(local_timeout, 300.0))
+        except ValueError:
+            pass
     # A compatible endpoint may be a local mock or an explicit HTTPS proxy. Never forward
     # either an explicit api_key or an automatically discovered provider key to it. The only
     # bearer it can get is JEV_PROXY_API_KEY, which an operator sets for that gateway alone.

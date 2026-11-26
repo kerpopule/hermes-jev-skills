@@ -155,6 +155,28 @@ class RetryAfter(unittest.TestCase):
         slept.assert_not_called()
         self.assertEqual(calls["n"], 1)
 
+class LocalDecisionTimeout(unittest.TestCase):
+    def test_custom_endpoint_can_extend_budget(self):
+        good = Scripted({'q': 0.2})
+        seen = []
+        def send(body, headers, timeout):
+            seen.append(timeout)
+            return good(body, headers, timeout)
+        with mock.patch.dict('os.environ', {'TYPESAFE_BASE_URL': 'http://127.0.0.1:8091',
+                                           'JEV_LOCAL_TIMEOUT_SECONDS': '60'}):
+            client.ask('state', {'q': client.noul('Is it risky?')}, transport=send, timeout=2)
+        self.assertGreater(seen[0], 59)
+
+    def test_hosted_endpoint_keeps_callers_budget(self):
+        good = Scripted({'q': 0.2})
+        seen = []
+        def send(body, headers, timeout):
+            seen.append(timeout)
+            return good(body, headers, timeout)
+        with mock.patch.dict('os.environ', {'TYPESAFE_BASE_URL': '', 'JEV_LOCAL_TIMEOUT_SECONDS': '60'}):
+            client.ask('state', {'q': client.noul('Is it risky?')}, api_key=KEY, transport=send, timeout=2)
+        self.assertLessEqual(seen[0], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
