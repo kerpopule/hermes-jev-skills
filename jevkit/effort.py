@@ -21,11 +21,11 @@ import re
 from typing import Any, Dict, Mapping, Optional
 
 # The levels Hermes' agent.reasoning_effort.EFFORT_LADDER defines, without importing it (the
-# plugin also runs on Hermes versions where the module layout differs). "minimal" and "ultra"
-# are deliberately omitted from the default table: minimal is rejected by Codex/Responses wires
-# and ultra is internal-only (clamped to max everywhere). A config may still name them — the
-# core clamps what the route does not support.
-KNOWN_LEVELS = ("none", "low", "medium", "high", "xhigh", "max")
+# plugin also runs on Hermes versions where the module layout differs). "ultra" is deliberately
+# omitted: it is internal-only (clamped to max everywhere). "minimal" is named so a config can
+# use it — it is in Hermes' canonical ladder and the widest OpenAI-compatible wire vocabulary;
+# Codex/Responses wires reject it and Hermes clamps it to low at the transport.
+KNOWN_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 
 # Difficulty buckets 0..3, matching jevkit.route.DIFFICULTY (trivial / routine / substantial /
 # expert). Index 0 answers the easiest turns, index 3 the hardest.
